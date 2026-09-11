@@ -1,0 +1,9 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# pnpm 10 blocks lifecycle scripts unless a package is explicitly allowed.
+# These need theirs to fetch/patch native binaries.
+onlyBuiltDependencies:
+  - '@tauri-apps/cli'
+  - esbuild

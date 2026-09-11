@@ -1,0 +1,18 @@
+# The desktop crate is a Cargo workspace member, so its manifest and sources
+# must stay in the upload or `cargo` will refuse to load the workspace.
+# Everything heavy about it can go.
+apps/desktop/icons
+apps/desktop/src-tauri/gen
+apps/desktop/src-tauri/icons
+apps/desktop/src-tauri/target
+
+target/**
+!target/release
+!target/x86_64-unknown-linux-gnu/release/**
+!target/aarch64-unknown-linux-gnu/release/**
+
+.git
+.turbo
+node_modules
+**/node_modules
+**/.svelte-kit

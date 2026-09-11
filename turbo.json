@@ -1,0 +1,28 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "tui",
+  "globalDependencies": [".env", "tsconfig.json", "packages/tsconfig/base.json"],
+  "globalEnv": ["TAURI_ENV_PLATFORM", "TAURI_ENV_DEBUG", "TAURI_DEV_HOST"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "src/**",
+        "static/**",
+        "svelte.config.js",
+        "vite.config.ts",
+        "!.svelte-kit/**"
+      ],
+      "outputs": ["build/**", "dist/**", ".svelte-kit/output/**"]
+    },
+    "check": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

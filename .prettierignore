@@ -1,0 +1,9 @@
+build/
+dist/
+.svelte-kit/
+.turbo/
+node_modules/
+target/
+apps/desktop/src-tauri/gen/
+pnpm-lock.yaml
+Cargo.lock

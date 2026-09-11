@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# Cargo workspace root.
+#
+# This manifest does double duty:
+#   1. [workspace] - the root of the Cargo workspace (shared target/ dir,
+#      single Cargo.lock, shared dependency versions).
+#   2. [package]   - the crate that owns the Vercel serverless functions.
+#      Vercel's Rust runtime expects a `Cargo.toml` at the deployment root
+#      with one `[[bin]]` per handler file in `api/`, so the root manifest
+#      has to be a real package, not a virtual one.
+#
+# `default-members = ["."]` means a bare `cargo build` at the root only
+# builds the Vercel functions. The desktop crate pulls in system libraries
+# (webkit2gtk / wry) that a serverless Linux build image does not have, so
+# it must never be dragged into the Vercel build. Use `cargo build
+# --workspace` locally when you do want everything.
+# ---------------------------------------------------------------------------
+
+[workspace]
+resolver = "2"
+members = ["crates/shared_utils", "apps/desktop/src-tauri"]
+default-members = ["."]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+shared_utils = { path = "crates/shared_utils" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+# --- Vercel serverless functions package ----------------------------------
+
+[package]
+name = "api"
+description = "Vercel serverless functions (Rust runtime)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# One [[bin]] per file in api/. The bin name must match the file stem:
+# api/greet.rs -> POST /api/greet
+[[bin]]
+name = "greet"
+path = "api/greet.rs"
+
+[dependencies]
+shared_utils = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+vercel_runtime = "2"
+http-body-util = "0.1"
+
+# Profiles must live in the workspace root manifest; Cargo ignores
+# [profile] blocks in member manifests. These apply to `cargo tauri build`
+# release builds too.
+[profile.release]
+codegen-units = 1
+lto = "fat"
+opt-level = 3
+strip = true
+# NOTE: `panic = "abort"` is the usual Tauri release recommendation, but this
+# profile is shared with the serverless functions, where unwinding means a
+# single bad request fails that request instead of tearing down the warm
+# instance. Unwind (the default) is the safer trade here.
+
+[profile.dev]
+incremental = true

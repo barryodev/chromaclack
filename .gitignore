@@ -1,0 +1,61 @@
+# Dependencies and package-manager state
+node_modules/
+.pnpm-store/
+.npm/
+
+# Build output and caches
+.turbo/
+.svelte-kit/
+apps/frontend/build/
+dist/
+target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+coverage/
+
+# Tauri and Android generated artifacts
+apps/desktop/src-tauri/gen/android/
+apps/desktop/src-tauri/gen/apple/
+*.apk
+*.aab
+*.ipa
+
+# Local environment and deployment configuration
+.env
+.env.*
+!.env.example
+.vercel/
+.netlify/
+.firebase/
+
+# Credentials, tokens, certificates, and signing keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.jks
+*.keystore
+*.mobileprovision
+credentials.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+*-credentials.json
+*-secret*.json
+
+# Local databases, logs, and runtime files
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.pid
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
