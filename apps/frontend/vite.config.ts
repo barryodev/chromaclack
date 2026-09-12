@@ -8,6 +8,7 @@ const host = process.env.TAURI_DEV_HOST;
 // Set by the Tauri CLI during `tauri build` / `tauri dev`.
 const tauriPlatform = process.env.TAURI_ENV_PLATFORM;
 const tauriDebug = !!process.env.TAURI_ENV_DEBUG;
+const port = Number(process.env.PORT ?? 5173);
 
 export default defineConfig({
 	plugins: [sveltekit()],
@@ -18,7 +19,7 @@ export default defineConfig({
 	server: {
 		// Must match `build.devUrl` in tauri.conf.json, so fail loudly rather
 		// than silently moving to another port.
-		port: 5173,
+		port,
 		strictPort: true,
 		host: host ?? false,
 		hmr: host ? { protocol: 'ws', host, port: 5174 } : undefined,
@@ -45,7 +46,7 @@ export default defineConfig({
 		// Only downlevel when the Tauri CLI is driving the build; the web
 		// deploy keeps Vite's modern default target.
 		target: tauriPlatform ? (tauriPlatform === 'windows' ? 'chrome105' : 'safari15') : undefined,
-		minify: tauriDebug ? false : 'esbuild',
+		minify: tauriDebug ? false : 'oxc',
 		sourcemap: tauriDebug
 	}
 });

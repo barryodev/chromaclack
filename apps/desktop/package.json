@@ -13,6 +13,7 @@
     "icons": "tauri icon ./src-tauri/icons/icon.png"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@repo/frontend": "workspace:*",
+    "@tauri-apps/cli": "^2.11.4"
   }
 }

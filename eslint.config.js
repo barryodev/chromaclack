@@ -32,6 +32,7 @@ export default ts.config(
 		ignores: [
 			'**/build/',
 			'**/dist/',
+			'.vercel/',
 			'**/.svelte-kit/',
 			'**/node_modules/',
 			'**/.turbo/',
