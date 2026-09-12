@@ -3,7 +3,8 @@
 This roadmap tracks the development of the tactile, gestural color-mixing app. The project uses a Turborepo monorepo to isolate a SvelteKit SPA (served via Vercel) and a Tauri v2 native client (compiled for Ubuntu/Desktop) with shared Rust logic.
 
 ## Phase 1: Environment Validation & Deployment Pipeline
-*Goal: Establish the Turborepo monorepo, prove the environment adapter routes correctly, and validate the local native/web deployment stack before moving into the mechanical UI work.*
+
+_Goal: Establish the Turborepo monorepo, prove the environment adapter routes correctly, and validate the local native/web deployment stack before moving into the mechanical UI work._
 
 - [x] Initialize Turborepo with npm/pnpm workspaces.
 - [x] Scaffold SvelteKit in `apps/frontend` configured for pure static SPA (`adapter-static`, `ssr = false`).
@@ -16,12 +17,14 @@ This roadmap tracks the development of the tactile, gestural color-mixing app. T
 - [x] Deploy the web app to Vercel and verify the serverless endpoint works in a browser.
 - [x] Validate the local web flow with a stable proxy-backed API for `POST /api/greet` during development.
 - [x] Verify the repo passes the full local validation pass: format, lint, typecheck, clippy, tests, and build.
+- [x] System-wide dependency version check and upgrade
 - [ ] Configure a GitHub Action to automatically build the native Ubuntu/Linux executable on push.
 - [ ] Test the deployment on Android emulator or device and verify the app boots correctly in the Tauri Android flow.
 - [ ] Document and validate the full local developer workflow for web, desktop, and Android startup.
 
 ## Phase 2: The Mechanical CSS Hinge (Vertical Axis)
-*Goal: Isolate the 3D CSS rendering and mechanical timing before introducing color math.*
+
+_Goal: Isolate the 3D CSS rendering and mechanical timing before introducing color math._
 
 - [ ] Create a single 3-piece clacker DOM component (Static Top, Static Bottom, Hinged Flap).
 - [ ] Apply `perspective` to the container and `rotateX` to the flap.
@@ -32,7 +35,8 @@ This roadmap tracks the development of the tactile, gestural color-mixing app. T
 - [ ] Verify the 3D depth illusion holds up without visual artifacting when transitioning pure color blocks.
 
 ## Phase 3: Multi-Axis Gestures & The Rotary Dimmer
-*Goal: Replace button clicks with continuous, multi-directional Pointer Events.*
+
+_Goal: Replace button clicks with continuous, multi-directional Pointer Events._
 
 - [ ] Attach the standard JavaScript Pointer Events API to the clacker component.
 - [ ] Capture the initial X/Y coordinates on `pointerdown`.
@@ -44,7 +48,8 @@ This roadmap tracks the development of the tactile, gestural color-mixing app. T
 - [ ] Map the calculated angle to a CSS `rotateZ` transform to simulate a mechanical dimmer switch (Lightness).
 
 ## Phase 4: Synthesis & Native OS Share Integration
-*Goal: Tie all gestures into a unified HSL state and integrate Tauri's native OS capabilities.*
+
+_Goal: Tie all gestures into a unified HSL state and integrate Tauri's native OS capabilities._
 
 - [ ] Create a centralized Svelte store to hold the master HSL state (Hue, Saturation, Lightness).
 - [ ] Update the UI text box to dynamically convert and display the current HSL state as a Hex/RGB string.
@@ -57,4 +62,4 @@ This roadmap tracks the development of the tactile, gestural color-mixing app. T
 
 ## Current milestone
 
-The repo has reached the initial commit point after successfully validating the monorepo, the web endpoint flow, the desktop native flow, and the local developer workflow. The next major milestone is Android validation before moving into the mechanical CSS hinge design work.
+The repo has completed the initial validation milestone, including the monorepo, web endpoint flow, desktop native flow, and local developer workflow. The next major milestone is Android validation before moving into the mechanical CSS hinge design work.
