@@ -8,7 +8,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "android:init": "tauri android init",
-    "android:dev": "tauri android dev",
+    "android:dev": "tauri android dev --host $(ip route get 1.1.1.1 | awk '{print $7; exit}')",
     "android:build": "tauri android build",
     "icons": "tauri icon ./src-tauri/icons/icon.png"
   },
