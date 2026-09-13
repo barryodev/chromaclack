@@ -1,9 +1,17 @@
+<script lang="ts">
+	let flipped = $state(false);
+
+	function toggle() {
+		flipped = !flipped;
+	}
+</script>
+
 <section class="stage">
-	<div class="clacker">
-		<div class="half half--top"></div>
-		<div class="half half--bottom"></div>
-		<div class="flap"></div>
-	</div>
+	<button type="button" class="clacker" onclick={toggle} aria-pressed={flipped} aria-label="Flip">
+		<span class="half half--top"></span>
+		<span class="half half--bottom"></span>
+		<span class="flap" class:flipped></span>
+	</button>
 </section>
 
 <style>
@@ -16,8 +24,12 @@
 
 	.clacker {
 		position: relative;
-		width: 12rem;
-		height: 16rem;
+		width: 14rem;
+		height: 14rem;
+		padding: 0;
+		background: none;
+		border: none;
+		cursor: pointer;
 		perspective: 24rem;
 	}
 
@@ -43,8 +55,8 @@
 		border-radius: 0 0 0.75rem 0.75rem;
 	}
 
-	/* Static tilt only, to prove the 3D depth reads correctly before any
-	   click-driven transition or letter/color content is added. */
+	/* Rests flush over the top half; a click flips it down to reveal the
+	   bottom half, like a physical split-flap card falling forward. */
 	.flap {
 		position: absolute;
 		top: 0;
@@ -54,6 +66,11 @@
 		background: var(--accent);
 		border-radius: 0.75rem 0.75rem 0 0;
 		transform-origin: bottom center;
-		transform: rotateX(-55deg);
+		transform: rotateX(0deg);
+		transition: transform 0.6s ease;
+	}
+
+	.flap.flipped {
+		transform: rotateX(-180deg);
 	}
 </style>
