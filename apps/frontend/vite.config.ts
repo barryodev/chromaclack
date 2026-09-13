@@ -21,7 +21,7 @@ export default defineConfig({
 		// than silently moving to another port.
 		port,
 		strictPort: true,
-		host: host ?? false,
+		host: host ?? true,
 		hmr: host ? { protocol: 'ws', host, port: 5174 } : undefined,
 		proxy: {
 			'/api': {
