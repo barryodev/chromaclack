@@ -18,8 +18,9 @@ _Goal: Establish the Turborepo monorepo, prove the environment adapter routes co
 - [x] Validate the local web flow with a stable proxy-backed API for `POST /api/greet` during development.
 - [x] Verify the repo passes the full local validation pass: format, lint, typecheck, clippy, tests, and build.
 - [x] System-wide dependency version check and upgrade
+- [x] Connect the Vercel project to the GitHub repo so pushes/merges trigger automatic Preview/Production deployments (was a one-off CLI deploy until now).
+- [x] Test the deployment on Android emulator or device and verify the app boots correctly in the Tauri Android flow.
 - [ ] Configure a GitHub Action to automatically build the native Ubuntu/Linux executable on push.
-- [ ] Test the deployment on Android emulator or device and verify the app boots correctly in the Tauri Android flow.
 - [ ] Document and validate the full local developer workflow for web, desktop, and Android startup.
 
 ## Phase 2: The Mechanical CSS Hinge (Vertical Axis)
@@ -62,4 +63,4 @@ _Goal: Tie all gestures into a unified HSL state and integrate Tauri's native OS
 
 ## Current milestone
 
-The repo has completed the initial validation milestone, including the monorepo, web endpoint flow, desktop native flow, and local developer workflow. The next major milestone is Android validation before moving into the mechanical CSS hinge design work.
+The repo has completed the initial validation milestone, including the monorepo, web endpoint flow (with confirmed CI/CD), desktop native flow, and Android validation on a physical device. The remaining Phase 1 work is a GitHub Action for native Linux builds and developer workflow documentation; after that, the project moves into the mechanical CSS hinge design work (Phase 2).
