@@ -67,7 +67,9 @@
 		border-radius: 0.75rem 0.75rem 0 0;
 		transform-origin: bottom center;
 		transform: rotateX(0deg);
-		transition: transform 0.6s ease;
+		/* Fast fall + slight overshoot/rebound past the stop, rather than a
+		   smooth ease-out glide, to read as a mechanical snap. */
+		transition: transform 0.55s cubic-bezier(0.65, -0.55, 0.35, 1.5);
 	}
 
 	.flap.flipped {
