@@ -1,4 +1,7 @@
 <script lang="ts">
+	type Mode = 'vertical' | 'horizontal' | 'spin';
+
+	let { mode = 'vertical' }: { mode?: Mode } = $props();
 	let flipped = $state(false);
 
 	function toggle() {
@@ -7,11 +10,19 @@
 </script>
 
 <section class="stage">
-	<button type="button" class="clacker" onclick={toggle} aria-pressed={flipped} aria-label="Flip">
-		<span class="half half--top"></span>
-		<span class="half half--bottom"></span>
-		<span class="flap" class:flipped></span>
-	</button>
+	{#if mode === 'vertical'}
+		<button type="button" class="clacker" onclick={toggle} aria-pressed={flipped} aria-label="Flip">
+			<span class="half half--top"></span>
+			<span class="half half--bottom"></span>
+			<span class="flap" class:flipped></span>
+		</button>
+	{:else if mode === 'horizontal'}
+		<div class="horizontal-clacker" aria-label="Horizontal movement preview">
+			<span class="horizontal-half horizontal-half--left"></span>
+			<span class="horizontal-half horizontal-half--right"></span>
+			<span class="horizontal-flap"></span>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -20,6 +31,48 @@
 		align-items: center;
 		justify-content: center;
 		padding: 3rem;
+	}
+
+	.horizontal-clacker {
+		position: relative;
+		width: 14rem;
+		height: 14rem;
+		perspective: 24rem;
+	}
+
+	.horizontal-half,
+	.horizontal-flap {
+		position: absolute;
+		top: 0;
+		width: 50%;
+		height: 100%;
+		background: var(--field);
+		border: 1px solid var(--border);
+	}
+
+	.horizontal-half--left {
+		left: 0;
+		border-radius: 0.75rem 0 0 0.75rem;
+	}
+
+	.horizontal-half--right {
+		right: 0;
+		border-radius: 0 0.75rem 0.75rem 0;
+	}
+
+	.horizontal-flap {
+		left: 0;
+		background: var(--accent);
+		border-radius: 0.75rem 0 0 0.75rem;
+		transform-origin: center right;
+		transform: rotateY(18deg);
+	}
+
+	@media (max-width: 28rem) {
+		.horizontal-clacker {
+			width: min(14rem, calc(100vw - 2rem));
+			height: min(14rem, calc(100vw - 2rem));
+		}
 	}
 
 	.clacker {
@@ -55,8 +108,6 @@
 		border-radius: 0 0 0.75rem 0.75rem;
 	}
 
-	/* Rests flush over the top half; a click flips it down to reveal the
-	   bottom half, like a physical split-flap card falling forward. */
 	.flap {
 		position: absolute;
 		top: 0;
@@ -75,4 +126,5 @@
 	.flap.flipped {
 		transform: rotateX(-180deg);
 	}
+
 </style>
