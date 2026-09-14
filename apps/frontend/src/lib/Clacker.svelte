@@ -8,42 +8,56 @@
 		flipped = !flipped;
 	}
 
-	// How long a press must be held before dragging starts rotating the knob.
-	const SPIN_ENGAGE_DELAY_MS = 300;
-	// Degrees rotated per pixel of horizontal drag.
-	const SPIN_SENSITIVITY = 0.75;
-
 	let spinAngle = $state(0);
-	let spinEngaged = $state(false);
+	let isDragging = $state(false);
 	let spinSettling = $state(false);
-	let spinStartX = 0;
-	let spinStartAngle = 0;
-	let spinEngageTimer: ReturnType<typeof setTimeout> | undefined;
+	let spinCenterX = 0;
+	let spinCenterY = 0;
+	let previousPointerAngle = 0;
 
-	function startSpin(event: PointerEvent) {
+	function pointerPosition(event: MouseEvent | TouchEvent) {
+		if ('touches' in event) {
+			const touch = event.touches[0] ?? event.changedTouches[0];
+			return { x: touch?.clientX ?? spinCenterX, y: touch?.clientY ?? spinCenterY };
+		}
+		return { x: event.clientX, y: event.clientY };
+	}
+
+	function pointerAngle(x: number, y: number) {
+		return Math.atan2(y - spinCenterY, x - spinCenterX) * (180 / Math.PI);
+	}
+
+	function startSpin(event: MouseEvent | TouchEvent) {
 		const element = event.currentTarget as HTMLElement;
-		element.setPointerCapture(event.pointerId);
+		const rect = element.getBoundingClientRect();
+		spinCenterX = rect.left + rect.width / 2;
+		spinCenterY = rect.top + rect.height / 2;
+		const { x, y } = pointerPosition(event);
+		previousPointerAngle = pointerAngle(x, y);
 		spinSettling = false;
-		spinStartX = event.clientX;
-		spinStartAngle = spinAngle;
-		spinEngageTimer = setTimeout(() => {
-			spinEngaged = true;
-		}, SPIN_ENGAGE_DELAY_MS);
+		isDragging = true;
 	}
 
-	function dragSpin(event: PointerEvent) {
-		if (!spinEngaged) return;
-		spinAngle = spinStartAngle + (event.clientX - spinStartX) * SPIN_SENSITIVITY;
+	function dragSpin(event: MouseEvent | TouchEvent) {
+		if (!isDragging) return;
+		if ('touches' in event) event.preventDefault();
+
+		const { x, y } = pointerPosition(event);
+		const currentPointerAngle = pointerAngle(x, y);
+		// Shortest-path delta so crossing the -180/180 boundary doesn't jump.
+		const delta = (((currentPointerAngle - previousPointerAngle + 180) % 360) + 360) % 360 - 180;
+		spinAngle += delta;
+		previousPointerAngle = currentPointerAngle;
 	}
 
-	function endSpin(event: PointerEvent) {
-		if (spinEngageTimer) clearTimeout(spinEngageTimer);
-		spinEngageTimer = undefined;
-		spinEngaged = false;
+	function stopDragging() {
+		isDragging = false;
+	}
+
+	function releaseSpin() {
+		isDragging = false;
 		spinSettling = true;
 		spinAngle = Math.round(spinAngle / 90) * 90;
-		const element = event.currentTarget as HTMLElement;
-		if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
 	}
 </script>
 
@@ -78,10 +92,13 @@
 			class="clacker clacker--spin"
 			class:spin-settling={spinSettling}
 			style={`--spin-angle: ${spinAngle}deg`}
-			onpointerdown={startSpin}
-			onpointermove={dragSpin}
-			onpointerup={endSpin}
-			onpointercancel={endSpin}
+			onmousedown={startSpin}
+			onmousemove={dragSpin}
+			onmouseup={releaseSpin}
+			onmouseleave={stopDragging}
+			ontouchstart={startSpin}
+			ontouchmove={dragSpin}
+			ontouchend={releaseSpin}
 			aria-label="Hold and rotate"
 		>
 			<span class="segment segment--left"></span>
@@ -204,6 +221,6 @@
 
 	/* Only the release snap eases; live dragging stays 1:1 with the pointer. */
 	.clacker--spin.spin-settling {
-		transition: transform 0.2s ease-out;
+		transition: transform 0.4s ease-out;
 	}
 </style>
