@@ -7,6 +7,44 @@
 	function toggle() {
 		flipped = !flipped;
 	}
+
+	// How long a press must be held before dragging starts rotating the knob.
+	const SPIN_ENGAGE_DELAY_MS = 300;
+	// Degrees rotated per pixel of horizontal drag.
+	const SPIN_SENSITIVITY = 0.75;
+
+	let spinAngle = $state(0);
+	let spinEngaged = $state(false);
+	let spinSettling = $state(false);
+	let spinStartX = 0;
+	let spinStartAngle = 0;
+	let spinEngageTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function startSpin(event: PointerEvent) {
+		const element = event.currentTarget as HTMLElement;
+		element.setPointerCapture(event.pointerId);
+		spinSettling = false;
+		spinStartX = event.clientX;
+		spinStartAngle = spinAngle;
+		spinEngageTimer = setTimeout(() => {
+			spinEngaged = true;
+		}, SPIN_ENGAGE_DELAY_MS);
+	}
+
+	function dragSpin(event: PointerEvent) {
+		if (!spinEngaged) return;
+		spinAngle = spinStartAngle + (event.clientX - spinStartX) * SPIN_SENSITIVITY;
+	}
+
+	function endSpin(event: PointerEvent) {
+		if (spinEngageTimer) clearTimeout(spinEngageTimer);
+		spinEngageTimer = undefined;
+		spinEngaged = false;
+		spinSettling = true;
+		spinAngle = Math.round(spinAngle / 90) * 90;
+		const element = event.currentTarget as HTMLElement;
+		if (element.hasPointerCapture(event.pointerId)) element.releasePointerCapture(event.pointerId);
+	}
 </script>
 
 <section class="stage">
@@ -35,11 +73,21 @@
 			<span class="flap flap--horizontal" class:flipped></span>
 		</button>
 	{:else if mode === 'spin'}
-		<div class="clacker clacker--spin" aria-label="Rotation movement preview">
+		<button
+			type="button"
+			class="clacker clacker--spin"
+			class:spin-settling={spinSettling}
+			style={`--spin-angle: ${spinAngle}deg`}
+			onpointerdown={startSpin}
+			onpointermove={dragSpin}
+			onpointerup={endSpin}
+			onpointercancel={endSpin}
+			aria-label="Hold and rotate"
+		>
 			<span class="segment segment--left"></span>
 			<span class="segment segment--right"></span>
 			<span class="flap flap--horizontal"></span>
-		</div>
+		</button>
 	{/if}
 </section>
 
@@ -147,5 +195,15 @@
 
 	.flap--horizontal.flipped {
 		transform: rotateY(180deg);
+	}
+
+	/* The whole knob rotates as one rigid unit, not the flap around its hinge. */
+	.clacker--spin {
+		transform: rotateZ(var(--spin-angle, 0deg));
+	}
+
+	/* Only the release snap eases; live dragging stays 1:1 with the pointer. */
+	.clacker--spin.spin-settling {
+		transition: transform 0.2s ease-out;
 	}
 </style>
