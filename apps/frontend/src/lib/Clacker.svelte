@@ -34,6 +34,12 @@
 			<span class="segment segment--right"></span>
 			<span class="flap flap--horizontal" class:flipped></span>
 		</button>
+	{:else if mode === 'spin'}
+		<div class="clacker clacker--spin" aria-label="Rotation movement preview">
+			<span class="segment segment--left"></span>
+			<span class="segment segment--right"></span>
+			<span class="flap flap--horizontal"></span>
+		</div>
 	{/if}
 </section>
 
@@ -89,7 +95,8 @@
 		border-radius: 0 0 0.75rem 0.75rem;
 	}
 
-	.clacker--horizontal .segment {
+	.clacker--horizontal .segment,
+	.clacker--spin .segment {
 		top: 0;
 		width: 50%;
 		height: 100%;
