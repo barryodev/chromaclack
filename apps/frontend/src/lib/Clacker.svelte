@@ -17,11 +17,18 @@
 			<span class="flap" class:flipped></span>
 		</button>
 	{:else if mode === 'horizontal'}
-		<div class="horizontal-clacker" aria-label="Horizontal movement preview">
+		<button
+			type="button"
+			class="horizontal-clacker"
+			class:flipped
+			onclick={toggle}
+			aria-pressed={flipped}
+			aria-label="Flip left or right"
+		>
 			<span class="horizontal-half horizontal-half--left"></span>
 			<span class="horizontal-half horizontal-half--right"></span>
 			<span class="horizontal-flap"></span>
-		</div>
+		</button>
 	{/if}
 </section>
 
@@ -37,6 +44,10 @@
 		position: relative;
 		width: 14rem;
 		height: 14rem;
+		padding: 0;
+		background: none;
+		border: none;
+		cursor: pointer;
 		perspective: 24rem;
 	}
 
@@ -65,7 +76,12 @@
 		background: var(--accent);
 		border-radius: 0.75rem 0 0 0.75rem;
 		transform-origin: center right;
-		transform: rotateY(18deg);
+		transform: rotateY(0deg);
+		transition: transform 0.55s cubic-bezier(0.65, -0.55, 0.35, 1.5);
+	}
+
+	.horizontal-clacker.flipped .horizontal-flap {
+		transform: rotateY(180deg);
 	}
 
 	@media (max-width: 28rem) {
