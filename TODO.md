@@ -20,8 +20,8 @@ _Goal: Establish the Turborepo monorepo, prove the environment adapter routes co
 - [x] System-wide dependency version check and upgrade
 - [x] Connect the Vercel project to the GitHub repo so pushes/merges trigger automatic Preview/Production deployments (was a one-off CLI deploy until now).
 - [x] Test the deployment on Android emulator or device and verify the app boots correctly in the Tauri Android flow.
-- [ ] Configure a GitHub Action to automatically build the native Ubuntu/Linux executable on push.
-- [ ] Document and validate the full local developer workflow for web, desktop, and Android startup.
+- [x] Configure a GitHub Action to automatically build the native Ubuntu/Linux executable on push.
+- [x] Document and validate the full local developer workflow for web, desktop, and Android startup.
 
 ## Phase 2: The Mechanical CSS Hinge (Vertical Axis)
 
