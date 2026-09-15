@@ -8,7 +8,8 @@
     "node": ">=20.19"
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@repo/frontend",
+    "dev": "frontend_pid=; trap 'kill \"$frontend_pid\" 2>/dev/null' EXIT INT TERM; pnpm --filter @repo/frontend dev & frontend_pid=$!; pnpm exec vercel dev --listen 8787",
+    "dev:frontend": "turbo run dev --filter=@repo/frontend",
     "dev:desktop": "pnpm --filter @repo/desktop tauri dev",
     "dev:android": "pnpm --filter @repo/desktop tauri android dev",
     "build": "turbo run build",
