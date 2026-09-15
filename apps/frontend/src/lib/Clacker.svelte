@@ -122,6 +122,8 @@
 		top: 0;
 		width: 50%;
 		height: 100%;
+		background: #fff;
+		color: #111;
 	}
 
 	.segment--left {
@@ -132,6 +134,23 @@
 	.segment--right {
 		right: 0;
 		border-radius: 0 0.75rem 0.75rem 0;
+	}
+
+	.clacker--spin .segment--right::after,
+	.clacker--spin .flap--horizontal::after {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 1.25rem;
+		font-weight: 700;
+		content: '2';
+	}
+
+	.clacker--spin .flap--horizontal::after {
+		content: '1';
 	}
 
 	/* Moving piece: same transition and accent color, hinge axis differs per orientation. */
@@ -148,6 +167,8 @@
 		left: 0;
 		width: 50%;
 		height: 100%;
+		background: #fff;
+		color: #111;
 		border-radius: 0.75rem 0 0 0.75rem;
 		transform-origin: center right;
 		transform: rotateY(0deg);
