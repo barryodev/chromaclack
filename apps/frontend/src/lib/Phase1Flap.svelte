@@ -30,14 +30,16 @@
 		return {
 			destroy() {
 				node.removeEventListener('touchmove', handler);
-		}
+			}
 		};
 	}
 
 	function pointerPosition(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) {
 			const touch = event.touches[0] ?? event.changedTouches[0];
-			return isVertical ? (touch?.clientY ?? touchStartPosition) : (touch?.clientX ?? touchStartPosition);
+			return isVertical
+				? (touch?.clientY ?? touchStartPosition)
+				: (touch?.clientX ?? touchStartPosition);
 		}
 		return isVertical ? event.clientY : event.clientX;
 	}
