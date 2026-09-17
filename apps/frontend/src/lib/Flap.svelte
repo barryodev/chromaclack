@@ -35,9 +35,9 @@
 	};
 	const LOGICAL_FACES = {
 		face1: { id: 'face-1', label: '1' },
-		face2: { id: 'face-2', label: '2' },
-		face3: { id: 'face-3', label: '3' },
-		face4: { id: 'face-4', label: '4' }
+		face2: { id: 'face-2', label: '1' },
+		face3: { id: 'face-3', label: '2' },
+		face4: { id: 'face-4', label: '2' }
 	} satisfies Record<string, LogicalFace>;
 	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
 	const INITIAL_VISIBLE_HALF_SLOTS = visibleHalfSlotWindow(INITIAL_HALF_SLOT_RING, 0, 4);
@@ -70,6 +70,12 @@
 	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
 	const debugVisibleSlots = $derived(
 		INITIAL_VISIBLE_HALF_SLOTS.map((slot, index) => ({ index, slot }))
+	);
+	const currentFirstFrontLabel = $derived(
+		rotation < 0 ? PHYSICAL_HALF_SLOTS.nextFirst.face.label : PHYSICAL_HALF_SLOTS.currentFirst.face.label
+	);
+	const currentSecondFrontLabel = $derived(
+		rotation > 0 ? PHYSICAL_HALF_SLOTS.nextSecond.face.label : PHYSICAL_HALF_SLOTS.currentSecond.face.label
 	);
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
@@ -217,24 +223,24 @@
 	aria-label={axisContract.ariaLabel}
 >
 	<div class="flip-page flip-page--next" aria-hidden="true">
-		<div
-			class="flip-half flip-half--first flip-half--next"
-			data-number={PHYSICAL_HALF_SLOTS.nextFirst.face.label}
-		></div>
-		<div
-			class="flip-half flip-half--second flip-half--next"
-			data-number={PHYSICAL_HALF_SLOTS.nextSecond.face.label}
-		></div>
+		<div class="flip-half flip-half--first flip-half--next">
+			<span class="flip-face flip-face--front">{PHYSICAL_HALF_SLOTS.nextFirst.face.label}</span>
+			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.currentSecond.face.label}</span>
+		</div>
+		<div class="flip-half flip-half--second flip-half--next">
+			<span class="flip-face flip-face--front">{PHYSICAL_HALF_SLOTS.nextSecond.face.label}</span>
+			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.currentFirst.face.label}</span>
+		</div>
 	</div>
 	<div class="flip-page flip-page--current">
-		<div
-			class="flip-half flip-half--first flip-half--current flip-half--active-first"
-			data-number={PHYSICAL_HALF_SLOTS.currentFirst.face.label}
-		></div>
-		<div
-			class="flip-half flip-half--second flip-half--current flip-half--active-second"
-			data-number={PHYSICAL_HALF_SLOTS.currentSecond.face.label}
-		></div>
+		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
+			<span class="flip-face flip-face--front">{currentFirstFrontLabel}</span>
+			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.nextSecond.face.label}</span>
+		</div>
+		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
+			<span class="flip-face flip-face--front">{currentSecondFrontLabel}</span>
+			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.nextFirst.face.label}</span>
+		</div>
 	</div>
 </button>
 
@@ -336,7 +342,6 @@
 	.flip-half {
 		position: absolute;
 		transform-style: preserve-3d;
-		isolation: isolate;
 		--page-surface: #fff;
 	}
 
@@ -376,8 +381,7 @@
 		border-radius: 0 0.75rem 0.75rem 0;
 	}
 
-	.flip-half::before,
-	.flip-half::after {
+	.flip-face {
 		position: absolute;
 		inset: 0;
 		display: flex;
@@ -391,14 +395,13 @@
 		font-size: 1.25rem;
 		font-weight: 700;
 		backface-visibility: hidden;
-		content: attr(data-number);
 	}
 
-	.flip-half::after {
+	.flip-face--back {
 		transform: rotateX(180deg);
 	}
 
-	.flip-deck--horizontal .flip-half::after {
+	.flip-deck--horizontal .flip-face--back {
 		transform: rotateY(180deg);
 	}
 

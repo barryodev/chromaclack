@@ -79,6 +79,8 @@ The current CSS transform variables are still shared between vertical and horizo
 - The accepted visual-depth pass removed the visible constant flap `translateZ`; depth should come from hinge rotation rather than translating the whole moving panel toward the user.
 - `overflow: visible` is intentional so the moving flap can project outside the deck during rotation.
 - `border-radius: inherit` belongs on the rendered flap faces so rounded corners do not depend on clipping at the deck level.
+- Back-face orientation was isolated in `/facetest`: an explicit back plane with `rotateX(180deg)` renders its child text upright without a text counter-transform. Counter-rotating the printed content with `rotate(180deg)`, `rotateX(180deg)`, or `scaleY(-1)` makes the text wrong.
+- Future explicit front/back flap markup should rotate the back face plane, not the printed content inside it.
 - `will-change: transform` is currently always present on both active halves. Since this is a tiny prototype surface, that is acceptable. Later, if the clacker grows to many slots/panels, only actively moving pieces should receive `will-change`.
 
 ## Implementation Steps
