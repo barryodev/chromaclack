@@ -158,13 +158,13 @@
 	}
 
 	.flip-deck--vertical {
-		--first-transform: translateZ(0.75rem) rotateX(var(--positive-rotation));
-		--second-transform: translateZ(0.75rem) rotateX(var(--negative-rotation));
+		--first-transform: rotateX(var(--positive-rotation));
+		--second-transform: rotateX(var(--negative-rotation));
 	}
 
 	.flip-deck--horizontal {
-		--first-transform: translateZ(0.75rem) rotateY(var(--positive-rotation));
-		--second-transform: translateZ(0.75rem) rotateY(var(--negative-rotation));
+		--first-transform: rotateY(var(--positive-rotation));
+		--second-transform: rotateY(var(--negative-rotation));
 	}
 
 	@media (max-width: 28rem) {
