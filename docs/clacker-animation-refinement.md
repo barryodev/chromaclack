@@ -71,13 +71,13 @@ The current transform variables are shared between vertical and horizontal modes
 
 ## Implementation Steps
 
-1. Define the directional animation contract in code or nearby documentation.
-2. Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
-3. Choose the left/right physical metaphor.
-4. Implement left/right as a separate animation path.
-5. Extend the continuity model to buffer-slot recycling when phase two begins.
-6. Unify interaction rules across all directions.
-7. Polish and verify desktop pointer and mobile touch behavior.
+- [x] Define the directional animation contract in code or nearby documentation.
+- [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
+- [ ] Choose the left/right physical metaphor.
+- [ ] Implement left/right as a separate animation path.
+- [ ] Extend the continuity model to buffer-slot recycling when phase two begins.
+- [ ] Unify interaction rules across all directions.
+- [ ] Polish and verify desktop pointer and mobile touch behavior.
 
 ## First Commit Scope
 
