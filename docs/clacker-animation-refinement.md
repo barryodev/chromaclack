@@ -79,7 +79,7 @@ The current CSS transform variables are still shared between vertical and horizo
 - [x] Define the directional animation contract in code or nearby documentation.
 - [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
 - [x] Choose the left/right physical metaphor.
-- [ ] Implement left/right as a separate animation path through the shared axis contract.
+- [x] Implement left/right as a separate animation path through the shared axis contract.
 - [ ] Extend the continuity model to buffer-slot recycling when phase two begins.
 - [ ] Unify interaction rules across all directions.
 - [ ] Polish and verify desktop pointer and mobile touch behavior.

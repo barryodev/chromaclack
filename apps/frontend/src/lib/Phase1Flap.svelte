@@ -3,8 +3,10 @@
 
 	type Axis = 'vertical' | 'horizontal';
 	type PointerCoordinate = 'clientX' | 'clientY';
+	type RotationFunction = 'rotateX' | 'rotateY';
 	type AxisContract = {
 		coordinate: PointerCoordinate;
+		rotationFunction: RotationFunction;
 		rotationSign: -1 | 1;
 		ariaLabel: string;
 	};
@@ -12,11 +14,13 @@
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
 			coordinate: 'clientY',
+			rotationFunction: 'rotateX',
 			rotationSign: -1,
 			ariaLabel: 'Swipe up or down'
 		},
 		horizontal: {
 			coordinate: 'clientX',
+			rotationFunction: 'rotateY',
 			rotationSign: 1,
 			ariaLabel: 'Swipe left or right'
 		}
@@ -32,6 +36,12 @@
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
 	let rotation = $state(0);
+	const firstTransform = $derived(
+		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
+	);
+	const secondTransform = $derived(
+		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.min(0, rotation)}deg)`
+	);
 	let touchStartPosition = 0;
 	let touchStartRotation = 0;
 	let lastTouchPosition = 0;
@@ -136,7 +146,7 @@
 	class:flip-deck--horizontal={!isVertical}
 	class:flip-deck--positive={rotation > 0}
 	class:flip-deck--negative={rotation < 0}
-	style={`--positive-rotation: ${axisContract.rotationSign * Math.max(0, rotation)}deg; --negative-rotation: ${axisContract.rotationSign * Math.min(0, rotation)}deg`}
+	style={`--first-transform: ${firstTransform}; --second-transform: ${secondTransform}`}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}
@@ -173,16 +183,6 @@
 		perspective: 28rem;
 		transform-style: preserve-3d;
 		overflow: visible;
-	}
-
-	.flip-deck--vertical {
-		--first-transform: rotateX(var(--positive-rotation));
-		--second-transform: rotateX(var(--negative-rotation));
-	}
-
-	.flip-deck--horizontal {
-		--first-transform: rotateY(var(--positive-rotation));
-		--second-transform: rotateY(var(--negative-rotation));
 	}
 
 	@media (max-width: 28rem) {
