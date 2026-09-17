@@ -15,10 +15,12 @@ The branch should end with:
 
 ## Current State
 
-- The active work is based on `feature/three-axis-movement`.
-- `apps/frontend/src/lib/Phase1Flap.svelte` already has uncommitted local changes at the time this note was created.
+- The active work is on `refine-clacker-direction-animation`, branched from `feature/three-axis-movement`.
+- The worktree is clean after the accepted up/down visual-depth refinements.
 - The known vertical target is a split-flap/Rolodex display, not a rotating cylinder.
 - Phase one should prove the hinge mechanics with a small static setup before expanding to the fixed recycling pool.
+- The current phase-one flap uses `overflow: visible`, hinge-only `rotateX`/`rotateY` transforms without a visible constant `translateZ`, inherited rounded face radii, and a calmer `28rem` perspective.
+- Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
 
 ## Directional Animation Contract
 
@@ -58,10 +60,19 @@ The left/right physical metaphor still needs to be chosen before implementation.
 
 Once chosen, left/right should receive its own axis math, moving-panel rules, and z-order rules while sharing the same drag/release/snap principles where practical.
 
+The current transform variables are shared between vertical and horizontal modes. That is fine for the phase-one prototype, but serious left/right behavior may need its own directional contract instead of stretching the vertical split-flap abstraction too far.
+
+## Implementation Notes
+
+- The accepted visual-depth pass removed the visible constant flap `translateZ`; depth should come from hinge rotation rather than translating the whole moving panel toward the user.
+- `overflow: visible` is intentional so the moving flap can project outside the deck during rotation.
+- `border-radius: inherit` belongs on the rendered flap faces so rounded corners do not depend on clipping at the deck level.
+- `will-change: transform` is currently always present on both active halves. Since this is a tiny prototype surface, that is acceptable. Later, if the clacker grows to many slots/panels, only actively moving pieces should receive `will-change`.
+
 ## Implementation Steps
 
 1. Define the directional animation contract in code or nearby documentation.
-2. Refine up/down first against the split-flap behavior.
+2. Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
 3. Choose the left/right physical metaphor.
 4. Implement left/right as a separate animation path.
 5. Extend the continuity model to buffer-slot recycling when phase two begins.
