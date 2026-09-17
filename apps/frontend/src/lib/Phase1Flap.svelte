@@ -152,7 +152,7 @@
 		border: none;
 		border-radius: 0.75rem;
 		cursor: pointer;
-		perspective: 18rem;
+		perspective: 28rem;
 		transform-style: preserve-3d;
 		overflow: visible;
 	}
