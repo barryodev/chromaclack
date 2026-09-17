@@ -51,14 +51,15 @@ The branch should make the four directional gestures explicit before polishing i
 
 ### Left/Right
 
-The left/right physical metaphor still needs to be chosen before implementation. Candidate directions:
+Left/right should use the same split-flap/Rolodex physical metaphor as up/down, rotated 90 degrees.
 
-- A side-hinged flip.
-- A lateral mechanical clack.
-- A card-like horizontal flap.
-- Another distinct motion that fits the clacker better than reusing the vertical split-flap behavior.
-
-Once chosen, left/right should receive its own axis math, moving-panel rules, and z-order rules while sharing the same drag/release/snap principles where practical.
+- Rightward gestures animate the left half forward/right.
+- Leftward gestures animate the right half forward/left.
+- A committed page movement is exactly 180 degrees.
+- The hinge is the center vertical line instead of the center horizontal line.
+- The rotation axis is `rotateY` instead of `rotateX`.
+- Incoming and outgoing halves overlap at the hinge with stable z-order.
+- The interaction should feel like the same mechanism viewed through a different movement axis, not a separate animation style.
 
 The current transform variables are shared between vertical and horizontal modes. That is fine for the phase-one prototype, but serious left/right behavior may need its own directional contract instead of stretching the vertical split-flap abstraction too far.
 
@@ -73,7 +74,7 @@ The current transform variables are shared between vertical and horizontal modes
 
 - [x] Define the directional animation contract in code or nearby documentation.
 - [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
-- [ ] Choose the left/right physical metaphor.
+- [x] Choose the left/right physical metaphor.
 - [ ] Implement left/right as a separate animation path.
 - [ ] Extend the continuity model to buffer-slot recycling when phase two begins.
 - [ ] Unify interaction rules across all directions.
@@ -88,5 +89,4 @@ That may be a small code-facing contract near the animation component, or anothe
 ## Open Decisions
 
 - Whether the refinement branch should keep the existing local `Phase1Flap.svelte` changes as part of the starting point or preserve them separately.
-- Which physical metaphor should drive the left/right animation.
 - Whether phase one should remain limited to two static page pairs or start preparing the 9-slot/18-panel recycling pool.
