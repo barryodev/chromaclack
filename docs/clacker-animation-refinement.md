@@ -21,7 +21,7 @@ The branch should end with:
 - The known vertical target is a split-flap/Rolodex display, not a rotating cylinder.
 - Phase one should prove the hinge mechanics with a small static setup before expanding to the fixed recycling pool.
 - The current phase-one flap uses `overflow: visible`, hinge-only `rotateX`/`rotateY` transforms without a visible constant `translateZ`, inherited rounded face radii, and a calmer `28rem` perspective.
-- Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Phase1Flap.svelte`.
+- Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Flap.svelte`.
 - Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
 
 ## Directional Animation Contract
@@ -92,5 +92,4 @@ That may be a small code-facing contract near the animation component, or anothe
 
 ## Open Decisions
 
-- Whether the refinement branch should keep the existing local `Phase1Flap.svelte` changes as part of the starting point or preserve them separately.
 - Whether phase one should remain limited to two static page pairs or start preparing the 9-slot/18-panel recycling pool.

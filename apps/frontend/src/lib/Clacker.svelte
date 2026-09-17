@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase1Flap from './Phase1Flap.svelte';
+	import Flap from './Flap.svelte';
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 
@@ -59,9 +59,9 @@
 
 <section class="stage">
 	{#if mode === 'vertical'}
-		<Phase1Flap axis="vertical" />
+		<Flap axis="vertical" />
 	{:else if mode === 'horizontal'}
-		<Phase1Flap axis="horizontal" />
+		<Flap axis="horizontal" />
 	{:else if mode === 'spin'}
 		<button
 			type="button"
