@@ -2,7 +2,7 @@
 	import { onDestroy } from 'svelte';
 
 	type Axis = 'vertical' | 'horizontal';
-	type CommitDirection = 'positive' | 'negative';
+	type SwipeDirection = 'positive' | 'negative';
 	type MotionState = 'idle' | 'dragging' | 'inertia' | 'settled';
 	type PointerCoordinate = 'clientX' | 'clientY';
 	type RotationFunction = 'rotateX' | 'rotateY';
@@ -55,12 +55,12 @@
 	const DRAG_SENSITIVITY = 0.6;
 	const ANIMATION_SPEED = 0.25;
 	const FRICTION_DECAY_PER_SECOND = 3.5;
-	const COMMIT_ROTATION_DEGREES = 180;
+	const ACCEPTED_SWIPE_ROTATION_DEGREES = 180;
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
 	let rotation = $state(0);
 	let motionState = $state<MotionState>('idle');
-	let settledCommitDirection = $state<CommitDirection | undefined>();
+	let acceptedSwipeDirection = $state<SwipeDirection | undefined>();
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -97,14 +97,14 @@
 		return event[axisContract.coordinate];
 	}
 
-	function commitDirectionForRotation(value: number): CommitDirection | undefined {
-		if (value >= COMMIT_ROTATION_DEGREES) return 'positive';
-		if (value <= -COMMIT_ROTATION_DEGREES) return 'negative';
+	function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {
+		if (value >= ACCEPTED_SWIPE_ROTATION_DEGREES) return 'positive';
+		if (value <= -ACCEPTED_SWIPE_ROTATION_DEGREES) return 'negative';
 	}
 
 	function settleMotion() {
 		motionState = 'settled';
-		settledCommitDirection = commitDirectionForRotation(rotation);
+		acceptedSwipeDirection = acceptedSwipeDirectionForRotation(rotation);
 	}
 
 	function startInertia() {
@@ -142,7 +142,7 @@
 		lastTouchTime = performance.now();
 		velocityDegPerMs = 0;
 		motionState = 'dragging';
-		settledCommitDirection = undefined;
+		acceptedSwipeDirection = undefined;
 
 		if (!('touches' in event)) {
 			window.addEventListener('mousemove', dragMove);
@@ -190,7 +190,7 @@
 	class:flip-deck--negative={rotation < 0}
 	style={`--first-transform: ${firstTransform}; --second-transform: ${secondTransform}`}
 	data-motion-state={motionState}
-	data-commit-direction={settledCommitDirection}
+	data-accepted-swipe-direction={acceptedSwipeDirection}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}

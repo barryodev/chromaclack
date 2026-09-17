@@ -33,7 +33,7 @@ The branch should make the four directional gestures explicit before polishing i
 
 - Downward gestures animate the top half forward/down.
 - Upward gestures animate the bottom half forward/up.
-- A committed page movement is exactly 180 degrees.
+- An accepted swipe movement is exactly 180 degrees.
 - Incoming and outgoing halves overlap at the hinge with stable z-order.
 - The animation should read as independent upper and lower physical halves sharing a center hinge.
 
@@ -58,7 +58,7 @@ Left/right should use the same split-flap/Rolodex physical metaphor as up/down, 
 
 - Rightward gestures animate the left half forward/right.
 - Leftward gestures animate the right half forward/left.
-- A committed page movement is exactly 180 degrees.
+- An accepted swipe movement is exactly 180 degrees.
 - The hinge is the center vertical line instead of the center horizontal line.
 - The rotation axis is `rotateY` instead of `rotateX`.
 - Incoming and outgoing halves overlap at the hinge with stable z-order.
