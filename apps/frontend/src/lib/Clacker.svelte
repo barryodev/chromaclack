@@ -3,7 +3,7 @@
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 
-	let { mode = 'vertical' }: { mode?: Mode } = $props();
+	let { mode = 'vertical', debug = false }: { mode?: Mode; debug?: boolean } = $props();
 	let spinAngle = $state(0);
 	let isDragging = $state(false);
 	let spinSettling = $state(false);
@@ -59,9 +59,9 @@
 
 <section class="stage">
 	{#if mode === 'vertical'}
-		<Flap axis="vertical" />
+		<Flap axis="vertical" {debug} />
 	{:else if mode === 'horizontal'}
-		<Flap axis="horizontal" />
+		<Flap axis="horizontal" {debug} />
 	{:else if mode === 'spin'}
 		<button
 			type="button"

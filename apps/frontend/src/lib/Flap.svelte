@@ -48,7 +48,7 @@
 		nextSecond: initialVisibleHalfSlot(3)
 	} satisfies Record<string, PhysicalHalfSlot>;
 
-	let { axis = 'vertical' }: { axis?: Axis } = $props();
+	let { axis = 'vertical', debug = false }: { axis?: Axis; debug?: boolean } = $props();
 	const axisContract = $derived(AXIS_CONTRACTS[axis]);
 	const isVertical = $derived(axis === 'vertical');
 
@@ -61,6 +61,16 @@
 	let rotation = $state(0);
 	let motionState = $state<MotionState>('idle');
 	let acceptedSwipeDirection = $state<SwipeDirection | undefined>();
+	const debugPositions = $derived([
+		{ name: 'nextFirst', slot: PHYSICAL_HALF_SLOTS.nextFirst },
+		{ name: 'nextSecond', slot: PHYSICAL_HALF_SLOTS.nextSecond },
+		{ name: 'currentFirst', slot: PHYSICAL_HALF_SLOTS.currentFirst },
+		{ name: 'currentSecond', slot: PHYSICAL_HALF_SLOTS.currentSecond }
+	]);
+	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
+	const debugVisibleSlots = $derived(
+		INITIAL_VISIBLE_HALF_SLOTS.map((slot, index) => ({ index, slot }))
+	);
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -228,6 +238,65 @@
 	</div>
 </button>
 
+{#if debug}
+	<aside class="debug-panel" aria-label="Flap diagnostics">
+		<header class="debug-panel__header">
+			<span>Flap Diagnostics</span>
+			<span class="debug-panel__pulse" aria-hidden="true"></span>
+		</header>
+
+		<div class="debug-metrics">
+			<div class="debug-metric">
+				<span>Axis</span>
+				<strong>{axis}</strong>
+			</div>
+			<div class="debug-metric">
+				<span>Motion</span>
+				<strong>{motionState}</strong>
+			</div>
+			<div class="debug-metric">
+				<span>Swipe</span>
+				<strong>{acceptedSwipeDirection ?? 'none'}</strong>
+			</div>
+			<div class="debug-metric">
+				<span>Rotation</span>
+				<strong>{rotation.toFixed(2)} deg</strong>
+			</div>
+		</div>
+
+		<section class="debug-section">
+			<h2>Visual Positions</h2>
+			{#each debugPositions as position}
+				<div class="debug-row">
+					<span>{position.name}</span>
+					<strong>{position.slot.face.label}</strong>
+					<small>{position.slot.id} / {position.slot.face.id}</small>
+				</div>
+			{/each}
+		</section>
+
+		<section class="debug-section">
+			<h2>Visible Window</h2>
+			{#each debugVisibleSlots as item}
+				<div class="debug-row debug-row--compact">
+					<span>#{item.index}</span>
+					<strong>{item.slot.face.label}</strong>
+					<small>{item.slot.id} / {item.slot.role}</small>
+				</div>
+			{/each}
+		</section>
+
+		<section class="debug-section">
+			<h2>Ring</h2>
+			<div class="debug-ring">
+				{#each debugRing as item}
+					<span class="debug-ring__chip">{item.index}: {item.slot.face.label}</span>
+				{/each}
+			</div>
+		</section>
+	</aside>
+{/if}
+
 <style>
 	.flip-deck {
 		position: relative;
@@ -350,5 +419,128 @@
 
 	.flip-half--active-second {
 		transform: var(--second-transform);
+	}
+
+	.debug-panel {
+		position: fixed;
+		right: 1rem;
+		bottom: 1rem;
+		z-index: 10;
+		width: min(25rem, calc(100vw - 2rem));
+		max-height: min(28rem, calc(100vh - 2rem));
+		margin: 0;
+		padding: 0.85rem;
+		overflow: auto;
+		border: 1px solid rgba(255, 255, 255, 0.16);
+		border-radius: 0.75rem;
+		background:
+			linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+			rgba(12, 15, 18, 0.94);
+		box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.38);
+		color: #f8fafc;
+		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+		font-size: 0.72rem;
+		line-height: 1.35;
+		text-align: left;
+		backdrop-filter: blur(14px);
+	}
+
+	.debug-panel__header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		margin-bottom: 0.75rem;
+		color: #e2e8f0;
+		font-size: 0.72rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.debug-panel__pulse {
+		width: 0.55rem;
+		height: 0.55rem;
+		border-radius: 999px;
+		background: #65f0b4;
+		box-shadow: 0 0 0.8rem rgba(101, 240, 180, 0.85);
+	}
+
+	.debug-metrics {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.45rem;
+		margin-bottom: 0.85rem;
+	}
+
+	.debug-metric,
+	.debug-section {
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 0.5rem;
+		background: rgba(255, 255, 255, 0.055);
+	}
+
+	.debug-metric {
+		display: grid;
+		gap: 0.15rem;
+		padding: 0.5rem;
+	}
+
+	.debug-metric span,
+	.debug-row span,
+	.debug-row small {
+		color: #94a3b8;
+	}
+
+	.debug-metric strong,
+	.debug-row strong {
+		color: #f8fafc;
+		font-weight: 800;
+	}
+
+	.debug-section {
+		padding: 0.55rem;
+	}
+
+	.debug-section + .debug-section {
+		margin-top: 0.55rem;
+	}
+
+	.debug-section h2 {
+		margin: 0 0 0.45rem;
+		color: #cbd5e1;
+		font-size: 0.62rem;
+		font-weight: 800;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+
+	.debug-row {
+		display: grid;
+		grid-template-columns: minmax(6rem, 1fr) auto minmax(7rem, 1fr);
+		gap: 0.5rem;
+		align-items: center;
+		padding: 0.28rem 0;
+	}
+
+	.debug-row--compact {
+		grid-template-columns: 2rem auto minmax(7rem, 1fr);
+	}
+
+	.debug-row + .debug-row {
+		border-top: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.debug-ring {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+
+	.debug-ring__chip {
+		padding: 0.24rem 0.4rem;
+		border: 1px solid rgba(101, 240, 180, 0.22);
+		border-radius: 999px;
+		background: rgba(101, 240, 180, 0.08);
+		color: #dffcec;
 	}
 </style>
