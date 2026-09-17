@@ -18,6 +18,10 @@
 		rotationSign: -1 | 1;
 		ariaLabel: string;
 	};
+	type PageState = {
+		label: string;
+		background: string;
+	};
 
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
@@ -33,11 +37,16 @@
 			ariaLabel: 'Swipe left or right'
 		}
 	};
-	const PAGE_LABELS = ['1', '2', '3', '4'] as const;
+	const PAGES: PageState[] = [
+		{ label: '1', background: '#581C87' },
+		{ label: '2', background: '#C026D3' },
+		{ label: '3', background: '#F43F5E' },
+		{ label: '4', background: '#F97316' }
+	];
 	const LOGICAL_FACES = Object.fromEntries(
-		PAGE_LABELS.flatMap((label) => [
-			[`page-${label}-first`, { id: `page-${label}-first`, label }],
-			[`page-${label}-second`, { id: `page-${label}-second`, label }]
+		PAGES.flatMap((page) => [
+			[`page-${page.label}-first`, { id: `page-${page.label}-first`, label: page.label }],
+			[`page-${page.label}-second`, { id: `page-${page.label}-second`, label: page.label }]
 		])
 	) as Record<string, LogicalFace>;
 	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
@@ -63,15 +72,15 @@
 	let rotation = $state(0);
 	let motionState = $state<MotionState>('idle');
 	let acceptedSwipeDirection = $state<SwipeDirection | undefined>();
-	const currentPageLabel = $derived(pageLabelAt(currentPageIndex));
-	const nextPageLabel = $derived(pageLabelAt(currentPageIndex + 1));
-	const previousPageLabel = $derived(pageLabelAt(currentPageIndex - 1));
-	const targetPageLabel = $derived(rotation > 0 ? previousPageLabel : nextPageLabel);
+	const currentPage = $derived(pageAt(currentPageIndex));
+	const nextPage = $derived(pageAt(currentPageIndex + 1));
+	const previousPage = $derived(pageAt(currentPageIndex - 1));
+	const targetPage = $derived(rotation > 0 ? previousPage : nextPage);
 	const debugPositions = $derived([
-		{ name: 'previousPage', label: previousPageLabel },
-		{ name: 'currentPage', label: currentPageLabel },
-		{ name: 'nextPage', label: nextPageLabel },
-		{ name: 'targetPage', label: targetPageLabel }
+		{ name: 'previousPage', page: previousPage },
+		{ name: 'currentPage', page: currentPage },
+		{ name: 'nextPage', page: nextPage },
+		{ name: 'targetPage', page: targetPage }
 	]);
 	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
 	const debugVisibleSlots = $derived(
@@ -121,8 +130,12 @@
 		return slot;
 	}
 
-	function pageLabelAt(index: number) {
-		return PAGE_LABELS[((index % PAGE_LABELS.length) + PAGE_LABELS.length) % PAGE_LABELS.length];
+	function pageAt(index: number) {
+		const page = PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
+		if (page === undefined) {
+			throw new RangeError('Page index is outside the circular page model.');
+		}
+		return page;
 	}
 
 	function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {
@@ -234,22 +247,38 @@
 >
 	<div class="flip-page flip-page--next" aria-hidden="true">
 		<div class="flip-half flip-half--first flip-half--next">
-			<span class="flip-face flip-face--front">{targetPageLabel}</span>
-			<span class="flip-face flip-face--back">{currentPageLabel}</span>
+			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
+			>
+			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
+				>{currentPage.label}</span
+			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--next">
-			<span class="flip-face flip-face--front">{targetPageLabel}</span>
-			<span class="flip-face flip-face--back">{currentPageLabel}</span>
+			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
+			>
+			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
+				>{currentPage.label}</span
+			>
 		</div>
 	</div>
 	<div class="flip-page flip-page--current">
 		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
-			<span class="flip-face flip-face--front">{currentPageLabel}</span>
-			<span class="flip-face flip-face--back">{previousPageLabel}</span>
+			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
+				>{currentPage.label}</span
+			>
+			<span class="flip-face flip-face--back" style={`--page-surface: ${previousPage.background}`}
+				>{previousPage.label}</span
+			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
-			<span class="flip-face flip-face--front">{currentPageLabel}</span>
-			<span class="flip-face flip-face--back">{nextPageLabel}</span>
+			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
+				>{currentPage.label}</span
+			>
+			<span class="flip-face flip-face--back" style={`--page-surface: ${nextPage.background}`}
+				>{nextPage.label}</span
+			>
 		</div>
 	</div>
 </button>
@@ -285,8 +314,8 @@
 			{#each debugPositions as position}
 				<div class="debug-row">
 					<span>{position.name}</span>
-					<strong>{position.label}</strong>
-					<small>page index {currentPageIndex}</small>
+					<strong>{position.page.label}</strong>
+					<small>{position.page.background} / page index {currentPageIndex}</small>
 				</div>
 			{/each}
 		</section>
