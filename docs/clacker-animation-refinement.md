@@ -22,6 +22,7 @@ The branch should end with:
 - Phase one should prove the hinge mechanics with a small static setup before expanding to the fixed recycling pool.
 - The current phase-one flap uses `overflow: visible`, hinge-only `rotateX`/`rotateY` transforms without a visible constant `translateZ`, inherited rounded face radii, and a calmer `28rem` perspective.
 - Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Flap.svelte`.
+- The current four visible labels are now represented as logical pages assigned to physical slots in `Flap.svelte`, preserving the same UI while preparing for slot recycling.
 - Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
 
 ## Directional Animation Contract
@@ -69,6 +70,7 @@ The current CSS transform variables are still shared between vertical and horizo
 
 - The long-term UI target is one clacker object that can seamlessly adjust three color components, such as HSL or RGB, through blended vertical, horizontal, and rotational interactions.
 - Left/right implementation should preserve that future shape: keep horizontal behavior as a named axis path that can later compose with vertical and spin controls, rather than building a disconnected demo-only interaction.
+- Logical pages describe displayed content; physical slots describe reusable flap positions. Animation should move physical slots, then settled transitions should update which logical pages those slots carry.
 - The accepted visual-depth pass removed the visible constant flap `translateZ`; depth should come from hinge rotation rather than translating the whole moving panel toward the user.
 - `overflow: visible` is intentional so the moving flap can project outside the deck during rotation.
 - `border-radius: inherit` belongs on the rendered flap faces so rounded corners do not depend on clipping at the deck level.
@@ -80,7 +82,7 @@ The current CSS transform variables are still shared between vertical and horizo
 - [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
 - [x] Choose the left/right physical metaphor.
 - [x] Implement left/right as a separate animation path through the shared axis contract.
-- [ ] Extend the continuity model to buffer-slot recycling when phase two begins.
+- [ ] Extend the continuity model to buffer-slot recycling when phase two begins. The initial logical page/physical slot model is in place.
 - [ ] Unify interaction rules across all directions.
 - [ ] Polish and verify desktop pointer and mobile touch behavior.
 

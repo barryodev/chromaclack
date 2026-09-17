@@ -4,6 +4,14 @@
 	type Axis = 'vertical' | 'horizontal';
 	type PointerCoordinate = 'clientX' | 'clientY';
 	type RotationFunction = 'rotateX' | 'rotateY';
+	type LogicalPage = {
+		id: string;
+		label: string;
+	};
+	type PhysicalSlot = {
+		id: string;
+		page: LogicalPage;
+	};
 	type AxisContract = {
 		coordinate: PointerCoordinate;
 		rotationFunction: RotationFunction;
@@ -25,6 +33,18 @@
 			ariaLabel: 'Swipe left or right'
 		}
 	};
+	const LOGICAL_PAGES = {
+		page1: { id: 'page-1', label: '1' },
+		page2: { id: 'page-2', label: '2' },
+		page3: { id: 'page-3', label: '3' },
+		page4: { id: 'page-4', label: '4' }
+	} satisfies Record<string, LogicalPage>;
+	const PHYSICAL_SLOTS = {
+		currentFirst: { id: 'current-first', page: LOGICAL_PAGES.page1 },
+		currentSecond: { id: 'current-second', page: LOGICAL_PAGES.page2 },
+		nextFirst: { id: 'next-first', page: LOGICAL_PAGES.page3 },
+		nextSecond: { id: 'next-second', page: LOGICAL_PAGES.page4 }
+	} satisfies Record<string, PhysicalSlot>;
 
 	let { axis = 'vertical' }: { axis?: Axis } = $props();
 	const axisContract = $derived(AXIS_CONTRACTS[axis]);
@@ -155,17 +175,23 @@
 	aria-label={axisContract.ariaLabel}
 >
 	<div class="flip-page flip-page--next" aria-hidden="true">
-		<div class="flip-half flip-half--first flip-half--next" data-number="3"></div>
-		<div class="flip-half flip-half--second flip-half--next" data-number="4"></div>
+		<div
+			class="flip-half flip-half--first flip-half--next"
+			data-number={PHYSICAL_SLOTS.nextFirst.page.label}
+		></div>
+		<div
+			class="flip-half flip-half--second flip-half--next"
+			data-number={PHYSICAL_SLOTS.nextSecond.page.label}
+		></div>
 	</div>
 	<div class="flip-page flip-page--current">
 		<div
 			class="flip-half flip-half--first flip-half--current flip-half--active-first"
-			data-number="1"
+			data-number={PHYSICAL_SLOTS.currentFirst.page.label}
 		></div>
 		<div
 			class="flip-half flip-half--second flip-half--current flip-half--active-second"
-			data-number="2"
+			data-number={PHYSICAL_SLOTS.currentSecond.page.label}
 		></div>
 	</div>
 </button>
