@@ -239,6 +239,7 @@
 		align-items: center;
 		justify-content: center;
 		border: 1px solid var(--border);
+		border-radius: inherit;
 		background: var(--page-surface);
 		color: #111;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
