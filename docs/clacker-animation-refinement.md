@@ -72,6 +72,7 @@ The current CSS transform variables are still shared between vertical and horizo
 
 - The long-term UI target is one clacker object that can seamlessly adjust three color components, such as HSL or RGB, through blended vertical, horizontal, and rotational interactions.
 - Left/right implementation should preserve that future shape: keep horizontal behavior as a named axis path that can later compose with vertical and spin controls, rather than building a disconnected demo-only interaction.
+- Vertical and horizontal page-state behavior now share the same circular page model: initial rest shows `1 / 1`, positive down/right swipes settle to the previous page, and negative up/left swipes settle to the next page.
 - The unified clacker will need state management for rotational-axis movement, including when the user has engaged spin/rotation and the current rotation delta being applied.
 - Logical faces describe displayed content; physical half-slots describe reusable flap positions. Animation should move physical half-slots, then settled transitions should update which logical faces those half-slots carry.
 - Page pairs are a composed/resting interpretation of neighboring half-slots, not the primitive recycling unit.
@@ -91,7 +92,7 @@ The current CSS transform variables are still shared between vertical and horizo
 - [x] Implement left/right as a separate animation path through the shared axis contract.
 - [ ] Extend the continuity model to buffer-slot recycling when phase two begins. The initial logical face/physical half-slot model and tested ordered ring helpers are in place.
 - [ ] Unify interaction rules across all directions, including rotational-axis engagement and rotation delta state.
-- [ ] Polish and verify desktop pointer and mobile touch behavior.
+- [x] Polish and verify desktop pointer behavior for vertical and horizontal page-state swipes.
 
 ## First Commit Scope
 
