@@ -32,6 +32,21 @@ The branch should make the four directional gestures explicit before polishing i
 - Incoming and outgoing halves overlap at the hinge with stable z-order.
 - The animation should read as independent upper and lower physical halves sharing a center hinge.
 
+### Physical Continuity
+
+- A moving flap must remain visually and physically continuous throughout its travel.
+- A flap must not disappear behind a static flap at rest if it would have had to pass through that static flap to get there.
+- Z-order may change only at physically defensible moments, such as before motion begins, at the hinge crossing point, or after a settled transition updates logical content.
+- In the current phase-one model, where flaps 3 and 4 are static and flaps 1 and 2 move, flap 1 folding down must not teleport behind flap 2.
+- Flicking down, letting flap 1 settle, and then flicking up should not reveal a sudden reappearance caused by an inconsistent visual stack.
+
+### Phase-Two Recycling Model
+
+- When the display expands to more visible pages and a larger buffer, the physical continuity rule should extend to the full Rolodex loop.
+- A flap that exits the visible face should logically continue around the back of the Rolodex and return to the front/top in the correct order.
+- The behind-the-Rolodex travel does not need to be visibly animated, but the slot/content recycling should behave as if that full physical path occurred.
+- Recycling should happen only after visible motion settles, while the recycled slot is outside the user's visible window.
+
 ### Left/Right
 
 The left/right physical metaphor still needs to be chosen before implementation. Candidate directions:
@@ -49,8 +64,9 @@ Once chosen, left/right should receive its own axis math, moving-panel rules, an
 2. Refine up/down first against the split-flap behavior.
 3. Choose the left/right physical metaphor.
 4. Implement left/right as a separate animation path.
-5. Unify interaction rules across all directions.
-6. Polish and verify desktop pointer and mobile touch behavior.
+5. Extend the continuity model to buffer-slot recycling when phase two begins.
+6. Unify interaction rules across all directions.
+7. Polish and verify desktop pointer and mobile touch behavior.
 
 ## First Commit Scope
 
