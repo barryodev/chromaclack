@@ -33,12 +33,13 @@
 			ariaLabel: 'Swipe left or right'
 		}
 	};
-	const LOGICAL_FACES = {
-		face1: { id: 'face-1', label: '1' },
-		face2: { id: 'face-2', label: '1' },
-		face3: { id: 'face-3', label: '2' },
-		face4: { id: 'face-4', label: '2' }
-	} satisfies Record<string, LogicalFace>;
+	const PAGE_LABELS = ['1', '2', '3', '4'] as const;
+	const LOGICAL_FACES = Object.fromEntries(
+		PAGE_LABELS.flatMap((label) => [
+			[`page-${label}-first`, { id: `page-${label}-first`, label }],
+			[`page-${label}-second`, { id: `page-${label}-second`, label }]
+		])
+	) as Record<string, LogicalFace>;
 	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
 	const INITIAL_VISIBLE_HALF_SLOTS = visibleHalfSlotWindow(INITIAL_HALF_SLOT_RING, 0, 4);
 	const PHYSICAL_HALF_SLOTS = {
@@ -58,24 +59,23 @@
 	const ACCEPTED_SWIPE_ROTATION_DEGREES = 180;
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
+	let currentPageIndex = $state(0);
 	let rotation = $state(0);
 	let motionState = $state<MotionState>('idle');
 	let acceptedSwipeDirection = $state<SwipeDirection | undefined>();
+	const currentPageLabel = $derived(pageLabelAt(currentPageIndex));
+	const nextPageLabel = $derived(pageLabelAt(currentPageIndex + 1));
+	const previousPageLabel = $derived(pageLabelAt(currentPageIndex - 1));
+	const targetPageLabel = $derived(rotation > 0 ? previousPageLabel : nextPageLabel);
 	const debugPositions = $derived([
-		{ name: 'nextFirst', slot: PHYSICAL_HALF_SLOTS.nextFirst },
-		{ name: 'nextSecond', slot: PHYSICAL_HALF_SLOTS.nextSecond },
-		{ name: 'currentFirst', slot: PHYSICAL_HALF_SLOTS.currentFirst },
-		{ name: 'currentSecond', slot: PHYSICAL_HALF_SLOTS.currentSecond }
+		{ name: 'previousPage', label: previousPageLabel },
+		{ name: 'currentPage', label: currentPageLabel },
+		{ name: 'nextPage', label: nextPageLabel },
+		{ name: 'targetPage', label: targetPageLabel }
 	]);
 	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
 	const debugVisibleSlots = $derived(
 		INITIAL_VISIBLE_HALF_SLOTS.map((slot, index) => ({ index, slot }))
-	);
-	const currentFirstFrontLabel = $derived(
-		rotation < 0 ? PHYSICAL_HALF_SLOTS.nextFirst.face.label : PHYSICAL_HALF_SLOTS.currentFirst.face.label
-	);
-	const currentSecondFrontLabel = $derived(
-		rotation > 0 ? PHYSICAL_HALF_SLOTS.nextSecond.face.label : PHYSICAL_HALF_SLOTS.currentSecond.face.label
 	);
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
@@ -121,14 +121,24 @@
 		return slot;
 	}
 
+	function pageLabelAt(index: number) {
+		return PAGE_LABELS[((index % PAGE_LABELS.length) + PAGE_LABELS.length) % PAGE_LABELS.length];
+	}
+
 	function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {
 		if (value >= ACCEPTED_SWIPE_ROTATION_DEGREES) return 'positive';
 		if (value <= -ACCEPTED_SWIPE_ROTATION_DEGREES) return 'negative';
 	}
 
 	function settleMotion() {
+		const direction = acceptedSwipeDirectionForRotation(rotation);
 		motionState = 'settled';
-		acceptedSwipeDirection = acceptedSwipeDirectionForRotation(rotation);
+		acceptedSwipeDirection = direction;
+
+		if (direction) {
+			currentPageIndex += direction === 'positive' ? -1 : 1;
+			rotation = 0;
+		}
 	}
 
 	function startInertia() {
@@ -224,22 +234,22 @@
 >
 	<div class="flip-page flip-page--next" aria-hidden="true">
 		<div class="flip-half flip-half--first flip-half--next">
-			<span class="flip-face flip-face--front">{PHYSICAL_HALF_SLOTS.nextFirst.face.label}</span>
-			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.currentSecond.face.label}</span>
+			<span class="flip-face flip-face--front">{targetPageLabel}</span>
+			<span class="flip-face flip-face--back">{currentPageLabel}</span>
 		</div>
 		<div class="flip-half flip-half--second flip-half--next">
-			<span class="flip-face flip-face--front">{PHYSICAL_HALF_SLOTS.nextSecond.face.label}</span>
-			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.currentFirst.face.label}</span>
+			<span class="flip-face flip-face--front">{targetPageLabel}</span>
+			<span class="flip-face flip-face--back">{currentPageLabel}</span>
 		</div>
 	</div>
 	<div class="flip-page flip-page--current">
 		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
-			<span class="flip-face flip-face--front">{currentFirstFrontLabel}</span>
-			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.nextSecond.face.label}</span>
+			<span class="flip-face flip-face--front">{currentPageLabel}</span>
+			<span class="flip-face flip-face--back">{previousPageLabel}</span>
 		</div>
 		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
-			<span class="flip-face flip-face--front">{currentSecondFrontLabel}</span>
-			<span class="flip-face flip-face--back">{PHYSICAL_HALF_SLOTS.nextFirst.face.label}</span>
+			<span class="flip-face flip-face--front">{currentPageLabel}</span>
+			<span class="flip-face flip-face--back">{nextPageLabel}</span>
 		</div>
 	</div>
 </button>
@@ -271,12 +281,12 @@
 		</div>
 
 		<section class="debug-section">
-			<h2>Visual Positions</h2>
+			<h2>Pages</h2>
 			{#each debugPositions as position}
 				<div class="debug-row">
 					<span>{position.name}</span>
-					<strong>{position.slot.face.label}</strong>
-					<small>{position.slot.id} / {position.slot.face.id}</small>
+					<strong>{position.label}</strong>
+					<small>page index {currentPageIndex}</small>
 				</div>
 			{/each}
 		</section>
