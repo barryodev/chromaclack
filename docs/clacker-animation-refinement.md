@@ -12,6 +12,7 @@ The branch should end with:
 - Release behavior snapping cleanly based on distance and velocity.
 - Mobile-friendly animation performance: transform-driven motion, with no layout churn during the animation loop.
 - A phase-one scope unless the branch explicitly expands into recycling/buffer slots.
+- A path toward one unified clacker object that can eventually blend vertical, horizontal, and rotational controls for three color components in either HSL or RGB mode.
 
 ## Current State
 
@@ -20,6 +21,7 @@ The branch should end with:
 - The known vertical target is a split-flap/Rolodex display, not a rotating cylinder.
 - Phase one should prove the hinge mechanics with a small static setup before expanding to the fixed recycling pool.
 - The current phase-one flap uses `overflow: visible`, hinge-only `rotateX`/`rotateY` transforms without a visible constant `translateZ`, inherited rounded face radii, and a calmer `28rem` perspective.
+- Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Phase1Flap.svelte`.
 - Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
 
 ## Directional Animation Contract
@@ -61,10 +63,12 @@ Left/right should use the same split-flap/Rolodex physical metaphor as up/down, 
 - Incoming and outgoing halves overlap at the hinge with stable z-order.
 - The interaction should feel like the same mechanism viewed through a different movement axis, not a separate animation style.
 
-The current transform variables are shared between vertical and horizontal modes. That is fine for the phase-one prototype, but serious left/right behavior may need its own directional contract instead of stretching the vertical split-flap abstraction too far.
+The current CSS transform variables are still shared between vertical and horizontal modes. That is fine for the phase-one prototype, but serious left/right behavior should evolve through the axis contract instead of stretching vertical-only assumptions too far.
 
 ## Implementation Notes
 
+- The long-term UI target is one clacker object that can seamlessly adjust three color components, such as HSL or RGB, through blended vertical, horizontal, and rotational interactions.
+- Left/right implementation should preserve that future shape: keep horizontal behavior as a named axis path that can later compose with vertical and spin controls, rather than building a disconnected demo-only interaction.
 - The accepted visual-depth pass removed the visible constant flap `translateZ`; depth should come from hinge rotation rather than translating the whole moving panel toward the user.
 - `overflow: visible` is intentional so the moving flap can project outside the deck during rotation.
 - `border-radius: inherit` belongs on the rendered flap faces so rounded corners do not depend on clipping at the deck level.
@@ -75,7 +79,7 @@ The current transform variables are shared between vertical and horizontal modes
 - [x] Define the directional animation contract in code or nearby documentation.
 - [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
 - [x] Choose the left/right physical metaphor.
-- [ ] Implement left/right as a separate animation path.
+- [ ] Implement left/right as a separate animation path through the shared axis contract.
 - [ ] Extend the continuity model to buffer-slot recycling when phase two begins.
 - [ ] Unify interaction rules across all directions.
 - [ ] Polish and verify desktop pointer and mobile touch behavior.

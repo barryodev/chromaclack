@@ -2,8 +2,28 @@
 	import { onDestroy } from 'svelte';
 
 	type Axis = 'vertical' | 'horizontal';
+	type PointerCoordinate = 'clientX' | 'clientY';
+	type AxisContract = {
+		coordinate: PointerCoordinate;
+		rotationSign: -1 | 1;
+		ariaLabel: string;
+	};
+
+	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
+		vertical: {
+			coordinate: 'clientY',
+			rotationSign: -1,
+			ariaLabel: 'Swipe up or down'
+		},
+		horizontal: {
+			coordinate: 'clientX',
+			rotationSign: 1,
+			ariaLabel: 'Swipe left or right'
+		}
+	};
 
 	let { axis = 'vertical' }: { axis?: Axis } = $props();
+	const axisContract = $derived(AXIS_CONTRACTS[axis]);
 	const isVertical = $derived(axis === 'vertical');
 
 	const DRAG_SENSITIVITY = 0.6;
@@ -37,11 +57,9 @@
 	function pointerPosition(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) {
 			const touch = event.touches[0] ?? event.changedTouches[0];
-			return isVertical
-				? (touch?.clientY ?? touchStartPosition)
-				: (touch?.clientX ?? touchStartPosition);
+			return touch?.[axisContract.coordinate] ?? touchStartPosition;
 		}
-		return isVertical ? event.clientY : event.clientX;
+		return event[axisContract.coordinate];
 	}
 
 	function startInertia() {
@@ -118,13 +136,13 @@
 	class:flip-deck--horizontal={!isVertical}
 	class:flip-deck--positive={rotation > 0}
 	class:flip-deck--negative={rotation < 0}
-	style={`--positive-rotation: ${(isVertical ? -1 : 1) * Math.max(0, rotation)}deg; --negative-rotation: ${(isVertical ? -1 : 1) * Math.min(0, rotation)}deg`}
+	style={`--positive-rotation: ${axisContract.rotationSign * Math.max(0, rotation)}deg; --negative-rotation: ${axisContract.rotationSign * Math.min(0, rotation)}deg`}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}
 	ontouchend={dragEnd}
 	ontouchcancel={dragEnd}
-	aria-label={isVertical ? 'Swipe up or down' : 'Swipe left or right'}
+	aria-label={axisContract.ariaLabel}
 >
 	<div class="flip-page flip-page--next" aria-hidden="true">
 		<div class="flip-half flip-half--first flip-half--next" data-number="3"></div>
