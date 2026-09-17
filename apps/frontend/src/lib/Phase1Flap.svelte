@@ -114,6 +114,8 @@
 	class="flip-deck"
 	class:flip-deck--vertical={isVertical}
 	class:flip-deck--horizontal={!isVertical}
+	class:flip-deck--positive={rotation > 0}
+	class:flip-deck--negative={rotation < 0}
 	style={`--positive-rotation: ${(isVertical ? -1 : 1) * Math.max(0, rotation)}deg; --negative-rotation: ${(isVertical ? -1 : 1) * Math.min(0, rotation)}deg`}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
@@ -256,6 +258,11 @@
 	.flip-half--active-second {
 		z-index: 3;
 		will-change: transform;
+	}
+
+	.flip-deck--positive .flip-half--active-first,
+	.flip-deck--negative .flip-half--active-second {
+		z-index: 4;
 	}
 
 	.flip-half--active-first {
