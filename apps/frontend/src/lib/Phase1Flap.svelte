@@ -154,7 +154,7 @@
 		cursor: pointer;
 		perspective: 18rem;
 		transform-style: preserve-3d;
-		overflow: hidden;
+		overflow: visible;
 	}
 
 	.flip-deck--vertical {
