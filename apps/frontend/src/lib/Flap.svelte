@@ -397,6 +397,26 @@
 		backface-visibility: hidden;
 	}
 
+	.flip-deck--vertical .flip-half--first .flip-face--front,
+	.flip-deck--vertical .flip-half--second .flip-face--back {
+		border-radius: 0.75rem 0.75rem 0 0;
+	}
+
+	.flip-deck--vertical .flip-half--first .flip-face--back,
+	.flip-deck--vertical .flip-half--second .flip-face--front {
+		border-radius: 0 0 0.75rem 0.75rem;
+	}
+
+	.flip-deck--horizontal .flip-half--first .flip-face--front,
+	.flip-deck--horizontal .flip-half--second .flip-face--back {
+		border-radius: 0.75rem 0 0 0.75rem;
+	}
+
+	.flip-deck--horizontal .flip-half--first .flip-face--back,
+	.flip-deck--horizontal .flip-half--second .flip-face--front {
+		border-radius: 0 0.75rem 0.75rem 0;
+	}
+
 	.flip-face--back {
 		transform: rotateX(180deg);
 	}
