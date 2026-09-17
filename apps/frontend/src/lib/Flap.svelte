@@ -1,19 +1,17 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import {
+		createHalfSlotRing,
+		visibleHalfSlotWindow,
+		type LogicalFace,
+		type PhysicalHalfSlot,
+		type SwipeDirection
+	} from './flap-model';
 
 	type Axis = 'vertical' | 'horizontal';
-	type SwipeDirection = 'positive' | 'negative';
 	type MotionState = 'idle' | 'dragging' | 'inertia' | 'settled';
 	type PointerCoordinate = 'clientX' | 'clientY';
 	type RotationFunction = 'rotateX' | 'rotateY';
-	type LogicalFace = {
-		id: string;
-		label: string;
-	};
-	type PhysicalHalfSlot = {
-		id: string;
-		face: LogicalFace;
-	};
 	type AxisContract = {
 		coordinate: PointerCoordinate;
 		rotationFunction: RotationFunction;
@@ -41,11 +39,13 @@
 		face3: { id: 'face-3', label: '3' },
 		face4: { id: 'face-4', label: '4' }
 	} satisfies Record<string, LogicalFace>;
+	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
+	const INITIAL_VISIBLE_HALF_SLOTS = visibleHalfSlotWindow(INITIAL_HALF_SLOT_RING, 0, 4);
 	const PHYSICAL_HALF_SLOTS = {
-		currentFirst: { id: 'current-first', face: LOGICAL_FACES.face1 },
-		currentSecond: { id: 'current-second', face: LOGICAL_FACES.face2 },
-		nextFirst: { id: 'next-first', face: LOGICAL_FACES.face3 },
-		nextSecond: { id: 'next-second', face: LOGICAL_FACES.face4 }
+		currentFirst: initialVisibleHalfSlot(0),
+		currentSecond: initialVisibleHalfSlot(1),
+		nextFirst: initialVisibleHalfSlot(2),
+		nextSecond: initialVisibleHalfSlot(3)
 	} satisfies Record<string, PhysicalHalfSlot>;
 
 	let { axis = 'vertical' }: { axis?: Axis } = $props();
@@ -95,6 +95,14 @@
 			return touch?.[axisContract.coordinate] ?? touchStartPosition;
 		}
 		return event[axisContract.coordinate];
+	}
+
+	function initialVisibleHalfSlot(index: number): PhysicalHalfSlot {
+		const slot = INITIAL_VISIBLE_HALF_SLOTS[index];
+		if (slot === undefined) {
+			throw new RangeError('Initial visible half-slot is outside the model window.');
+		}
+		return slot;
 	}
 
 	function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {

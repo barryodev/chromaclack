@@ -24,6 +24,7 @@ The branch should end with:
 - Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Flap.svelte`.
 - The current four visible labels are now represented as logical faces assigned to physical half-slots in `Flap.svelte`, preserving the same UI while preparing for slot recycling.
 - Ordered half-slot ring behavior now lives in a pure `flap-model.ts` module with unit tests, before being wired into the visual component.
+- `Flap.svelte` now derives its initial four visible half-slots from the tested model helpers without changing the visible UI.
 - Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
 
 ## Directional Animation Contract
