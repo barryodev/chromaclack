@@ -97,6 +97,10 @@
 	let lastTouchPosition = 0;
 	let lastTouchTime = 0;
 	let velocityDegPerMs = 0;
+	let velocityAtRelease = 0;
+	let releaseTimestamp = 0;
+	let inertiaStartTimestamp = 0;
+	let inertiaDurationMs = 0;
 	let inertiaFrame: number | undefined;
 
 	function cancelInertia() {
@@ -155,6 +159,11 @@
 	}
 
 	function startInertia() {
+		velocityAtRelease = velocityDegPerMs;
+		releaseTimestamp = performance.now();
+		inertiaStartTimestamp = releaseTimestamp;
+		inertiaDurationMs = 0;
+
 		if (Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD) {
 			settleMotion();
 			return;
@@ -165,6 +174,7 @@
 		function step(now: number) {
 			const dtMs = now - lastFrameTime;
 			lastFrameTime = now;
+			inertiaDurationMs = now - inertiaStartTimestamp;
 
 			const animationDtMs = dtMs * ANIMATION_SPEED;
 			rotation = Math.max(-180, Math.min(180, rotation + velocityDegPerMs * animationDtMs));
@@ -173,6 +183,7 @@
 			if (Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD) {
 				inertiaFrame = undefined;
 				settleMotion();
+				inertiaDurationMs = now - inertiaStartTimestamp;
 				return;
 			}
 			inertiaFrame = requestAnimationFrame(step);
@@ -291,13 +302,13 @@
 		</header>
 
 		<div class="debug-metrics">
-			<div class="debug-metric">
+			<div class="debug-metric debug-metric--wide">
 				<span>Axis</span>
 				<strong>{axis}</strong>
 			</div>
-			<div class="debug-metric">
+			<div class="debug-metric debug-metric--wide">
 				<span>Motion</span>
-				<strong>{motionState}</strong>
+				<strong class="debug-status debug-status--{motionState}">{motionState}</strong>
 			</div>
 			<div class="debug-metric">
 				<span>Swipe</span>
@@ -305,7 +316,27 @@
 			</div>
 			<div class="debug-metric">
 				<span>Rotation</span>
-				<strong>{rotation.toFixed(2)} deg</strong>
+				<strong>{rotation.toFixed(2)}°</strong>
+			</div>
+			<div class="debug-metric">
+				<span>Velocity</span>
+				<strong>{velocityDegPerMs.toFixed(4)}</strong>
+			</div>
+			<div class="debug-metric">
+				<span>Release</span>
+				<strong>{velocityAtRelease.toFixed(4)}</strong>
+			</div>
+			<div class="debug-metric debug-metric--wide">
+				<span>Elapsed</span>
+				<strong>{Math.max(0, performance.now() - releaseTimestamp).toFixed(0)} ms</strong>
+			</div>
+			<div class="debug-metric debug-metric--wide">
+				<span>Inertia</span>
+				<strong>{inertiaDurationMs.toFixed(0)} ms</strong>
+			</div>
+			<div class="debug-metric debug-metric--wide">
+				<span>Threshold</span>
+				<strong>{Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD ? 'below' : 'above'}</strong>
 			</div>
 		</div>
 
@@ -488,17 +519,20 @@
 		right: 1rem;
 		bottom: 1rem;
 		z-index: 10;
-		width: min(25rem, calc(100vw - 2rem));
-		max-height: min(28rem, calc(100vh - 2rem));
+		width: min(27rem, calc(100vw - 2rem));
+		max-height: min(31rem, calc(100vh - 2rem));
 		margin: 0;
-		padding: 0.85rem;
+		padding: 0.9rem;
 		overflow: auto;
-		border: 1px solid rgba(255, 255, 255, 0.16);
-		border-radius: 0.75rem;
+		border: 1px solid rgba(34, 211, 238, 0.35);
+		border-radius: 0.9rem;
 		background:
-			linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
-			rgba(12, 15, 18, 0.94);
-		box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.38);
+			linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(10, 14, 20, 0.95)),
+			linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(59, 130, 246, 0.08));
+		box-shadow:
+			0 0 0 1px rgba(148, 163, 184, 0.18),
+			0 1rem 2.5rem rgba(15, 23, 42, 0.72),
+			0 0 2rem rgba(34, 211, 238, 0.16);
 		color: #f8fafc;
 		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 		font-size: 0.72rem;
@@ -511,68 +545,103 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-bottom: 0.75rem;
-		color: #e2e8f0;
-		font-size: 0.72rem;
+		margin-bottom: 0.8rem;
+		padding-bottom: 0.45rem;
+		border-bottom: 1px solid rgba(34, 211, 238, 0.2);
+		color: #dbeafe;
+		font-size: 0.68rem;
 		font-weight: 800;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.16em;
 		text-transform: uppercase;
 	}
 
 	.debug-panel__pulse {
-		width: 0.55rem;
-		height: 0.55rem;
+		width: 0.6rem;
+		height: 0.6rem;
 		border-radius: 999px;
-		background: #65f0b4;
-		box-shadow: 0 0 0.8rem rgba(101, 240, 180, 0.85);
+		background: #2dd4bf;
+		box-shadow: 0 0 0.8rem rgba(45, 212, 191, 0.95);
+		animation: pulse 1.2s ease-in-out infinite;
 	}
 
 	.debug-metrics {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.45rem;
-		margin-bottom: 0.85rem;
-	}
-
-	.debug-metric,
-	.debug-section {
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 0.5rem;
-		background: rgba(255, 255, 255, 0.055);
+		gap: 0.5rem;
+		margin-bottom: 0.8rem;
 	}
 
 	.debug-metric {
-		display: grid;
-		gap: 0.15rem;
-		padding: 0.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.24rem;
+		padding: 0.5rem 0.55rem;
+		border: 1px solid rgba(148, 163, 184, 0.2);
+		border-radius: 0.55rem;
+		background: linear-gradient(180deg, rgba(9, 14, 20, 0.9), rgba(15, 23, 42, 0.7));
+		box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.08);
 	}
 
-	.debug-metric span,
-	.debug-row span,
-	.debug-row small {
-		color: #94a3b8;
+	.debug-metric--wide {
+		grid-column: span 2;
 	}
 
-	.debug-metric strong,
-	.debug-row strong {
+	.debug-metric span {
+		color: #7dd3fc;
+		font-size: 0.58rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+	}
+
+	.debug-metric strong {
 		color: #f8fafc;
-		font-weight: 800;
+		font-size: 0.82rem;
+		font-weight: 700;
+	}
+
+	.debug-status {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.12rem 0.45rem;
+		border-radius: 999px;
+		font-size: 0.7rem;
+		text-transform: uppercase;
+	}
+
+	.debug-status--idle {
+		background: rgba(148, 163, 184, 0.12);
+		color: #cbd5e1;
+	}
+
+	.debug-status--dragging {
+		background: rgba(250, 204, 21, 0.12);
+		color: #fde68a;
+	}
+
+	.debug-status--inertia {
+		background: rgba(34, 211, 238, 0.12);
+		color: #a5f3fc;
+	}
+
+	.debug-status--settled {
+		background: rgba(52, 211, 153, 0.12);
+		color: #a7f3d0;
 	}
 
 	.debug-section {
-		padding: 0.55rem;
-	}
-
-	.debug-section + .debug-section {
-		margin-top: 0.55rem;
+		margin-top: 0.7rem;
+		padding: 0.6rem;
+		border: 1px solid rgba(148, 163, 184, 0.16);
+		border-radius: 0.6rem;
+		background: rgba(15, 23, 42, 0.54);
 	}
 
 	.debug-section h2 {
 		margin: 0 0 0.45rem;
 		color: #cbd5e1;
-		font-size: 0.62rem;
-		font-weight: 800;
-		letter-spacing: 0.08em;
+		font-size: 0.6rem;
+		letter-spacing: 0.15em;
 		text-transform: uppercase;
 	}
 
@@ -592,17 +661,39 @@
 		border-top: 1px solid rgba(255, 255, 255, 0.08);
 	}
 
+	.debug-row span,
+	.debug-row small {
+		color: #94a3b8;
+	}
+
+	.debug-row strong {
+		color: #f8fafc;
+	}
+
 	.debug-ring {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.35rem;
+		gap: 0.3rem;
 	}
 
 	.debug-ring__chip {
-		padding: 0.24rem 0.4rem;
-		border: 1px solid rgba(101, 240, 180, 0.22);
+		padding: 0.2rem 0.45rem;
+		border: 1px solid rgba(45, 212, 191, 0.4);
 		border-radius: 999px;
-		background: rgba(101, 240, 180, 0.08);
-		color: #dffcec;
+		background: rgba(13, 148, 136, 0.12);
+		color: #a7f3d0;
+		font-size: 0.58rem;
+	}
+
+	@keyframes pulse {
+		0%,
+		100% {
+			opacity: 1;
+			transform: scale(1);
+		}
+		50% {
+			opacity: 0.6;
+			transform: scale(1.2);
+		}
 	}
 </style>
