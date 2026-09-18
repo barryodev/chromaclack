@@ -71,13 +71,13 @@ test('carries a hard swipe through multiple turns before settling', async ({ pag
 
 	await expect(deck).toHaveAttribute('data-motion-state', 'inertia');
 	await expect
-		.poll(async () => Number(await deck.getAttribute('data-completed-turns')), {
+		.poll(async () => Number(await deck.getAttribute('data-committed-turns')), {
 			timeout: 5000
 		})
 		.toBeGreaterThanOrEqual(2);
 	await expect(deck).toHaveAttribute('data-motion-state', 'idle', { timeout: 10000 });
 	await expect
-		.poll(async () => Number(await deck.getAttribute('data-completed-turns')))
+		.poll(async () => Number(await deck.getAttribute('data-committed-turns')))
 		.toBeGreaterThanOrEqual(2);
 });
 

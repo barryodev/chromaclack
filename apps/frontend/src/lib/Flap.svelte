@@ -7,7 +7,12 @@
 		type PhysicalHalfSlot,
 		type SwipeDirection
 	} from './flap-model';
-	import { createGestureModel, type GestureModel, type MotionState } from './gesture-model';
+	import {
+		createGestureModel,
+		type GestureEvent,
+		type GestureModel,
+		type MotionState
+	} from './gesture-model';
 
 	type Axis = 'vertical' | 'horizontal';
 	type PointerCoordinate = 'clientX' | 'clientY';
@@ -90,7 +95,7 @@
 	const rotation = $derived(gestureModel.rotation);
 	const motionState = $derived<MotionState>(gestureModel.motionState);
 	const acceptedSwipeDirection = $derived<SwipeDirection | undefined>(
-		gestureModel.acceptedSwipeDirection
+		gestureModel.releaseDirection
 	);
 	const velocityDegPerMs = $derived(gestureModel.velocityDegPerMs);
 	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
@@ -117,7 +122,7 @@
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.min(0, rotation)}deg)`
 	);
 	let inertiaFrame: number | undefined;
-	let appliedTurnCount = 0;
+	let committedTurnCount = $state(0);
 	let inertiaTickCount = 0;
 	let lastInertiaLogTime = 0;
 
@@ -131,7 +136,7 @@
 			rotation: Number(gesture.rotation.toFixed(2)),
 			velocity: Number(gesture.velocityDegPerMs.toFixed(4)),
 			inertiaDurationMs: Number(gesture.inertiaDurationMs.toFixed(0)),
-			acceptedDirection: gesture.acceptedSwipeDirection ?? 'none'
+			releaseDirection: gesture.releaseDirection ?? 'none'
 		});
 		return {
 			...gesture,
@@ -142,17 +147,26 @@
 		};
 	}
 
-	function applyCompletedTurns(gesture: GestureModel) {
-		const turnDelta = gesture.completedTurns - appliedTurnCount;
-		if (turnDelta !== 0) {
-			currentPageIndex -= turnDelta;
+	function applyGestureEvents(events: GestureEvent[]) {
+		for (const event of events) {
+			if (event.type === 'turn-committed') {
+				committedTurnCount += 1;
+				currentPageIndex -= event.direction === 'positive' ? 1 : -1;
+				logGesture('turn-committed', {
+					direction: event.direction,
+					pageIndex: currentPageIndex
+				});
+			}
+			if (event.type === 'settled') {
+				logGesture('settled-event', { pageIndex: currentPageIndex });
+			}
+		}
+		if (events.some((event) => event.type === 'turn-committed')) {
 			logGesture('turns-committed', {
-				count: Math.abs(turnDelta),
-				direction: turnDelta > 0 ? 'positive' : 'negative',
+				count: events.filter((event) => event.type === 'turn-committed').length,
 				pageIndex: currentPageIndex
 			});
 		}
-		appliedTurnCount = gesture.completedTurns;
 	}
 
 	function cancelInertia() {
@@ -205,9 +219,10 @@
 		const step = (now: number) => {
 			const dtMs = now - lastFrameTime;
 			lastFrameTime = now;
-			const nextGesture = gestureModel.tick(dtMs);
+			const transition = gestureModel.tick(dtMs);
+			const nextGesture = transition.model;
 			gestureModel = nextGesture;
-			applyCompletedTurns(nextGesture);
+			applyGestureEvents(transition.events);
 			inertiaTickCount += 1;
 			if (now - lastInertiaLogTime >= 100 || nextGesture.motionState === 'settled') {
 				lastInertiaLogTime = now;
@@ -255,14 +270,15 @@
 	function dragEnd() {
 		window.removeEventListener('mousemove', dragMove);
 		window.removeEventListener('mouseup', dragEnd);
-		const released = gestureModel.release(performance.now());
+		const transition = gestureModel.release(performance.now());
+		const released = transition.model;
 		gestureModel = released;
-		applyCompletedTurns(released);
+		applyGestureEvents(transition.events);
 		logGesture('release', {
 			rotation: Number(released.rotation.toFixed(2)),
 			velocity: Number(released.velocityAtRelease.toFixed(4)),
 			state: released.motionState,
-			acceptedDirection: released.acceptedSwipeDirection ?? 'none'
+			releaseDirection: released.releaseDirection ?? 'none'
 		});
 
 		if (released.motionState === 'settled') {
@@ -291,7 +307,7 @@
 	data-motion-state={motionState}
 	data-accepted-swipe-direction={acceptedSwipeDirection}
 	data-current-page-index={currentPageIndex}
-	data-completed-turns={gestureModel.completedTurns}
+	data-committed-turns={committedTurnCount}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}

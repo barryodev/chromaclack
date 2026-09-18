@@ -1,6 +1,12 @@
 export type GestureAxis = 'vertical' | 'horizontal';
 export type MotionState = 'idle' | 'dragging' | 'inertia' | 'settled';
 export type SwipeDirection = 'positive' | 'negative';
+export type GestureEvent =
+	{ type: 'turn-committed'; direction: SwipeDirection } | { type: 'settled' };
+export type GestureTransition = {
+	model: GestureModel;
+	events: GestureEvent[];
+};
 
 export type GestureModelConfig = {
 	dragSensitivity?: number;
@@ -22,8 +28,7 @@ export type GestureModel = {
 	velocityAtRelease: number;
 	releaseTimestamp: number;
 	inertiaDurationMs: number;
-	completedTurns: number;
-	acceptedSwipeDirection?: SwipeDirection;
+	releaseDirection?: SwipeDirection;
 	dragSensitivity: number;
 	acceptedSwipeRotationDegrees: number;
 	velocityStopThreshold: number;
@@ -31,8 +36,8 @@ export type GestureModel = {
 	animationSpeed: number;
 	beginDrag: (position: number, time: number) => GestureModel;
 	dragTo: (position: number, time: number) => GestureModel;
-	release: (time: number) => GestureModel;
-	tick: (dtMs: number) => GestureModel;
+	release: (time: number) => GestureTransition;
+	tick: (dtMs: number) => GestureTransition;
 };
 
 const DEFAULT_CONFIG: Required<GestureModelConfig> = {
@@ -73,8 +78,7 @@ export function createGestureModel(
 		velocityAtRelease: 0,
 		releaseTimestamp: 0,
 		inertiaDurationMs: 0,
-		completedTurns: 0,
-		acceptedSwipeDirection: undefined,
+		releaseDirection: undefined,
 		dragSensitivity: resolved.dragSensitivity,
 		acceptedSwipeRotationDegrees: resolved.acceptedSwipeRotationDegrees,
 		velocityStopThreshold: resolved.velocityStopThreshold,
@@ -92,7 +96,7 @@ export function createGestureModel(
 				velocityAtRelease: 0,
 				releaseTimestamp: 0,
 				inertiaDurationMs: 0,
-				acceptedSwipeDirection: undefined
+				releaseDirection: undefined
 			};
 		},
 		dragTo(position, time) {
@@ -108,73 +112,83 @@ export function createGestureModel(
 				lastTouchPosition: position,
 				lastTouchTime: time,
 				velocityDegPerMs: nextVelocity,
-				acceptedSwipeDirection: undefined
+				releaseDirection: undefined
 			};
 		},
 		release(time) {
 			const nextVelocity = this.velocityDegPerMs;
 			const shouldInertia = Math.abs(nextVelocity) >= this.velocityStopThreshold;
-			const accepted = shouldInertia
-				? undefined
-				: acceptedSwipeDirectionForRotation(this.rotation, this.acceptedSwipeRotationDegrees);
-			const completedTurns = accepted
-				? this.completedTurns + (accepted === 'positive' ? 1 : -1)
-				: this.completedTurns;
+			const accepted = acceptedSwipeDirectionForRotation(
+				this.rotation,
+				this.acceptedSwipeRotationDegrees
+			);
+			const releaseDirection = accepted ?? directionForVelocity(nextVelocity);
 			const nextRotation = accepted
 				? this.rotation - (accepted === 'positive' ? 1 : -1) * this.acceptedSwipeRotationDegrees
 				: this.rotation;
 			const nextState: GestureModel = {
 				...this,
 				rotation: nextRotation,
-				completedTurns,
 				motionState: shouldInertia ? 'inertia' : 'settled',
 				velocityAtRelease: nextVelocity,
 				releaseTimestamp: time,
 				inertiaDurationMs: 0,
-				acceptedSwipeDirection: accepted
+				releaseDirection
 			};
 
 			if (!shouldInertia) {
 				return {
-					...nextState,
-					velocityDegPerMs: 0,
-					rotation: clampRotation(nextRotation)
+					model: {
+						...nextState,
+						velocityDegPerMs: 0,
+						rotation: clampRotation(nextRotation)
+					},
+					events: [
+						...(accepted ? [{ type: 'turn-committed' as const, direction: accepted }] : []),
+						{ type: 'settled' }
+					]
 				};
 			}
 
-			return nextState;
+			return { model: nextState, events: [] };
 		},
 		tick(dtMs) {
 			if (this.motionState !== 'inertia') {
-				return this;
+				return { model: this, events: [] };
 			}
 
 			const animationDtMs = dtMs * this.animationSpeed;
 			const rawRotation = this.rotation + this.velocityDegPerMs * animationDtMs;
 			const turnDirection = this.velocityDegPerMs >= 0 ? 1 : -1;
 			const crossedTurns = Math.floor(Math.abs(rawRotation) / this.acceptedSwipeRotationDegrees);
-			const nextRotation = rawRotation - crossedTurns * turnDirection * this.acceptedSwipeRotationDegrees;
+			const nextRotation =
+				rawRotation - crossedTurns * turnDirection * this.acceptedSwipeRotationDegrees;
 			const nextVelocity =
 				this.velocityDegPerMs * Math.exp(-this.frictionDecayPerSecond * (animationDtMs / 1000));
 			const nextState: GestureModel = {
 				...this,
 				rotation: nextRotation,
-				completedTurns: this.completedTurns + crossedTurns * turnDirection,
 				velocityDegPerMs: nextVelocity,
 				inertiaDurationMs: this.inertiaDurationMs + dtMs
 			};
 
 			if (Math.abs(nextVelocity) < this.velocityStopThreshold) {
 				return {
-					...nextState,
-					motionState: 'settled',
-					acceptedSwipeDirection: undefined,
-					velocityDegPerMs: 0,
-					rotation: clampRotation(nextRotation)
+					model: {
+						...nextState,
+						motionState: 'settled',
+						releaseDirection: this.releaseDirection,
+						velocityDegPerMs: 0,
+						rotation: clampRotation(nextRotation)
+					},
+					events: [...turnEvents(crossedTurns, turnDirection), { type: 'settled' }]
 				};
 			}
 
-			return nextState;
+			return {
+				model: nextState,
+				events: turnEvents(crossedTurns, turnDirection)
+			};
 		}
 	};
 
@@ -185,12 +199,25 @@ export function dragGesture(model: GestureModel, position: number, time: number)
 	return model.dragTo(position, time);
 }
 
-export function releaseGesture(model: GestureModel, time: number): GestureModel {
+export function releaseGesture(model: GestureModel, time: number): GestureTransition {
 	return model.release(time);
 }
 
-export function tickGesture(model: GestureModel, dtMs: number): GestureModel {
+export function tickGesture(model: GestureModel, dtMs: number): GestureTransition {
 	return model.tick(dtMs);
+}
+
+function turnEvents(count: number, direction: 1 | -1): GestureEvent[] {
+	return Array.from({ length: count }, () => ({
+		type: 'turn-committed' as const,
+		direction: direction > 0 ? ('positive' as const) : ('negative' as const)
+	}));
+}
+
+function directionForVelocity(value: number): SwipeDirection | undefined {
+	if (value > 0) return 'positive';
+	if (value < 0) return 'negative';
+	return undefined;
 }
 
 function clampRotation(value: number): number {

@@ -32,7 +32,7 @@ describe('gesture model', () => {
 		const model = createGestureModel('vertical');
 		const started = model.beginDrag(100, 50);
 		const moved = started.dragTo(100.1, 150);
-		const released = moved.release(200);
+		const released = moved.release(200).model;
 
 		expect(released.motionState).toBe('settled');
 		expect(released.rotation).toBeLessThanOrEqual(180);
@@ -42,24 +42,49 @@ describe('gesture model', () => {
 		const model = createGestureModel('vertical');
 		const started = model.beginDrag(100, 50);
 		const moved = started.dragTo(220, 80);
-		const released = moved.release(200);
+		const released = moved.release(200).model;
 
 		expect(released.motionState).toBe('inertia');
 		expect(released.velocityDegPerMs).toBeGreaterThan(0.01);
 		expect(released.rotation).toBeGreaterThan(0);
 	});
 
+	it('emits one positive turn event for an accepted release', () => {
+		const model = createGestureModel('vertical', { velocityStopThreshold: 1 });
+		const moved = model.beginDrag(100, 50).dragTo(500, 1050);
+		const released = moved.release(2050);
+
+		expect(released.model.motionState).toBe('settled');
+		expect(released.events).toEqual([
+			{ type: 'turn-committed', direction: 'positive' },
+			{ type: 'settled' }
+		]);
+	});
+
+	it('emits a negative turn event for an opposite accepted release', () => {
+		const model = createGestureModel('vertical', { velocityStopThreshold: 1 });
+		const moved = model.beginDrag(500, 50).dragTo(100, 1050);
+		const released = moved.release(2050);
+
+		expect(released.model.motionState).toBe('settled');
+		expect(released.events).toEqual([
+			{ type: 'turn-committed', direction: 'negative' },
+			{ type: 'settled' }
+		]);
+	});
+
 	it('continues inertia across multiple completed turns', () => {
 		const model = createGestureModel('vertical');
 		const started = model.beginDrag(100, 50);
 		const moved = started.dragTo(220, 80);
-		const released = moved.release(200);
+		const released = moved.release(200).model;
 		const turning = tickGesture(released, 1000);
 
-		expect(turning.motionState).toBe('inertia');
-		expect(turning.completedTurns).toBe(3);
-		expect(turning.rotation).toBeGreaterThanOrEqual(0);
-		expect(turning.rotation).toBeLessThan(180);
+		expect(turning.model.motionState).toBe('inertia');
+		expect(turning.events).toHaveLength(3);
+		expect(turning.events.every((event) => event.type === 'turn-committed')).toBe(true);
+		expect(turning.model.rotation).toBeGreaterThanOrEqual(0);
+		expect(turning.model.rotation).toBeLessThan(180);
 	});
 
 	it('uses the accepted threshold to decide direction', () => {
@@ -75,12 +100,12 @@ describe('gesture model', () => {
 		});
 		const started = model.beginDrag(100, 50);
 		const moved = started.dragTo(220, 80);
-		const released = moved.release(200);
+		const released = moved.release(200).model;
 		const settled = tickGesture(released, 8000);
 
-		expect(settled.motionState).toBe('settled');
-		expect(settled.rotation).toBeLessThan(180);
-		expect(settled.completedTurns).toBeGreaterThan(0);
+		expect(settled.model.motionState).toBe('settled');
+		expect(settled.model.rotation).toBeLessThan(180);
+		expect(settled.events.at(-1)).toEqual({ type: 'settled' });
 	});
 
 	it('supports horizontal gestures with the opposite rotation direction contract', () => {
@@ -90,5 +115,21 @@ describe('gesture model', () => {
 
 		expect(moved.rotation).toBeGreaterThan(0);
 		expect(moved.axis).toBe<GestureAxis>('horizontal');
+	});
+
+	it('keeps opposite transitions independent after inertia settles', () => {
+		const model = createGestureModel('vertical');
+		const positive = model.beginDrag(100, 50).dragTo(220, 80).release(200).model;
+		const positiveTurn = tickGesture(positive, 1000);
+		const negative = positiveTurn.model.beginDrag(220, 1200).dragTo(100, 1230).release(1300).model;
+		const negativeTurn = tickGesture(negative, 1000);
+
+		expect(positiveTurn.events.some((event) => event.type === 'turn-committed')).toBe(true);
+		expect(negativeTurn.events.some((event) => event.type === 'turn-committed')).toBe(true);
+		expect(
+			negativeTurn.events.every(
+				(event) => event.type === 'turn-committed' && event.direction === 'negative'
+			)
+		).toBe(true);
 	});
 });
