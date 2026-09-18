@@ -7,9 +7,9 @@
 		type PhysicalHalfSlot,
 		type SwipeDirection
 	} from './flap-model';
+	import { createGestureModel, type GestureModel, type MotionState } from './gesture-model';
 
 	type Axis = 'vertical' | 'horizontal';
-	type MotionState = 'idle' | 'dragging' | 'inertia' | 'settled';
 	type PointerCoordinate = 'clientX' | 'clientY';
 	type RotationFunction = 'rotateX' | 'rotateY';
 	type AxisContract = {
@@ -69,9 +69,33 @@
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
 	let currentPageIndex = $state(0);
-	let rotation = $state(0);
-	let motionState = $state<MotionState>('idle');
-	let acceptedSwipeDirection = $state<SwipeDirection | undefined>();
+	let gestureModel = $state<GestureModel>(
+		createGestureModel('vertical', {
+			dragSensitivity: DRAG_SENSITIVITY,
+			acceptedSwipeRotationDegrees: ACCEPTED_SWIPE_ROTATION_DEGREES,
+			velocityStopThreshold: VELOCITY_STOP_THRESHOLD,
+			frictionDecayPerSecond: FRICTION_DECAY_PER_SECOND,
+			animationSpeed: ANIMATION_SPEED
+		})
+	);
+	$effect(() => {
+		gestureModel = createGestureModel(axis, {
+			dragSensitivity: DRAG_SENSITIVITY,
+			acceptedSwipeRotationDegrees: ACCEPTED_SWIPE_ROTATION_DEGREES,
+			velocityStopThreshold: VELOCITY_STOP_THRESHOLD,
+			frictionDecayPerSecond: FRICTION_DECAY_PER_SECOND,
+			animationSpeed: ANIMATION_SPEED
+		});
+	});
+	const rotation = $derived(gestureModel.rotation);
+	const motionState = $derived<MotionState>(gestureModel.motionState);
+	const acceptedSwipeDirection = $derived<SwipeDirection | undefined>(
+		gestureModel.acceptedSwipeDirection
+	);
+	const velocityDegPerMs = $derived(gestureModel.velocityDegPerMs);
+	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
+	const inertiaDurationMs = $derived(gestureModel.inertiaDurationMs);
+	const releaseTimestamp = $derived(gestureModel.releaseTimestamp);
 	const currentPage = $derived(pageAt(currentPageIndex));
 	const nextPage = $derived(pageAt(currentPageIndex + 1));
 	const previousPage = $derived(pageAt(currentPageIndex - 1));
@@ -92,16 +116,26 @@
 	const secondTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.min(0, rotation)}deg)`
 	);
-	let touchStartPosition = 0;
-	let touchStartRotation = 0;
-	let lastTouchPosition = 0;
-	let lastTouchTime = 0;
-	let velocityDegPerMs = 0;
-	let velocityAtRelease = 0;
-	let releaseTimestamp = 0;
-	let inertiaStartTimestamp = 0;
-	let inertiaDurationMs = 0;
 	let inertiaFrame: number | undefined;
+
+	function resolveSettledGesture(gesture: GestureModel): GestureModel {
+		if (gesture.acceptedSwipeDirection) {
+			currentPageIndex += gesture.acceptedSwipeDirection === 'positive' ? -1 : 1;
+			return {
+				...gesture,
+				rotation: 0,
+				velocityDegPerMs: 0,
+				velocityAtRelease: 0,
+				acceptedSwipeDirection: gesture.acceptedSwipeDirection
+			};
+		}
+		return {
+			...gesture,
+			rotation: 0,
+			velocityDegPerMs: 0,
+			velocityAtRelease: 0
+		};
+	}
 
 	function cancelInertia() {
 		if (inertiaFrame === undefined) return;
@@ -121,7 +155,7 @@
 	function pointerPosition(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) {
 			const touch = event.touches[0] ?? event.changedTouches[0];
-			return touch?.[axisContract.coordinate] ?? touchStartPosition;
+			return touch?.[axisContract.coordinate] ?? gestureModel.dragStartPosition;
 		}
 		return event[axisContract.coordinate];
 	}
@@ -142,65 +176,29 @@
 		return page;
 	}
 
-	function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {
-		if (value >= ACCEPTED_SWIPE_ROTATION_DEGREES) return 'positive';
-		if (value <= -ACCEPTED_SWIPE_ROTATION_DEGREES) return 'negative';
-	}
-
-	function settleMotion() {
-		const direction = acceptedSwipeDirectionForRotation(rotation);
-		motionState = 'settled';
-		acceptedSwipeDirection = direction;
-
-		if (direction) {
-			currentPageIndex += direction === 'positive' ? -1 : 1;
-			rotation = 0;
-		}
-	}
-
 	function startInertia() {
-		velocityAtRelease = velocityDegPerMs;
-		releaseTimestamp = performance.now();
-		inertiaStartTimestamp = releaseTimestamp;
-		inertiaDurationMs = 0;
-
-		if (Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD) {
-			settleMotion();
-			return;
-		}
-
-		motionState = 'inertia';
 		let lastFrameTime = performance.now();
-		function step(now: number) {
+		const step = (now: number) => {
 			const dtMs = now - lastFrameTime;
 			lastFrameTime = now;
-			inertiaDurationMs = now - inertiaStartTimestamp;
+			const nextGesture = gestureModel.tick(dtMs);
+			gestureModel = nextGesture;
 
-			const animationDtMs = dtMs * ANIMATION_SPEED;
-			rotation = Math.max(-180, Math.min(180, rotation + velocityDegPerMs * animationDtMs));
-			velocityDegPerMs *= Math.exp(-FRICTION_DECAY_PER_SECOND * (animationDtMs / 1000));
-
-			if (Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD) {
+			if (nextGesture.motionState === 'settled') {
 				inertiaFrame = undefined;
-				settleMotion();
-				inertiaDurationMs = now - inertiaStartTimestamp;
+				gestureModel = resolveSettledGesture(nextGesture);
 				return;
 			}
+
 			inertiaFrame = requestAnimationFrame(step);
-		}
+		};
 		inertiaFrame = requestAnimationFrame(step);
 	}
 
 	function dragStart(event: MouseEvent | TouchEvent) {
 		cancelInertia();
 		const position = pointerPosition(event);
-		touchStartPosition = position;
-		touchStartRotation = rotation;
-		lastTouchPosition = position;
-		lastTouchTime = performance.now();
-		velocityDegPerMs = 0;
-		motionState = 'dragging';
-		acceptedSwipeDirection = undefined;
+		gestureModel = gestureModel.beginDrag(position, performance.now());
 
 		if (!('touches' in event)) {
 			window.addEventListener('mousemove', dragMove);
@@ -211,24 +209,20 @@
 	function dragMove(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) event.preventDefault();
 		const position = pointerPosition(event);
-		const now = performance.now();
-
-		rotation = Math.max(
-			-180,
-			Math.min(180, touchStartRotation + (position - touchStartPosition) * DRAG_SENSITIVITY)
-		);
-
-		const dt = now - lastTouchTime;
-		if (dt > 0) {
-			velocityDegPerMs = ((position - lastTouchPosition) * DRAG_SENSITIVITY) / dt;
-		}
-		lastTouchPosition = position;
-		lastTouchTime = now;
+		gestureModel = gestureModel.dragTo(position, performance.now());
 	}
 
 	function dragEnd() {
 		window.removeEventListener('mousemove', dragMove);
 		window.removeEventListener('mouseup', dragEnd);
+		const released = gestureModel.release(performance.now());
+		gestureModel = released;
+
+		if (released.motionState === 'settled') {
+			gestureModel = resolveSettledGesture(released);
+			return;
+		}
+
 		startInertia();
 	}
 
