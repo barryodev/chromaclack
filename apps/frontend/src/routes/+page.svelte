@@ -1,9 +1,13 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import Clacker from '$lib/Clacker.svelte';
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 
 	let activeMode = $state<Mode>('vertical');
+	const debug = $derived(
+		page.url.searchParams.has('debug') && page.url.searchParams.get('debug') !== 'false'
+	);
 
 	const modes: { id: Mode; label: string }[] = [
 		{ id: 'vertical', label: 'Up / Down' },
@@ -31,7 +35,7 @@
 		{/each}
 	</nav>
 
-	<Clacker mode={activeMode} />
+	<Clacker mode={activeMode} {debug} />
 </section>
 
 <style>
