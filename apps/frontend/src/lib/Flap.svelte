@@ -117,6 +117,7 @@
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.min(0, rotation)}deg)`
 	);
 	let inertiaFrame: number | undefined;
+	let appliedTurnCount = 0;
 	let inertiaTickCount = 0;
 	let lastInertiaLogTime = 0;
 
@@ -132,22 +133,26 @@
 			inertiaDurationMs: Number(gesture.inertiaDurationMs.toFixed(0)),
 			acceptedDirection: gesture.acceptedSwipeDirection ?? 'none'
 		});
-		if (gesture.acceptedSwipeDirection) {
-			currentPageIndex += gesture.acceptedSwipeDirection === 'positive' ? -1 : 1;
-			return {
-				...gesture,
-				rotation: 0,
-				velocityDegPerMs: 0,
-				velocityAtRelease: 0,
-				acceptedSwipeDirection: gesture.acceptedSwipeDirection
-			};
-		}
 		return {
 			...gesture,
+			motionState: 'idle',
 			rotation: 0,
 			velocityDegPerMs: 0,
 			velocityAtRelease: 0
 		};
+	}
+
+	function applyCompletedTurns(gesture: GestureModel) {
+		const turnDelta = gesture.completedTurns - appliedTurnCount;
+		if (turnDelta !== 0) {
+			currentPageIndex -= turnDelta;
+			logGesture('turns-committed', {
+				count: Math.abs(turnDelta),
+				direction: turnDelta > 0 ? 'positive' : 'negative',
+				pageIndex: currentPageIndex
+			});
+		}
+		appliedTurnCount = gesture.completedTurns;
 	}
 
 	function cancelInertia() {
@@ -202,6 +207,7 @@
 			lastFrameTime = now;
 			const nextGesture = gestureModel.tick(dtMs);
 			gestureModel = nextGesture;
+			applyCompletedTurns(nextGesture);
 			inertiaTickCount += 1;
 			if (now - lastInertiaLogTime >= 100 || nextGesture.motionState === 'settled') {
 				lastInertiaLogTime = now;
@@ -251,6 +257,7 @@
 		window.removeEventListener('mouseup', dragEnd);
 		const released = gestureModel.release(performance.now());
 		gestureModel = released;
+		applyCompletedTurns(released);
 		logGesture('release', {
 			rotation: Number(released.rotation.toFixed(2)),
 			velocity: Number(released.velocityAtRelease.toFixed(4)),
@@ -283,6 +290,8 @@
 	style={`--first-transform: ${firstTransform}; --second-transform: ${secondTransform}`}
 	data-motion-state={motionState}
 	data-accepted-swipe-direction={acceptedSwipeDirection}
+	data-current-page-index={currentPageIndex}
+	data-completed-turns={gestureModel.completedTurns}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}

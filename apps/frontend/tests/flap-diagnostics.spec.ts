@@ -53,6 +53,34 @@ test('captures horizontal flap swipe diagnostics', async ({ page }, testInfo) =>
 	await attachScreenshot(testInfo, page, 'flap-swipe-right-after-release');
 });
 
+test('carries a hard swipe through multiple turns before settling', async ({ page }) => {
+	await page.goto('/?debug');
+
+	const deck = page.locator('.flip-deck');
+	const box = await deck.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+
+	const centerX = box.x + box.width / 2;
+	const centerY = box.y + box.height / 2;
+
+	await page.mouse.move(centerX, centerY);
+	await page.mouse.down();
+	await page.mouse.move(centerX, centerY + box.height * 4.5, { steps: 12 });
+	await page.mouse.up();
+
+	await expect(deck).toHaveAttribute('data-motion-state', 'inertia');
+	await expect
+		.poll(async () => Number(await deck.getAttribute('data-completed-turns')), {
+			timeout: 5000
+		})
+		.toBeGreaterThanOrEqual(2);
+	await expect(deck).toHaveAttribute('data-motion-state', 'idle', { timeout: 10000 });
+	await expect
+		.poll(async () => Number(await deck.getAttribute('data-completed-turns')))
+		.toBeGreaterThanOrEqual(2);
+});
+
 async function attachScreenshot(testInfo: TestInfo, page: Page, name: string) {
 	const path = testInfo.outputPath(`${name}.png`);
 	await page.screenshot({ path, fullPage: true });

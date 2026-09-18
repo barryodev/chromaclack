@@ -49,6 +49,19 @@ describe('gesture model', () => {
 		expect(released.rotation).toBeGreaterThan(0);
 	});
 
+	it('continues inertia across multiple completed turns', () => {
+		const model = createGestureModel('vertical');
+		const started = model.beginDrag(100, 50);
+		const moved = started.dragTo(220, 80);
+		const released = moved.release(200);
+		const turning = tickGesture(released, 1000);
+
+		expect(turning.motionState).toBe('inertia');
+		expect(turning.completedTurns).toBe(3);
+		expect(turning.rotation).toBeGreaterThanOrEqual(0);
+		expect(turning.rotation).toBeLessThan(180);
+	});
+
 	it('uses the accepted threshold to decide direction', () => {
 		expect(acceptedSwipeDirectionForRotation(180)).toBe('positive');
 		expect(acceptedSwipeDirectionForRotation(-180)).toBe('negative');
@@ -66,7 +79,8 @@ describe('gesture model', () => {
 		const settled = tickGesture(released, 8000);
 
 		expect(settled.motionState).toBe('settled');
-		expect(settled.rotation).toBeGreaterThanOrEqual(180);
+		expect(settled.rotation).toBeLessThan(180);
+		expect(settled.completedTurns).toBeGreaterThan(0);
 	});
 
 	it('supports horizontal gestures with the opposite rotation direction contract', () => {

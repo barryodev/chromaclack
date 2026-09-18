@@ -22,6 +22,7 @@ export type GestureModel = {
 	velocityAtRelease: number;
 	releaseTimestamp: number;
 	inertiaDurationMs: number;
+	completedTurns: number;
 	acceptedSwipeDirection?: SwipeDirection;
 	dragSensitivity: number;
 	acceptedSwipeRotationDegrees: number;
@@ -42,9 +43,12 @@ const DEFAULT_CONFIG: Required<GestureModelConfig> = {
 	animationSpeed: 0.25
 };
 
-export function acceptedSwipeDirectionForRotation(value: number): SwipeDirection | undefined {
-	if (value >= DEFAULT_CONFIG.acceptedSwipeRotationDegrees) return 'positive';
-	if (value <= -DEFAULT_CONFIG.acceptedSwipeRotationDegrees) return 'negative';
+export function acceptedSwipeDirectionForRotation(
+	value: number,
+	acceptedSwipeRotationDegrees = DEFAULT_CONFIG.acceptedSwipeRotationDegrees
+): SwipeDirection | undefined {
+	if (value >= acceptedSwipeRotationDegrees) return 'positive';
+	if (value <= -acceptedSwipeRotationDegrees) return 'negative';
 	return undefined;
 }
 
@@ -69,6 +73,7 @@ export function createGestureModel(
 		velocityAtRelease: 0,
 		releaseTimestamp: 0,
 		inertiaDurationMs: 0,
+		completedTurns: 0,
 		acceptedSwipeDirection: undefined,
 		dragSensitivity: resolved.dragSensitivity,
 		acceptedSwipeRotationDegrees: resolved.acceptedSwipeRotationDegrees,
@@ -108,10 +113,20 @@ export function createGestureModel(
 		},
 		release(time) {
 			const nextVelocity = this.velocityDegPerMs;
-			const accepted = acceptedSwipeDirectionForRotation(this.rotation);
 			const shouldInertia = Math.abs(nextVelocity) >= this.velocityStopThreshold;
+			const accepted = shouldInertia
+				? undefined
+				: acceptedSwipeDirectionForRotation(this.rotation, this.acceptedSwipeRotationDegrees);
+			const completedTurns = accepted
+				? this.completedTurns + (accepted === 'positive' ? 1 : -1)
+				: this.completedTurns;
+			const nextRotation = accepted
+				? this.rotation - (accepted === 'positive' ? 1 : -1) * this.acceptedSwipeRotationDegrees
+				: this.rotation;
 			const nextState: GestureModel = {
 				...this,
+				rotation: nextRotation,
+				completedTurns,
 				motionState: shouldInertia ? 'inertia' : 'settled',
 				velocityAtRelease: nextVelocity,
 				releaseTimestamp: time,
@@ -123,7 +138,7 @@ export function createGestureModel(
 				return {
 					...nextState,
 					velocityDegPerMs: 0,
-					rotation: clampRotation(this.rotation)
+					rotation: clampRotation(nextRotation)
 				};
 			}
 
@@ -135,12 +150,16 @@ export function createGestureModel(
 			}
 
 			const animationDtMs = dtMs * this.animationSpeed;
-			const nextRotation = clampRotation(this.rotation + this.velocityDegPerMs * animationDtMs);
+			const rawRotation = this.rotation + this.velocityDegPerMs * animationDtMs;
+			const turnDirection = this.velocityDegPerMs >= 0 ? 1 : -1;
+			const crossedTurns = Math.floor(Math.abs(rawRotation) / this.acceptedSwipeRotationDegrees);
+			const nextRotation = rawRotation - crossedTurns * turnDirection * this.acceptedSwipeRotationDegrees;
 			const nextVelocity =
 				this.velocityDegPerMs * Math.exp(-this.frictionDecayPerSecond * (animationDtMs / 1000));
 			const nextState: GestureModel = {
 				...this,
 				rotation: nextRotation,
+				completedTurns: this.completedTurns + crossedTurns * turnDirection,
 				velocityDegPerMs: nextVelocity,
 				inertiaDurationMs: this.inertiaDurationMs + dtMs
 			};
@@ -149,7 +168,7 @@ export function createGestureModel(
 				return {
 					...nextState,
 					motionState: 'settled',
-					acceptedSwipeDirection: acceptedSwipeDirectionForRotation(nextRotation),
+					acceptedSwipeDirection: undefined,
 					velocityDegPerMs: 0,
 					rotation: clampRotation(nextRotation)
 				};
