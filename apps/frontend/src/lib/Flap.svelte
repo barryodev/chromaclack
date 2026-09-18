@@ -117,8 +117,21 @@
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.min(0, rotation)}deg)`
 	);
 	let inertiaFrame: number | undefined;
+	let inertiaTickCount = 0;
+	let lastInertiaLogTime = 0;
+
+	function logGesture(event: string, values: Record<string, number | string | undefined>) {
+		if (!debug) return;
+		console.info(`[Flap gesture] ${event}`, values);
+	}
 
 	function resolveSettledGesture(gesture: GestureModel): GestureModel {
+		logGesture('settled', {
+			rotation: Number(gesture.rotation.toFixed(2)),
+			velocity: Number(gesture.velocityDegPerMs.toFixed(4)),
+			inertiaDurationMs: Number(gesture.inertiaDurationMs.toFixed(0)),
+			acceptedDirection: gesture.acceptedSwipeDirection ?? 'none'
+		});
 		if (gesture.acceptedSwipeDirection) {
 			currentPageIndex += gesture.acceptedSwipeDirection === 'positive' ? -1 : 1;
 			return {
@@ -178,11 +191,28 @@
 
 	function startInertia() {
 		let lastFrameTime = performance.now();
+		inertiaTickCount = 0;
+		lastInertiaLogTime = lastFrameTime;
+		logGesture('inertia-start', {
+			rotation: Number(gestureModel.rotation.toFixed(2)),
+			velocity: Number(gestureModel.velocityDegPerMs.toFixed(4))
+		});
 		const step = (now: number) => {
 			const dtMs = now - lastFrameTime;
 			lastFrameTime = now;
 			const nextGesture = gestureModel.tick(dtMs);
 			gestureModel = nextGesture;
+			inertiaTickCount += 1;
+			if (now - lastInertiaLogTime >= 100 || nextGesture.motionState === 'settled') {
+				lastInertiaLogTime = now;
+				logGesture('inertia-sample', {
+					tick: inertiaTickCount,
+					dtMs: Number(dtMs.toFixed(2)),
+					rotation: Number(nextGesture.rotation.toFixed(2)),
+					velocity: Number(nextGesture.velocityDegPerMs.toFixed(4)),
+					state: nextGesture.motionState
+				});
+			}
 
 			if (nextGesture.motionState === 'settled') {
 				inertiaFrame = undefined;
@@ -199,6 +229,10 @@
 		cancelInertia();
 		const position = pointerPosition(event);
 		gestureModel = gestureModel.beginDrag(position, performance.now());
+		logGesture('drag-start', {
+			position: Number(position.toFixed(2)),
+			rotation: Number(gestureModel.rotation.toFixed(2))
+		});
 
 		if (!('touches' in event)) {
 			window.addEventListener('mousemove', dragMove);
@@ -217,6 +251,12 @@
 		window.removeEventListener('mouseup', dragEnd);
 		const released = gestureModel.release(performance.now());
 		gestureModel = released;
+		logGesture('release', {
+			rotation: Number(released.rotation.toFixed(2)),
+			velocity: Number(released.velocityAtRelease.toFixed(4)),
+			state: released.motionState,
+			acceptedDirection: released.acceptedSwipeDirection ?? 'none'
+		});
 
 		if (released.motionState === 'settled') {
 			gestureModel = resolveSettledGesture(released);
