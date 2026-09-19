@@ -422,6 +422,15 @@
 	data-accepted-swipe-direction={acceptedSwipeDirection}
 	data-current-page-index={currentPageIndex}
 	data-committed-turns={committedTurnCount}
+	data-release-outcome={releaseOutcome?.type ?? 'none'}
+	data-planned-turns={releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0}
+	data-completed-turns={gestureModel.completedTurns}
+	data-remaining-turns={Math.max(
+		0,
+		(releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0) - gestureModel.completedTurns
+	)}
+	data-committed-page-label={currentPage.label}
+	data-visual-page-label={visualCurrentPage.label}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}

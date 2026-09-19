@@ -17,6 +17,7 @@ export type GestureModelConfig = {
 	velocityStopThreshold?: number;
 	frictionDecayPerSecond?: number;
 	animationSpeed?: number;
+	maxInertiaDurationMs?: number;
 };
 
 export type GestureModel = {
@@ -39,6 +40,7 @@ export type GestureModel = {
 	velocityStopThreshold: number;
 	frictionDecayPerSecond: number;
 	animationSpeed: number;
+	maxInertiaDurationMs: number;
 	beginPointerDown: (position: number, time: number) => GestureModel;
 	dragTo: (position: number, time: number) => GestureModel;
 	release: (time: number) => GestureTransition;
@@ -51,7 +53,8 @@ const DEFAULT_CONFIG: Required<GestureModelConfig> = {
 	acceptedSwipeRotationDegrees: 180,
 	velocityStopThreshold: 0.01,
 	frictionDecayPerSecond: 3.5,
-	animationSpeed: 0.25
+	animationSpeed: 0.25,
+	maxInertiaDurationMs: 3000
 };
 
 export function acceptedSwipeDirectionForRotation(
@@ -91,6 +94,7 @@ export function createGestureModel(
 		velocityStopThreshold: resolved.velocityStopThreshold,
 		frictionDecayPerSecond: resolved.frictionDecayPerSecond,
 		animationSpeed: resolved.animationSpeed,
+		maxInertiaDurationMs: resolved.maxInertiaDurationMs,
 		beginPointerDown(position, time) {
 			if (
 				this.motionState !== 'idle' &&
@@ -234,7 +238,11 @@ export function createGestureModel(
 			const completedOutcome =
 				this.releaseOutcome?.type === 'turn' && nextState.completedTurns >= plannedTurns;
 
-			if (completedOutcome || Math.abs(nextVelocity) < this.velocityStopThreshold) {
+			if (
+				completedOutcome ||
+				Math.abs(nextVelocity) < this.velocityStopThreshold ||
+				nextState.inertiaDurationMs >= this.maxInertiaDurationMs
+			) {
 				return {
 					model: {
 						...nextState,

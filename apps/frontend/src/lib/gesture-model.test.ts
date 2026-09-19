@@ -150,6 +150,22 @@ describe('gesture model', () => {
 		expect(settled.events.at(-1)).toEqual({ type: 'settled' });
 	});
 
+	it('settles at the explicit inertia duration boundary', () => {
+		const model = createGestureModel('vertical', {
+			maxInertiaDurationMs: 100
+		});
+		const released = model
+			.beginPointerDown(100, 50)
+			.dragTo(220, 80)
+			.release(200)
+			.model.evaluateRelease().model;
+		const settled = tickGesture(released, 100);
+
+		expect(settled.model.motionState).toBe('settled');
+		expect(settled.model.inertiaDurationMs).toBe(100);
+		expect(settled.events).toContainEqual({ type: 'settled' });
+	});
+
 	it('supports horizontal gestures with the opposite rotation direction contract', () => {
 		const model = createGestureModel('horizontal');
 		const started = model.beginPointerDown(100, 50);
