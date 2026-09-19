@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import type { FlapDiagnostics } from './flap-diagnostics';
 	import {
 		createHalfSlotRing,
 		visibleHalfSlotWindow,
@@ -28,31 +29,6 @@
 		label: string;
 		background: string;
 	};
-	export type FlapDiagnostics = {
-		axis: Axis;
-		motionState: MotionState;
-		rotation: number;
-		velocityDegPerMs: number;
-		velocityAtRelease: number;
-		inertiaDurationMs: number;
-		inertiaTickCount: number;
-		plannedTurnCount: number;
-		completedTurnCount: number;
-		remainingTurnCount: number;
-		releaseOutcomeType: ReleaseOutcome['type'] | 'none';
-		outcomeStatus: 'none' | 'pending' | 'complete' | 'rejected';
-		outcomeComplete: boolean;
-		acceptedSwipeDirection?: SwipeDirection;
-		currentPageIndex: number;
-		committedPageLabel: string;
-		visualPageLabel: string;
-		targetPageLabel?: string;
-		transformAxis: RotationFunction;
-		firstTransform: string;
-		secondTransform: string;
-		activeHalf: 'first' | 'second' | 'none';
-	};
-
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
 			coordinate: 'clientY',
@@ -337,6 +313,9 @@
 	function dragStart(event: MouseEvent | TouchEvent) {
 		const previousState = gestureModel.motionState;
 		cancelInertia();
+		const interruption = gestureModel.interruptInertia();
+		applyGestureEvents(interruption.events);
+		gestureModel = interruption.model;
 		const position = pointerPosition(event);
 		gestureModel = gestureModel.beginPointerDown(position, performance.now());
 		logGesture('pointer-down', {

@@ -45,6 +45,7 @@ export type GestureModel = {
 	dragTo: (position: number, time: number) => GestureModel;
 	release: (time: number) => GestureTransition;
 	evaluateRelease: () => GestureTransition;
+	interruptInertia: () => GestureTransition;
 	tick: (dtMs: number) => GestureTransition;
 };
 
@@ -208,6 +209,36 @@ export function createGestureModel(
 			}
 
 			return { model: nextState, events: [] };
+		},
+		interruptInertia() {
+			if (this.motionState !== 'inertia') return { model: this, events: [] };
+
+			const completedOutcome =
+				this.releaseOutcome?.type === 'turn' && this.completedTurns > 0
+					? {
+							type: 'turn' as const,
+							direction: this.releaseOutcome.direction,
+							pageCount: this.completedTurns
+						}
+					: undefined;
+
+			return {
+				model: {
+					...this,
+					motionState: 'settled',
+					rotation: 0,
+					velocityDegPerMs: 0,
+					velocityAtRelease: 0,
+					releaseOutcome: undefined,
+					completedTurns: 0
+				},
+				events: [
+					...(completedOutcome
+						? [{ type: 'outcome-complete' as const, outcome: completedOutcome }]
+						: []),
+					{ type: 'settled' }
+				]
+			};
 		},
 		tick(dtMs) {
 			if (this.motionState !== 'inertia') {

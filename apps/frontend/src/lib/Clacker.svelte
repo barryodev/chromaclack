@@ -1,5 +1,6 @@
 <script lang="ts">
-	import Flap, { type FlapDiagnostics } from './Flap.svelte';
+	import Flap from './Flap.svelte';
+	import type { FlapDiagnostics } from './flap-diagnostics';
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 

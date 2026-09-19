@@ -166,6 +166,29 @@ describe('gesture model', () => {
 		expect(settled.events).toContainEqual({ type: 'settled' });
 	});
 
+	it('commits completed turns before interrupting inertia', () => {
+		const model = createGestureModel('vertical');
+		const released = model
+			.beginPointerDown(100, 50)
+			.dragTo(220, 80)
+			.release(200)
+			.model.evaluateRelease().model;
+		const turning = tickGesture(released, 250);
+		const interrupted = turning.model.interruptInertia();
+
+		expect(turning.model.completedTurns).toBeGreaterThan(0);
+		expect(interrupted.model.motionState).toBe('settled');
+		expect(interrupted.model.completedTurns).toBe(0);
+		expect(interrupted.events[0]).toEqual({
+			type: 'outcome-complete',
+			outcome: {
+				type: 'turn',
+				direction: 'positive',
+				pageCount: turning.model.completedTurns
+			}
+		});
+	});
+
 	it('supports horizontal gestures with the opposite rotation direction contract', () => {
 		const model = createGestureModel('horizontal');
 		const started = model.beginPointerDown(100, 50);
