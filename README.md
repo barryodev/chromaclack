@@ -1,30 +1,18 @@
 # ChromaClack
 
-A tactile, gestural color-theory toy. ChromaClack explores color mathematics (Hue, Saturation, and Lightness) through a mechanical, split-flap UI driven entirely by CSS 3D transforms and multi-axis Pointer Events.
+ChromaClack is a tactile color-theory toy built around a mechanical split-flap display. Swipe the clacker to explore color components, with the same Svelte interface running in a browser, desktop app, and Android app.
 
-This project is designed to run identically across native desktop environments and the web by sharing a single frontend UI and a single Rust backend logic crate.
+The project is still in interaction prototyping. The current work is about making the gesture model feel immediate and physically coherent before the display grows into a larger recycled flap system.
 
-## Tech Stack
+## Stack
 
-- **Frontend:** SvelteKit (Static SPA Mode)
-- **Native OS Host:** Tauri v2
-- **Web Cloud Host:** Vercel Serverless Functions
-- **Core Logic:** Rust
-- **Architecture:** Turborepo, pnpm workspaces, and Cargo workspaces
+- SvelteKit and TypeScript for the shared frontend
+- Tauri v2 for desktop and mobile shells
+- Rust for shared backend logic and API handlers
+- pnpm, Turborepo, Cargo, and Vercel for the workspace and deployment paths
 
-## Project Structure & Complexity
+## Where Things Stand
 
-To keep the application modular, complex environment and build logic is isolated into specific sub-directories:
+The web, native, Android, and deployment foundations are working. Vertical and horizontal split-flap motion, page state, diagnostics, and tested half-slot helpers are in place. The next branch is `gesture-model-refinement`, which will reset the gesture state machine before slot recycling or color synthesis is added.
 
-- **The Environment Adapter (`packages/services/api.ts`):** This service dynamically routes user interactions to either Tauri's native IPC (`invoke`) when running locally, or to Vercel's HTTP endpoints (`fetch`) when running in a browser.
-- **Shared Rust Logic (`crates/shared_utils`):** A dependency-free Rust library that compiles directly into both the native Ubuntu executable and Vercel's serverless containers, eliminating duplicated business logic.
-- **Vercel API (`api/greet.rs`):** Holds the serverless function wrappers for web deployment.
-- **Tauri Client (`apps/desktop/src-tauri`):** Holds the OS-level system window and native capabilities configurations.
-
-## Roadmap & Progress
-
-Development is tracked across 4 distinct phases, moving from structural environment validation through to complex 3D gestural UI and native OS integration.
-
-Track the current progress in [TODO.md](./TODO.md).
-
-For full architecture details, config rationale, and local setup instructions (desktop, web, and Android), see [SETUP.md](./SETUP.md).
+See [TODO.md](TODO.md) for the current roadmap and [SETUP.md](SETUP.md) for local development and deployment details.
