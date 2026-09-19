@@ -1,8 +1,8 @@
 # Gesture Model Refinement
 
-## Branch Goal
+## Completed Branch Goal
 
-The `gesture-model-refinement` branch will make gesture intent the source of truth. The visual flap transform should render the chosen gesture outcome rather than deciding interaction behavior through animation side effects.
+The `gesture-model-refinement` branch made gesture intent the source of truth. The visual flap transform now renders a planned multi-page outcome rather than deciding interaction behavior through animation side effects.
 
 ## Why This Is Needed
 
@@ -59,67 +59,68 @@ In practical terms:
 
 This makes the interaction easier to reason about and much easier to tune without chasing millions of tiny animation tweaks.
 
-## First Implementation Slice
+## Completed Scope
 
-- Separate input transitions from release evaluation and rendering state.
-- Preserve the existing axis contract and page-direction semantics.
-- Add pure model tests before changing the Svelte component.
-- Add browser assertions for state transitions and rapid re-engagement.
-- Keep the DOM and recycling work out of this branch.
+- Separated input transitions from release evaluation and rendering state.
+- Preserved the existing axis contract and page-direction semantics.
+- Added pure model tests before changing the Svelte component.
+- Added browser assertions for outcomes, intermediate progress, and rapid re-engagement.
+- Added a bounded inertia duration and verified the physical Android launch path.
+- Kept DOM recycling and large page sets out of this branch.
 
 ## Branch Plan
 
 The work should be divided into behavioral slices rather than file-sized tasks. Each slice should have a clear model contract, focused tests, and a useful checkpoint before the next slice begins.
 
-### 1. Model the Input Lifecycle
+### 1. Model the Input Lifecycle [complete]
 
 - Add explicit `pointer-down` and `release-evaluating` states.
 - Preserve the current 1:1 drag behavior.
 - Test valid and invalid state transitions.
 
-### 2. Make Release Evaluation Deterministic
+### 2. Make Release Evaluation Deterministic [complete]
 
 - Decide acceptance from drag distance and release velocity.
 - Emit an explicit release outcome: rejected, snap, or inertia.
 - Keep page commits out of the animation loop.
 
-### 3. Implement Fast Snap Settling
+### 3. Implement Fast Snap Settling [complete]
 
 - Make low-velocity releases return quickly to `idle`.
 - Verify that a new gesture can begin immediately after settling.
 - Test final state independently from frame timing.
 
-### 4. Constrain Inertia
+### 4. Constrain Inertia [complete]
 
 - Allow inertia only for meaningful flicks.
 - Bound its duration and total rotation.
 - Test decay, cancellation, and opposite-direction interruption.
 
-### 5. Connect Outcomes to Page State
+### 5. Connect Outcomes to Page State [complete]
 
 - Commit page changes only from model events.
 - Preserve positive and negative direction semantics.
 - Verify repeated turns without coupling page state to animation frames.
 
-### 6. Verify the Browser Interaction
+### 6. Verify the Browser Interaction [complete]
 
 - Confirm dragging remains 1:1.
 - Assert release state and page commits in the browser.
 - Verify a second gesture can begin immediately after settling.
 - Retain separate vertical and horizontal behavior checks.
 
-### 7. Tune the Interaction Feel
+### 7. Tune the Interaction Feel [follow-up]
 
 - Adjust sensitivity, thresholds, and decay only after the model is stable.
 - Use diagnostics to measure release velocity, inertia duration, and re-arm timing.
 
-Suggested implementation checkpoints are:
+The completed implementation checkpoints were:
 
 1. `Define explicit gesture lifecycle`
 2. `Separate release outcomes from animation`
 3. `Integrate and verify refined gesture model`
 
-## Intended outcome
+## Result
 
 The user should feel:
 
@@ -128,7 +129,7 @@ The user should feel:
 - no dead zone after a completed swipe
 - a clean, re-armed gesture loop for the next interaction
 
-That is the target model for the next pass.
+That target model is now implemented. The next branch should apply it to a fixed recycled display with many logical pages.
 
 ## Tuning Order
 

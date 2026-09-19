@@ -13,7 +13,7 @@ The current prototype already demonstrates:
 - tested logical-face and physical-half-slot helpers
 - transform-driven motion in the current small prototype
 
-The gesture model is the next refinement target. Recycling and color synthesis remain future work.
+The gesture model refinement is complete. Recycling and color synthesis remain future work.
 
 ## Current Rendering State
 
@@ -83,7 +83,9 @@ The current CSS transform variables are still shared between vertical and horizo
 - [x] Refine vertical and horizontal hinge behavior.
 - [x] Add the initial logical-face and physical-half-slot model with unit tests.
 - [x] Verify desktop pointer behavior for vertical and horizontal page-state swipes.
-- [ ] Reset the gesture model around explicit input and release states.
+- [x] Reset the gesture model around explicit input and release states.
+- [x] Plan multi-page outcomes before animation and resolve intermediate pages from the circular model.
+- [x] Verify browser behavior, rapid re-engagement, inertia bounds, and the physical Android launch path.
 - [ ] Extend continuity to the fixed recycling pool.
 - [ ] Add rotational-axis state and color synthesis.
 

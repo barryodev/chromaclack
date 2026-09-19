@@ -14,19 +14,17 @@ ChromaClack is being built in layers: validate the platforms, prove the mechanic
 - Circular page state and pure half-slot ring helpers with unit tests.
 - Gesture diagnostics, frontend unit tests, and Playwright interaction captures.
 
-## Current Branch: Gesture Model Refinement
+## Complete: Gesture Model Refinement
 
-The current branch is `gesture-model-refinement`. Its purpose is to make gesture intent the source of truth and make the visual flap transform a consequence of that intent.
+- Explicit pointer-down, dragging, release-evaluating, inertia, and settled transitions.
+- 1:1 active dragging with deterministic release evaluation.
+- Bounded multi-page outcomes selected before animation.
+- Intermediate page resolution from the circular page model.
+- One-time page commitment at outcome completion.
+- Explicit inertia duration boundary and rapid re-engagement behavior.
+- Focused diagnostics, unit tests, browser assertions, and physical Android smoke testing.
 
-- [ ] Define explicit pointer-down, dragging, release-evaluating, inertia, and settled transitions.
-- [ ] Keep active dragging 1:1 with pointer movement.
-- [ ] Decide page-turn acceptance at release, including distance and velocity rules.
-- [ ] Make low-velocity releases snap quickly and re-arm immediately.
-- [ ] Restrict inertia to meaningful flicks and bound its duration.
-- [ ] Add tests for rapid re-engagement, opposite-direction gestures, and release outcomes.
-- [ ] Add focused browser assertions for motion state and committed page changes.
-
-## Next: Recycled Flap Display
+## Next Branch: Recycled Flap Display
 
 - [ ] Wire the tested half-slot ring into the rendered component.
 - [ ] Expand the static prototype to five visible page pairs with two buffer pairs above and below.

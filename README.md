@@ -13,6 +13,6 @@ The project is still in interaction prototyping. The current work is about makin
 
 ## Where Things Stand
 
-The web, native, Android, and deployment foundations are working. Vertical and horizontal split-flap motion, page state, diagnostics, and tested half-slot helpers are in place. The next branch is `gesture-model-refinement`, which will reset the gesture state machine before slot recycling or color synthesis is added.
+The web, native, Android, and deployment foundations are working. Vertical and horizontal split-flap motion, deterministic multi-page gesture outcomes, diagnostics, and tested half-slot helpers are in place. The next branch will tackle large page sets and fixed half-slot recycling.
 
 See [TODO.md](TODO.md) for the current roadmap and [SETUP.md](SETUP.md) for local development and deployment details.
