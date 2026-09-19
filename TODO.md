@@ -24,6 +24,11 @@ ChromaClack is being built in layers: validate the platforms, prove the mechanic
 - Explicit inertia duration boundary and rapid re-engagement behavior.
 - Focused diagnostics, unit tests, browser assertions, and physical Android smoke testing.
 
+## Deferred Gesture Follow-ups
+
+- [ ] Recompute or decay release velocity when pointer-up follows a pause after the last move.
+- [ ] Add a browser regression test for pausing before release and verify that stale velocity does not trigger inertia.
+
 ## Next Branch: Recycled Flap Display
 
 - [ ] Wire the tested half-slot ring into the rendered component.

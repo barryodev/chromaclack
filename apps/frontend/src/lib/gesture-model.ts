@@ -182,10 +182,15 @@ export function createGestureModel(
 				releaseDirection && pageCount > 0
 					? { type: 'turn', direction: releaseDirection, pageCount }
 					: { type: 'reject' };
+			const outcomeVelocity =
+				outcome.type === 'turn'
+					? Math.abs(nextVelocity) * (outcome.direction === 'positive' ? 1 : -1)
+					: 0;
 			const nextState: GestureModel = {
 				...this,
 				motionState: shouldInertia && outcome.type === 'turn' ? 'inertia' : 'settled',
-				velocityAtRelease: this.velocityAtRelease,
+				velocityDegPerMs: outcomeVelocity,
+				velocityAtRelease: nextVelocity,
 				releaseTimestamp: this.releaseTimestamp,
 				inertiaDurationMs: 0,
 				releaseDirection,

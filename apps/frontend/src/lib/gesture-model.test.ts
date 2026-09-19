@@ -82,6 +82,18 @@ describe('gesture model', () => {
 		expect(released.rotation).toBeGreaterThan(0);
 	});
 
+	it('aligns inertia with the accepted outcome direction after velocity reverses', () => {
+		const model = createGestureModel('vertical');
+		const reversed = model.beginPointerDown(100, 50).dragTo(500, 80).dragTo(400, 90);
+		const released = reversed.release(100).model.evaluateRelease().model;
+
+		expect(released.releaseOutcome).toMatchObject({
+			type: 'turn',
+			direction: 'positive'
+		});
+		expect(released.velocityDegPerMs).toBeGreaterThan(0);
+	});
+
 	it('emits one positive turn event for an accepted release', () => {
 		const model = createGestureModel('vertical', { velocityStopThreshold: 1 });
 		const moved = model.beginPointerDown(100, 50).dragTo(500, 1050);
