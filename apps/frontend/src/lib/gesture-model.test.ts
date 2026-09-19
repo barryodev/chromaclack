@@ -62,6 +62,15 @@ describe('gesture model', () => {
 		expect(released.rotation).toBeLessThanOrEqual(180);
 	});
 
+	it('rejects a tiny non-accepted release without a meaningful velocity', () => {
+		const model = createGestureModel('vertical');
+		const moved = model.beginPointerDown(100, 50).dragTo(100.1, 150);
+		const released = moved.release(200).model.evaluateRelease();
+
+		expect(released.model.releaseOutcome).toEqual({ type: 'reject' });
+		expect(released.events).toEqual([{ type: 'settled' }]);
+	});
+
 	it('keeps rotational inertia when released with a strong enough velocity', () => {
 		const model = createGestureModel('vertical');
 		const started = model.beginPointerDown(100, 50);
@@ -80,7 +89,7 @@ describe('gesture model', () => {
 
 		expect(released.model.motionState).toBe('settled');
 		expect(released.events).toEqual([
-			{ type: 'turn-committed', direction: 'positive' },
+			{ type: 'outcome-complete', outcome: { type: 'turn', direction: 'positive', pageCount: 2 } },
 			{ type: 'settled' }
 		]);
 	});
@@ -92,7 +101,7 @@ describe('gesture model', () => {
 
 		expect(released.model.motionState).toBe('settled');
 		expect(released.events).toEqual([
-			{ type: 'turn-committed', direction: 'negative' },
+			{ type: 'outcome-complete', outcome: { type: 'turn', direction: 'negative', pageCount: 2 } },
 			{ type: 'settled' }
 		]);
 	});
@@ -104,9 +113,18 @@ describe('gesture model', () => {
 		const released = moved.release(200).model.evaluateRelease().model;
 		const turning = tickGesture(released, 1000);
 
-		expect(turning.model.motionState).toBe('inertia');
-		expect(turning.events).toHaveLength(3);
-		expect(turning.events.every((event) => event.type === 'turn-committed')).toBe(true);
+		expect(turning.model.motionState).toBe('settled');
+		expect(turning.events).toHaveLength(2);
+		expect(turning.events[0]).toEqual({
+			type: 'outcome-complete',
+			outcome: { type: 'turn', direction: 'positive', pageCount: 2 }
+		});
+		expect(turning.model.releaseOutcome).toEqual({
+			type: 'turn',
+			direction: 'positive',
+			pageCount: 2
+		});
+		expect(turning.model.completedTurns).toBe(2);
 		expect(turning.model.rotation).toBeGreaterThanOrEqual(0);
 		expect(turning.model.rotation).toBeLessThan(180);
 	});
@@ -156,12 +174,12 @@ describe('gesture model', () => {
 			.model.evaluateRelease().model;
 		const negativeTurn = tickGesture(negative, 1000);
 
-		expect(positiveTurn.events.some((event) => event.type === 'turn-committed')).toBe(true);
-		expect(negativeTurn.events.some((event) => event.type === 'turn-committed')).toBe(true);
-		expect(
-			negativeTurn.events.every(
-				(event) => event.type === 'turn-committed' && event.direction === 'negative'
-			)
-		).toBe(true);
+		expect(positiveTurn.model.completedTurns).toBeGreaterThan(0);
+		expect(negativeTurn.model.releaseOutcome).toEqual({
+			type: 'turn',
+			direction: 'negative',
+			pageCount: 2
+		});
+		expect(negativeTurn.model.completedTurns).toBeGreaterThan(0);
 	});
 });

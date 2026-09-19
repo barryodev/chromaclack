@@ -11,7 +11,8 @@
 		createGestureModel,
 		type GestureEvent,
 		type GestureModel,
-		type MotionState
+		type MotionState,
+		type ReleaseOutcome
 	} from './gesture-model';
 
 	type Axis = 'vertical' | 'horizontal';
@@ -35,6 +36,8 @@
 		velocityAtRelease: number;
 		inertiaDurationMs: number;
 		inertiaTickCount: number;
+		plannedTurnCount: number;
+		completedTurnCount: number;
 		acceptedSwipeDirection?: SwipeDirection;
 		currentPageIndex: number;
 		currentPageLabel: string;
@@ -124,9 +127,18 @@
 	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
 	const inertiaDurationMs = $derived(gestureModel.inertiaDurationMs);
 	const currentPage = $derived(pageAt(currentPageIndex));
-	const nextPage = $derived(pageAt(currentPageIndex + 1));
-	const previousPage = $derived(pageAt(currentPageIndex - 1));
-	const targetPage = $derived(rotation > 0 ? previousPage : nextPage);
+	const releaseOutcome = $derived<ReleaseOutcome | undefined>(gestureModel.releaseOutcome);
+	const turnDirectionSign = $derived(
+		releaseOutcome?.type === 'turn' && releaseOutcome.direction === 'positive' ? -1 : 1
+	);
+	const displayDirectionSign = $derived(
+		releaseOutcome?.type === 'turn' ? turnDirectionSign : rotation > 0 ? -1 : 1
+	);
+	const visualPageIndex = $derived(
+		currentPageIndex + gestureModel.completedTurns * turnDirectionSign
+	);
+	const visualCurrentPage = $derived(pageAt(visualPageIndex));
+	const targetPage = $derived(pageAt(visualPageIndex + displayDirectionSign));
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -150,9 +162,11 @@
 			velocityAtRelease,
 			inertiaDurationMs,
 			inertiaTickCount,
+			plannedTurnCount: releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0,
+			completedTurnCount: gestureModel.completedTurns,
 			acceptedSwipeDirection,
 			currentPageIndex,
-			currentPageLabel: currentPage.label,
+			currentPageLabel: visualCurrentPage.label,
 			targetPageLabel: rotation === 0 ? undefined : targetPage.label,
 			transformAxis: axisContract.rotationFunction,
 			firstTransform,
@@ -181,17 +195,23 @@
 			motionState: 'idle',
 			rotation: 0,
 			velocityDegPerMs: 0,
-			velocityAtRelease: 0
+			velocityAtRelease: 0,
+			completedTurns: 0,
+			releaseOutcome: undefined
 		};
 	}
 
 	function applyGestureEvents(events: GestureEvent[]) {
 		for (const event of events) {
-			if (event.type === 'turn-committed') {
-				committedTurnCount += 1;
-				currentPageIndex -= event.direction === 'positive' ? 1 : -1;
+			if (event.type === 'outcome-complete' && event.outcome.type === 'turn') {
+				committedTurnCount += event.outcome.pageCount;
+				currentPageIndex +=
+					event.outcome.direction === 'positive'
+						? -event.outcome.pageCount
+						: event.outcome.pageCount;
 				logGesture('turn-committed', {
-					direction: event.direction,
+					direction: event.outcome.direction,
+					count: event.outcome.pageCount,
 					pageIndex: currentPageIndex
 				});
 			}
@@ -199,9 +219,17 @@
 				logGesture('settled-event', { pageIndex: currentPageIndex });
 			}
 		}
-		if (events.some((event) => event.type === 'turn-committed')) {
+		if (events.some((event) => event.type === 'outcome-complete')) {
 			logGesture('turns-committed', {
-				count: events.filter((event) => event.type === 'turn-committed').length,
+				count: events
+					.filter(
+						(event): event is Extract<GestureEvent, { type: 'outcome-complete' }> =>
+							event.type === 'outcome-complete'
+					)
+					.reduce(
+						(count, event) => count + (event.outcome.type === 'turn' ? event.outcome.pageCount : 0),
+						0
+					),
 				pageIndex: currentPageIndex
 			});
 		}
@@ -341,7 +369,7 @@
 			rotation: Number(released.rotation.toFixed(2)),
 			velocity: Number(released.velocityAtRelease.toFixed(4)),
 			releaseDirection: released.releaseDirection ?? 'none',
-			turnEvents: transition.events.filter((event) => event.type === 'turn-committed').length,
+			turnCount: released.releaseOutcome?.type === 'turn' ? released.releaseOutcome.pageCount : 0,
 			settled: transition.events.some((event) => event.type === 'settled')
 		});
 
@@ -384,34 +412,38 @@
 			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
 				>{targetPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--back"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--next">
 			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
 				>{targetPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--back"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
 		</div>
 	</div>
 	<div class="flip-page flip-page--current">
 		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--front"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${previousPage.background}`}
-				>{previousPage.label}</span
+			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
 			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--front"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${nextPage.background}`}
-				>{nextPage.label}</span
+			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
 			>
 		</div>
 	</div>
