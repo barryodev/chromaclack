@@ -27,6 +27,23 @@
 		label: string;
 		background: string;
 	};
+	export type FlapDiagnostics = {
+		axis: Axis;
+		motionState: MotionState;
+		rotation: number;
+		velocityDegPerMs: number;
+		velocityAtRelease: number;
+		inertiaDurationMs: number;
+		inertiaTickCount: number;
+		acceptedSwipeDirection?: SwipeDirection;
+		currentPageIndex: number;
+		currentPageLabel: string;
+		targetPageLabel?: string;
+		transformAxis: RotationFunction;
+		firstTransform: string;
+		secondTransform: string;
+		activeHalf: 'first' | 'second' | 'none';
+	};
 
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
@@ -63,7 +80,13 @@
 		nextSecond: initialVisibleHalfSlot(3)
 	} satisfies Record<string, PhysicalHalfSlot>;
 
-	let { axis = 'vertical', debug = false }: { axis?: Axis; debug?: boolean } = $props();
+	let {
+		axis = 'vertical',
+		onDiagnostics
+	}: {
+		axis?: Axis;
+		onDiagnostics?: (diagnostics: FlapDiagnostics) => void;
+	} = $props();
 	const axisContract = $derived(AXIS_CONTRACTS[axis]);
 	const isVertical = $derived(axis === 'vertical');
 
@@ -100,21 +123,10 @@
 	const velocityDegPerMs = $derived(gestureModel.velocityDegPerMs);
 	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
 	const inertiaDurationMs = $derived(gestureModel.inertiaDurationMs);
-	const releaseTimestamp = $derived(gestureModel.releaseTimestamp);
 	const currentPage = $derived(pageAt(currentPageIndex));
 	const nextPage = $derived(pageAt(currentPageIndex + 1));
 	const previousPage = $derived(pageAt(currentPageIndex - 1));
 	const targetPage = $derived(rotation > 0 ? previousPage : nextPage);
-	const debugPositions = $derived([
-		{ name: 'previousPage', page: previousPage },
-		{ name: 'currentPage', page: currentPage },
-		{ name: 'nextPage', page: nextPage },
-		{ name: 'targetPage', page: targetPage }
-	]);
-	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
-	const debugVisibleSlots = $derived(
-		INITIAL_VISIBLE_HALF_SLOTS.map((slot, index) => ({ index, slot }))
-	);
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -123,11 +135,34 @@
 	);
 	let inertiaFrame: number | undefined;
 	let committedTurnCount = $state(0);
-	let inertiaTickCount = 0;
+	let inertiaTickCount = $state(0);
 	let lastInertiaLogTime = 0;
+	const activeHalf = $derived<'first' | 'second' | 'none'>(
+		rotation > 0 ? 'first' : rotation < 0 ? 'second' : 'none'
+	);
+
+	$effect(() => {
+		onDiagnostics?.({
+			axis,
+			motionState,
+			rotation,
+			velocityDegPerMs,
+			velocityAtRelease,
+			inertiaDurationMs,
+			inertiaTickCount,
+			acceptedSwipeDirection,
+			currentPageIndex,
+			currentPageLabel: currentPage.label,
+			targetPageLabel: rotation === 0 ? undefined : targetPage.label,
+			transformAxis: axisContract.rotationFunction,
+			firstTransform,
+			secondTransform,
+			activeHalf
+		});
+	});
 
 	function logGesture(event: string, values: Record<string, number | string | undefined>) {
-		if (!debug) return;
+		if (!onDiagnostics) return;
 		console.info(`[Flap gesture] ${event}`, values);
 	}
 
@@ -353,85 +388,6 @@
 	</div>
 </button>
 
-{#if debug}
-	<aside class="debug-panel" aria-label="Flap diagnostics">
-		<header class="debug-panel__header">
-			<span>Flap Diagnostics</span>
-			<span class="debug-panel__pulse" aria-hidden="true"></span>
-		</header>
-
-		<div class="debug-metrics">
-			<div class="debug-metric debug-metric--wide">
-				<span>Axis</span>
-				<strong>{axis}</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Motion</span>
-				<strong class="debug-status debug-status--{motionState}">{motionState}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Swipe</span>
-				<strong>{acceptedSwipeDirection ?? 'none'}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Rotation</span>
-				<strong>{rotation.toFixed(2)}°</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Velocity</span>
-				<strong>{velocityDegPerMs.toFixed(4)}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Release</span>
-				<strong>{velocityAtRelease.toFixed(4)}</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Elapsed</span>
-				<strong>{Math.max(0, performance.now() - releaseTimestamp).toFixed(0)} ms</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Inertia</span>
-				<strong>{inertiaDurationMs.toFixed(0)} ms</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Threshold</span>
-				<strong>{Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD ? 'below' : 'above'}</strong>
-			</div>
-		</div>
-
-		<section class="debug-section">
-			<h2>Pages</h2>
-			{#each debugPositions as position}
-				<div class="debug-row">
-					<span>{position.name}</span>
-					<strong>{position.page.label}</strong>
-					<small>{position.page.background} / page index {currentPageIndex}</small>
-				</div>
-			{/each}
-		</section>
-
-		<section class="debug-section">
-			<h2>Visible Window</h2>
-			{#each debugVisibleSlots as item}
-				<div class="debug-row debug-row--compact">
-					<span>#{item.index}</span>
-					<strong>{item.slot.face.label}</strong>
-					<small>{item.slot.id} / {item.slot.role}</small>
-				</div>
-			{/each}
-		</section>
-
-		<section class="debug-section">
-			<h2>Ring</h2>
-			<div class="debug-ring">
-				{#each debugRing as item}
-					<span class="debug-ring__chip">{item.index}: {item.slot.face.label}</span>
-				{/each}
-			</div>
-		</section>
-	</aside>
-{/if}
-
 <style>
 	.flip-deck {
 		position: relative;
@@ -571,188 +527,5 @@
 
 	.flip-half--active-second {
 		transform: var(--second-transform);
-	}
-
-	.debug-panel {
-		position: fixed;
-		right: 1rem;
-		bottom: 1rem;
-		z-index: 10;
-		width: min(27rem, calc(100vw - 2rem));
-		max-height: min(31rem, calc(100vh - 2rem));
-		margin: 0;
-		padding: 0.9rem;
-		overflow: auto;
-		border: 1px solid rgba(34, 211, 238, 0.35);
-		border-radius: 0.9rem;
-		background:
-			linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(10, 14, 20, 0.95)),
-			linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(59, 130, 246, 0.08));
-		box-shadow:
-			0 0 0 1px rgba(148, 163, 184, 0.18),
-			0 1rem 2.5rem rgba(15, 23, 42, 0.72),
-			0 0 2rem rgba(34, 211, 238, 0.16);
-		color: #f8fafc;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 0.72rem;
-		line-height: 1.35;
-		text-align: left;
-		backdrop-filter: blur(14px);
-	}
-
-	.debug-panel__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.8rem;
-		padding-bottom: 0.45rem;
-		border-bottom: 1px solid rgba(34, 211, 238, 0.2);
-		color: #dbeafe;
-		font-size: 0.68rem;
-		font-weight: 800;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-	}
-
-	.debug-panel__pulse {
-		width: 0.6rem;
-		height: 0.6rem;
-		border-radius: 999px;
-		background: #2dd4bf;
-		box-shadow: 0 0 0.8rem rgba(45, 212, 191, 0.95);
-		animation: pulse 1.2s ease-in-out infinite;
-	}
-
-	.debug-metrics {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.5rem;
-		margin-bottom: 0.8rem;
-	}
-
-	.debug-metric {
-		display: flex;
-		flex-direction: column;
-		gap: 0.24rem;
-		padding: 0.5rem 0.55rem;
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 0.55rem;
-		background: linear-gradient(180deg, rgba(9, 14, 20, 0.9), rgba(15, 23, 42, 0.7));
-		box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.08);
-	}
-
-	.debug-metric--wide {
-		grid-column: span 2;
-	}
-
-	.debug-metric span {
-		color: #7dd3fc;
-		font-size: 0.58rem;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
-
-	.debug-metric strong {
-		color: #f8fafc;
-		font-size: 0.82rem;
-		font-weight: 700;
-	}
-
-	.debug-status {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.12rem 0.45rem;
-		border-radius: 999px;
-		font-size: 0.7rem;
-		text-transform: uppercase;
-	}
-
-	.debug-status--idle {
-		background: rgba(148, 163, 184, 0.12);
-		color: #cbd5e1;
-	}
-
-	.debug-status--dragging {
-		background: rgba(250, 204, 21, 0.12);
-		color: #fde68a;
-	}
-
-	.debug-status--inertia {
-		background: rgba(34, 211, 238, 0.12);
-		color: #a5f3fc;
-	}
-
-	.debug-status--settled {
-		background: rgba(52, 211, 153, 0.12);
-		color: #a7f3d0;
-	}
-
-	.debug-section {
-		margin-top: 0.7rem;
-		padding: 0.6rem;
-		border: 1px solid rgba(148, 163, 184, 0.16);
-		border-radius: 0.6rem;
-		background: rgba(15, 23, 42, 0.54);
-	}
-
-	.debug-section h2 {
-		margin: 0 0 0.45rem;
-		color: #cbd5e1;
-		font-size: 0.6rem;
-		letter-spacing: 0.15em;
-		text-transform: uppercase;
-	}
-
-	.debug-row {
-		display: grid;
-		grid-template-columns: minmax(6rem, 1fr) auto minmax(7rem, 1fr);
-		gap: 0.5rem;
-		align-items: center;
-		padding: 0.28rem 0;
-	}
-
-	.debug-row--compact {
-		grid-template-columns: 2rem auto minmax(7rem, 1fr);
-	}
-
-	.debug-row + .debug-row {
-		border-top: 1px solid rgba(255, 255, 255, 0.08);
-	}
-
-	.debug-row span,
-	.debug-row small {
-		color: #94a3b8;
-	}
-
-	.debug-row strong {
-		color: #f8fafc;
-	}
-
-	.debug-ring {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.3rem;
-	}
-
-	.debug-ring__chip {
-		padding: 0.2rem 0.45rem;
-		border: 1px solid rgba(45, 212, 191, 0.4);
-		border-radius: 999px;
-		background: rgba(13, 148, 136, 0.12);
-		color: #a7f3d0;
-		font-size: 0.58rem;
-	}
-
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-		50% {
-			opacity: 0.6;
-			transform: scale(1.2);
-		}
 	}
 </style>
