@@ -67,6 +67,58 @@ This makes the interaction easier to reason about and much easier to tune withou
 - Add browser assertions for state transitions and rapid re-engagement.
 - Keep the DOM and recycling work out of this branch.
 
+## Branch Plan
+
+The work should be divided into behavioral slices rather than file-sized tasks. Each slice should have a clear model contract, focused tests, and a useful checkpoint before the next slice begins.
+
+### 1. Model the Input Lifecycle
+
+- Add explicit `pointer-down` and `release-evaluating` states.
+- Preserve the current 1:1 drag behavior.
+- Test valid and invalid state transitions.
+
+### 2. Make Release Evaluation Deterministic
+
+- Decide acceptance from drag distance and release velocity.
+- Emit an explicit release outcome: rejected, snap, or inertia.
+- Keep page commits out of the animation loop.
+
+### 3. Implement Fast Snap Settling
+
+- Make low-velocity releases return quickly to `idle`.
+- Verify that a new gesture can begin immediately after settling.
+- Test final state independently from frame timing.
+
+### 4. Constrain Inertia
+
+- Allow inertia only for meaningful flicks.
+- Bound its duration and total rotation.
+- Test decay, cancellation, and opposite-direction interruption.
+
+### 5. Connect Outcomes to Page State
+
+- Commit page changes only from model events.
+- Preserve positive and negative direction semantics.
+- Verify repeated turns without coupling page state to animation frames.
+
+### 6. Verify the Browser Interaction
+
+- Confirm dragging remains 1:1.
+- Assert release state and page commits in the browser.
+- Verify a second gesture can begin immediately after settling.
+- Retain separate vertical and horizontal behavior checks.
+
+### 7. Tune the Interaction Feel
+
+- Adjust sensitivity, thresholds, and decay only after the model is stable.
+- Use diagnostics to measure release velocity, inertia duration, and re-arm timing.
+
+Suggested implementation checkpoints are:
+
+1. `Define explicit gesture lifecycle`
+2. `Separate release outcomes from animation`
+3. `Integrate and verify refined gesture model`
+
 ## Intended outcome
 
 The user should feel:
