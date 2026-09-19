@@ -155,6 +155,12 @@
 						<div class="debug-value">
 							<span>Frames</span><strong>{activeFlapDiagnostics.inertiaTickCount}</strong>
 						</div>
+						<div class="debug-value">
+							<span>Outcome</span><strong>{activeFlapDiagnostics.releaseOutcomeType}</strong>
+						</div>
+						<div class="debug-value">
+							<span>Outcome status</span><strong>{activeFlapDiagnostics.outcomeStatus}</strong>
+						</div>
 					</div>
 				</section>
 
@@ -180,13 +186,26 @@
 					<h2>Page Model</h2>
 					<div class="debug-grid">
 						<div class="debug-value">
-							<span>Current</span><strong>{activeFlapDiagnostics.currentPageLabel}</strong>
+							<span>Committed page</span><strong>{activeFlapDiagnostics.committedPageLabel}</strong>
 						</div>
 						<div class="debug-value">
-							<span>Target</span><strong>{activeFlapDiagnostics.targetPageLabel ?? 'none'}</strong>
+							<span>Visual page</span><strong>{activeFlapDiagnostics.visualPageLabel}</strong>
 						</div>
 						<div class="debug-value">
-							<span>Page index</span><strong>{activeFlapDiagnostics.currentPageIndex}</strong>
+							<span>Final target</span><strong
+								>{activeFlapDiagnostics.targetPageLabel ?? 'none'}</strong
+							>
+						</div>
+						<div class="debug-value">
+							<span>Progress</span><strong
+								>{activeFlapDiagnostics.completedTurnCount} / {activeFlapDiagnostics.plannedTurnCount}</strong
+							>
+						</div>
+						<div class="debug-value">
+							<span>Remaining</span><strong>{activeFlapDiagnostics.remainingTurnCount}</strong>
+						</div>
+						<div class="debug-value">
+							<span>Committed index</span><strong>{activeFlapDiagnostics.currentPageIndex}</strong>
 						</div>
 					</div>
 				</section>

@@ -38,9 +38,14 @@
 		inertiaTickCount: number;
 		plannedTurnCount: number;
 		completedTurnCount: number;
+		remainingTurnCount: number;
+		releaseOutcomeType: ReleaseOutcome['type'] | 'none';
+		outcomeStatus: 'none' | 'pending' | 'complete' | 'rejected';
+		outcomeComplete: boolean;
 		acceptedSwipeDirection?: SwipeDirection;
 		currentPageIndex: number;
-		currentPageLabel: string;
+		committedPageLabel: string;
+		visualPageLabel: string;
 		targetPageLabel?: string;
 		transformAxis: RotationFunction;
 		firstTransform: string;
@@ -164,9 +169,26 @@
 			inertiaTickCount,
 			plannedTurnCount: releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0,
 			completedTurnCount: gestureModel.completedTurns,
+			remainingTurnCount: Math.max(
+				0,
+				(releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0) -
+					gestureModel.completedTurns
+			),
+			releaseOutcomeType: releaseOutcome?.type ?? 'none',
+			outcomeStatus:
+				releaseOutcome === undefined
+					? 'none'
+					: releaseOutcome.type === 'reject'
+						? 'rejected'
+						: gestureModel.completedTurns >= releaseOutcome.pageCount
+							? 'complete'
+							: 'pending',
+			outcomeComplete:
+				releaseOutcome?.type === 'turn' && gestureModel.completedTurns >= releaseOutcome.pageCount,
 			acceptedSwipeDirection,
 			currentPageIndex,
-			currentPageLabel: visualCurrentPage.label,
+			committedPageLabel: currentPage.label,
+			visualPageLabel: visualCurrentPage.label,
 			targetPageLabel: rotation === 0 ? undefined : targetPage.label,
 			transformAxis: axisContract.rotationFunction,
 			firstTransform,
