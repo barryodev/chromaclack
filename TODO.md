@@ -1,66 +1,58 @@
-# ChromaClack - Project Roadmap
+# Roadmap
 
-This roadmap tracks the development of the tactile, gestural color-mixing app. The project uses a Turborepo monorepo to isolate a SvelteKit SPA (served via Vercel) and a Tauri v2 native client (compiled for Ubuntu/Desktop) with shared Rust logic.
+ChromaClack is being built in layers: validate the platforms, prove the mechanical interaction, then connect it to color state and native capabilities.
 
-## Phase 1: Environment Validation & Deployment Pipeline
+## Complete
 
-_Goal: Establish the Turborepo monorepo, prove the environment adapter routes correctly, and validate the local native/web deployment stack before moving into the mechanical UI work._
+- Monorepo with pnpm/Turborepo and Cargo workspaces.
+- Static SvelteKit SPA shared by web, Tauri desktop, and Android.
+- Vercel Rust API and Tauri IPC adapter using the same shared Rust crate.
+- Local web, desktop, Android, and deployment workflows.
+- GitHub-triggered native Linux build workflow.
+- Vertical and horizontal split-flap animation prototype.
+- Axis-specific drag handling with `rotateX` and `rotateY` paths.
+- Circular page state and pure half-slot ring helpers with unit tests.
+- Gesture diagnostics, frontend unit tests, and Playwright interaction captures.
 
-- [x] Initialize Turborepo with npm/pnpm workspaces.
-- [x] Scaffold SvelteKit in `apps/frontend` configured for pure static SPA (`adapter-static`, `ssr = false`).
-- [x] Scaffold Tauri v2 in `apps/desktop/src-tauri` using the local SvelteKit dist output.
-- [x] Create `crates/shared_utils` Rust library workspace for core logic.
-- [x] Implement the "Hello World" Rust function in `shared_utils`.
-- [x] Expose the "Hello World" function via a Vercel Serverless Function in `api/greet.rs`.
-- [x] Expose the "Hello World" function via a Tauri v2 command and configure `capabilities/default.json`.
-- [x] Write the TypeScript Environment Adapter (`if (window.__TAURI__)`) to route the UI submit button to the correct backend.
-- [x] Deploy the web app to Vercel and verify the serverless endpoint works in a browser.
-- [x] Validate the local web flow with a stable proxy-backed API for `POST /api/greet` during development.
-- [x] Verify the repo passes the full local validation pass: format, lint, typecheck, clippy, tests, and build.
-- [x] System-wide dependency version check and upgrade
-- [x] Connect the Vercel project to the GitHub repo so pushes/merges trigger automatic Preview/Production deployments (was a one-off CLI deploy until now).
-- [x] Test the deployment on Android emulator or device and verify the app boots correctly in the Tauri Android flow.
-- [x] Configure a GitHub Action to automatically build the native Ubuntu/Linux executable on push.
-- [x] Document and validate the full local developer workflow for web, desktop, and Android startup.
+## Complete: Gesture Model Refinement
 
-## Phase 2: The Mechanical CSS Hinge (Vertical Axis)
+- Explicit pointer-down, dragging, release-evaluating, inertia, and settled transitions.
+- 1:1 active dragging with deterministic release evaluation.
+- Bounded multi-page outcomes selected before animation.
+- Intermediate page resolution from the circular page model.
+- One-time page commitment at outcome completion.
+- Explicit inertia duration boundary and rapid re-engagement behavior.
+- Focused diagnostics, unit tests, browser assertions, and physical Android smoke testing.
 
-_Goal: Isolate the 3D CSS rendering and mechanical timing before introducing color math._
+## Deferred Gesture Follow-ups
 
-- [ ] Create a single 3-piece clacker DOM component (Static Top, Static Bottom, Hinged Flap).
-- [ ] Apply `perspective` to the container and `rotateX` to the flap.
-- [ ] Bind a click event to trigger the CSS `transition` from `0deg` to `-180deg`.
-- [ ] Add an array of letters (A, B, C) and implement `backface-visibility` to swap the letter at exactly 90 degrees.
-- [ ] Refine the CSS `cubic-bezier` timing curve so the flap falls with realistic physical weight.
-- [ ] Refactor the component to map CSS custom properties (e.g., `--saturation`) instead of text letters.
-- [ ] Verify the 3D depth illusion holds up without visual artifacting when transitioning pure color blocks.
+- [ ] Recompute or decay release velocity when pointer-up follows a pause after the last move.
+- [ ] Add a browser regression test for pausing before release and verify that stale velocity does not trigger inertia.
 
-## Phase 3: Multi-Axis Gestures & The Rotary Dimmer
+## Next Branch: Recycled Flap Display
 
-_Goal: Replace button clicks with continuous, multi-directional Pointer Events._
+- [ ] Wire the tested half-slot ring into the rendered component.
+- [ ] Expand the static prototype to five visible page pairs with two buffer pairs above and below.
+- [ ] Keep the DOM fixed while recycling content only after a transition settles.
+- [ ] Verify physical continuity and z-order at the hinge across repeated turns.
+- [ ] Validate transform-only animation behavior on Android and desktop.
 
-- [ ] Attach the standard JavaScript Pointer Events API to the clacker component.
-- [ ] Capture the initial X/Y coordinates on `pointerdown`.
-- [ ] Calculate the X and Y delta on `pointermove` to distinguish between horizontal and vertical swipes.
-- [ ] Map a confirmed vertical swipe delta to trigger the Saturation hinge (Up/Down).
-- [ ] Map a confirmed horizontal swipe delta to trigger a Hue hinge (Left/Right, using `rotateY`).
-- [ ] Implement a `setTimeout` on `pointerdown` to detect a "long press".
-- [ ] If a long press is detected, lock out the hinges and use `Math.atan2()` to calculate a rotation angle based on mouse/finger position.
-- [ ] Map the calculated angle to a CSS `rotateZ` transform to simulate a mechanical dimmer switch (Lightness).
+## Later: Color Synthesis
 
-## Phase 4: Synthesis & Native OS Share Integration
+- [ ] Introduce a centralized HSL or RGB state model.
+- [ ] Map vertical, horizontal, and rotational controls to color components.
+- [ ] Replace placeholder page labels and colors with generated color faces.
+- [ ] Display the current color as HSL, RGB, and hexadecimal values.
+- [ ] Add native and web clipboard/share actions.
 
-_Goal: Tie all gestures into a unified HSL state and integrate Tauri's native OS capabilities._
+## Verification
 
-- [ ] Create a centralized Svelte store to hold the master HSL state (Hue, Saturation, Lightness).
-- [ ] Update the UI text box to dynamically convert and display the current HSL state as a Hex/RGB string.
-- [ ] Add `tauri-plugin-clipboard-manager` (or `tauri-plugin-share`) to the `Cargo.toml` dependencies.
-- [ ] Register the plugin inside `src-tauri/capabilities/default.json`.
-- [ ] Expand the TypeScript Environment Adapter for a new "Share" action.
-- [ ] If running in Vercel/Web: Route the Share action to `navigator.clipboard.writeText()`.
-- [ ] If running in Tauri/Ubuntu: Route the Share action to the native Rust plugin to invoke the OS clipboard or share sheet.
-- [ ] Perform a final sweep testing simultaneous multi-axis interactions for 60fps performance on both native and web deployments.
+The focused frontend checks are:
 
-## Current milestone
+```sh
+pnpm --filter @repo/frontend test
+pnpm --filter @repo/frontend check
+pnpm --filter @repo/frontend test:e2e
+```
 
-The repo has completed the initial validation milestone, including the monorepo, web endpoint flow (with confirmed CI/CD), desktop native flow, and Android validation on a physical device. The remaining Phase 1 work is a GitHub Action for native Linux builds and developer workflow documentation; after that, the project moves into the mechanical CSS hinge design work (Phase 2).
+The full workspace validation command is `pnpm verify`. See [SETUP.md](SETUP.md) for platform-specific startup commands.

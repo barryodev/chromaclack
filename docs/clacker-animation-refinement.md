@@ -1,31 +1,28 @@
-# Clacker Animation Refinement
+# Clacker Animation Contract
 
-## Branch Goal
+## Purpose
 
-Refine the clacker's directional animation so vertical and horizontal movement feel intentional, physically coherent, and ready to extend beyond the current phase-one prototype.
+This document records the mechanical behavior that the clacker must preserve while its gesture model and rendering implementation evolve.
 
-The branch should end with:
+The current prototype already demonstrates:
 
 - Up/down gestures behaving like a split-flap/Rolodex motion.
 - Left/right gestures having their own matching directional animation instead of reusing the vertical effect.
-- Dragging feeling 1:1 with pointer/touch movement.
-- Release behavior snapping cleanly based on distance and velocity.
-- Mobile-friendly animation performance: transform-driven motion, with no layout churn during the animation loop.
-- A phase-one scope unless the branch explicitly expands into recycling/buffer slots.
-- A path toward one unified clacker object that can eventually blend vertical, horizontal, and rotational controls for three color components in either HSL or RGB mode.
+- axis-specific vertical and horizontal movement
+- a circular page model
+- tested logical-face and physical-half-slot helpers
+- transform-driven motion in the current small prototype
 
-## Current State
+The gesture model refinement is complete. Recycling and color synthesis remain future work.
 
-- The active work is on `refine-clacker-direction-animation`, branched from `feature/three-axis-movement`.
-- The worktree is clean after the accepted up/down visual-depth refinements.
+## Current Rendering State
+
 - The known vertical target is a split-flap/Rolodex display, not a rotating cylinder.
-- Phase one should prove the hinge mechanics with a small static setup before expanding to the fixed recycling pool.
-- The current phase-one flap uses `overflow: visible`, hinge-only `rotateX`/`rotateY` transforms without a visible constant `translateZ`, inherited rounded face radii, and a calmer `28rem` perspective.
-- Axis-specific pointer coordinates, rotation signs, and labels are now encoded through an explicit axis contract in `Flap.svelte`.
-- The current four visible labels are now represented as logical faces assigned to physical half-slots in `Flap.svelte`, preserving the same UI while preparing for slot recycling.
-- Ordered half-slot ring behavior now lives in a pure `flap-model.ts` module with unit tests, before being wired into the visual component.
-- `Flap.svelte` now derives its initial four visible half-slots from the tested model helpers without changing the visible UI.
-- Speed, rotation behavior, and perspective currently feel acceptable; remaining up/down changes should be minor polish unless new issues appear.
+- The phase-one prototype uses a small static setup with four visible half-slots.
+- `Flap.svelte` owns the current interaction loop and derives its initial visible slots from the tested model helpers.
+- The current flap uses hinge-only `rotateX`/`rotateY` transforms, `overflow: visible`, inherited face radii, and a `28rem` perspective.
+- Logical faces describe displayed content; physical half-slots are the future recycling unit.
+- The current colors and labels are placeholders, not the final HSL/RGB synthesis surface.
 
 ## Directional Animation Contract
 
@@ -68,15 +65,11 @@ Left/right should use the same split-flap/Rolodex physical metaphor as up/down, 
 
 The current CSS transform variables are still shared between vertical and horizontal modes. That is fine for the phase-one prototype, but serious left/right behavior should evolve through the axis contract instead of stretching vertical-only assumptions too far.
 
-## Implementation Notes
+## Rendering Notes
 
-- The long-term UI target is one clacker object that can seamlessly adjust three color components, such as HSL or RGB, through blended vertical, horizontal, and rotational interactions.
-- Left/right implementation should preserve that future shape: keep horizontal behavior as a named axis path that can later compose with vertical and spin controls, rather than building a disconnected demo-only interaction.
-- Vertical and horizontal page-state behavior now share the same circular page model: initial rest shows `1 / 1`, positive down/right swipes settle to the previous page, and negative up/left swipes settle to the next page.
-- The unified clacker will need state management for rotational-axis movement, including when the user has engaged spin/rotation and the current rotation delta being applied.
-- Logical faces describe displayed content; physical half-slots describe reusable flap positions. Animation should move physical half-slots, then settled transitions should update which logical faces those half-slots carry.
+- Vertical and horizontal page-state behavior share the same circular page model: positive down/right swipes settle to the previous page, and negative up/left swipes settle to the next page.
+- Future model logic should be developed in framework-agnostic code with unit tests before changing the visible Svelte behavior.
 - Page pairs are a composed/resting interpretation of neighboring half-slots, not the primitive recycling unit.
-- Phase-two model logic should be developed in framework-agnostic code with unit tests before changing the visible Svelte behavior.
 - The accepted visual-depth pass removed the visible constant flap `translateZ`; depth should come from hinge rotation rather than translating the whole moving panel toward the user.
 - `overflow: visible` is intentional so the moving flap can project outside the deck during rotation.
 - `border-radius: inherit` belongs on the rendered flap faces so rounded corners do not depend on clipping at the deck level.
@@ -84,22 +77,22 @@ The current CSS transform variables are still shared between vertical and horizo
 - Future explicit front/back flap markup should rotate the back face plane, not the printed content inside it.
 - `will-change: transform` is currently always present on both active halves. Since this is a tiny prototype surface, that is acceptable. Later, if the clacker grows to many slots/panels, only actively moving pieces should receive `will-change`.
 
-## Implementation Steps
+## Status
 
-- [x] Define the directional animation contract in code or nearby documentation.
-- [x] Refine up/down first against the split-flap behavior. Initial speed, rotation, continuity, visual depth, rounded faces, and perspective are accepted.
-- [x] Choose the left/right physical metaphor.
-- [x] Implement left/right as a separate animation path through the shared axis contract.
-- [ ] Extend the continuity model to buffer-slot recycling when phase two begins. The initial logical face/physical half-slot model and tested ordered ring helpers are in place.
-- [ ] Unify interaction rules across all directions, including rotational-axis engagement and rotation delta state.
-- [x] Polish and verify desktop pointer behavior for vertical and horizontal page-state swipes.
+- [x] Define the directional animation contract.
+- [x] Refine vertical and horizontal hinge behavior.
+- [x] Add the initial logical-face and physical-half-slot model with unit tests.
+- [x] Verify desktop pointer behavior for vertical and horizontal page-state swipes.
+- [x] Reset the gesture model around explicit input and release states.
+- [x] Plan multi-page outcomes before animation and resolve intermediate pages from the circular model.
+- [x] Verify browser behavior, rapid re-engagement, inertia bounds, and the physical Android launch path.
+- [ ] Extend continuity to the fixed recycling pool.
+- [ ] Add rotational-axis state and color synthesis.
 
-## First Commit Scope
+## Future Mechanical Rules
 
-The first implementation commit after this note should only cover the directional animation contract.
-
-That may be a small code-facing contract near the animation component, or another focused documentation change if more discussion is needed before touching animation logic.
-
-## Open Decisions
-
-- Whether phase one should remain limited to two static page pairs or start preparing the 9-slot/18-panel recycling pool.
+- Five complete page pairs should be visible at rest, with two buffer pairs above and below.
+- A committed page movement is exactly 180 degrees.
+- Recycling occurs only after a transition settles and never changes DOM size during motion.
+- A moving flap keeps a stable, physically defensible z-order through the hinge.
+- Animation work remains transform-driven and free of layout reads in the frame loop.

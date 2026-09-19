@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import type { FlapDiagnostics } from './flap-diagnostics';
 	import {
 		createHalfSlotRing,
 		visibleHalfSlotWindow,
@@ -11,7 +12,8 @@
 		createGestureModel,
 		type GestureEvent,
 		type GestureModel,
-		type MotionState
+		type MotionState,
+		type ReleaseOutcome
 	} from './gesture-model';
 
 	type Axis = 'vertical' | 'horizontal';
@@ -27,7 +29,6 @@
 		label: string;
 		background: string;
 	};
-
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
 			coordinate: 'clientY',
@@ -63,7 +64,13 @@
 		nextSecond: initialVisibleHalfSlot(3)
 	} satisfies Record<string, PhysicalHalfSlot>;
 
-	let { axis = 'vertical', debug = false }: { axis?: Axis; debug?: boolean } = $props();
+	let {
+		axis = 'vertical',
+		onDiagnostics
+	}: {
+		axis?: Axis;
+		onDiagnostics?: (diagnostics: FlapDiagnostics) => void;
+	} = $props();
 	const axisContract = $derived(AXIS_CONTRACTS[axis]);
 	const isVertical = $derived(axis === 'vertical');
 
@@ -100,21 +107,19 @@
 	const velocityDegPerMs = $derived(gestureModel.velocityDegPerMs);
 	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
 	const inertiaDurationMs = $derived(gestureModel.inertiaDurationMs);
-	const releaseTimestamp = $derived(gestureModel.releaseTimestamp);
 	const currentPage = $derived(pageAt(currentPageIndex));
-	const nextPage = $derived(pageAt(currentPageIndex + 1));
-	const previousPage = $derived(pageAt(currentPageIndex - 1));
-	const targetPage = $derived(rotation > 0 ? previousPage : nextPage);
-	const debugPositions = $derived([
-		{ name: 'previousPage', page: previousPage },
-		{ name: 'currentPage', page: currentPage },
-		{ name: 'nextPage', page: nextPage },
-		{ name: 'targetPage', page: targetPage }
-	]);
-	const debugRing = $derived(INITIAL_HALF_SLOT_RING.map((slot, index) => ({ index, slot })));
-	const debugVisibleSlots = $derived(
-		INITIAL_VISIBLE_HALF_SLOTS.map((slot, index) => ({ index, slot }))
+	const releaseOutcome = $derived<ReleaseOutcome | undefined>(gestureModel.releaseOutcome);
+	const turnDirectionSign = $derived(
+		releaseOutcome?.type === 'turn' && releaseOutcome.direction === 'positive' ? -1 : 1
 	);
+	const displayDirectionSign = $derived(
+		releaseOutcome?.type === 'turn' ? turnDirectionSign : rotation > 0 ? -1 : 1
+	);
+	const visualPageIndex = $derived(
+		currentPageIndex + gestureModel.completedTurns * turnDirectionSign
+	);
+	const visualCurrentPage = $derived(pageAt(visualPageIndex));
+	const targetPage = $derived(pageAt(visualPageIndex + displayDirectionSign));
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -123,11 +128,56 @@
 	);
 	let inertiaFrame: number | undefined;
 	let committedTurnCount = $state(0);
-	let inertiaTickCount = 0;
+	let inertiaTickCount = $state(0);
 	let lastInertiaLogTime = 0;
+	const activeHalf = $derived<'first' | 'second' | 'none'>(
+		rotation > 0 ? 'first' : rotation < 0 ? 'second' : 'none'
+	);
 
-	function logGesture(event: string, values: Record<string, number | string | undefined>) {
-		if (!debug) return;
+	$effect(() => {
+		onDiagnostics?.({
+			axis,
+			motionState,
+			rotation,
+			velocityDegPerMs,
+			velocityAtRelease,
+			inertiaDurationMs,
+			inertiaTickCount,
+			plannedTurnCount: releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0,
+			completedTurnCount: gestureModel.completedTurns,
+			remainingTurnCount: Math.max(
+				0,
+				(releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0) -
+					gestureModel.completedTurns
+			),
+			releaseOutcomeType: releaseOutcome?.type ?? 'none',
+			outcomeStatus:
+				releaseOutcome === undefined
+					? 'none'
+					: releaseOutcome.type === 'reject'
+						? 'rejected'
+						: gestureModel.completedTurns >= releaseOutcome.pageCount
+							? 'complete'
+							: 'pending',
+			outcomeComplete:
+				releaseOutcome?.type === 'turn' && gestureModel.completedTurns >= releaseOutcome.pageCount,
+			acceptedSwipeDirection,
+			currentPageIndex,
+			committedPageLabel: currentPage.label,
+			visualPageLabel: visualCurrentPage.label,
+			targetPageLabel: rotation === 0 ? undefined : targetPage.label,
+			transformAxis: axisContract.rotationFunction,
+			firstTransform,
+			secondTransform,
+			activeHalf
+		});
+	});
+
+	function logGesture(
+		event: string,
+		values: Record<string, number | string | boolean | undefined>
+	) {
+		if (!onDiagnostics) return;
 		console.info(`[Flap gesture] ${event}`, values);
 	}
 
@@ -143,17 +193,23 @@
 			motionState: 'idle',
 			rotation: 0,
 			velocityDegPerMs: 0,
-			velocityAtRelease: 0
+			velocityAtRelease: 0,
+			completedTurns: 0,
+			releaseOutcome: undefined
 		};
 	}
 
 	function applyGestureEvents(events: GestureEvent[]) {
 		for (const event of events) {
-			if (event.type === 'turn-committed') {
-				committedTurnCount += 1;
-				currentPageIndex -= event.direction === 'positive' ? 1 : -1;
+			if (event.type === 'outcome-complete' && event.outcome.type === 'turn') {
+				committedTurnCount += event.outcome.pageCount;
+				currentPageIndex +=
+					event.outcome.direction === 'positive'
+						? -event.outcome.pageCount
+						: event.outcome.pageCount;
 				logGesture('turn-committed', {
-					direction: event.direction,
+					direction: event.outcome.direction,
+					count: event.outcome.pageCount,
 					pageIndex: currentPageIndex
 				});
 			}
@@ -161,9 +217,17 @@
 				logGesture('settled-event', { pageIndex: currentPageIndex });
 			}
 		}
-		if (events.some((event) => event.type === 'turn-committed')) {
+		if (events.some((event) => event.type === 'outcome-complete')) {
 			logGesture('turns-committed', {
-				count: events.filter((event) => event.type === 'turn-committed').length,
+				count: events
+					.filter(
+						(event): event is Extract<GestureEvent, { type: 'outcome-complete' }> =>
+							event.type === 'outcome-complete'
+					)
+					.reduce(
+						(count, event) => count + (event.outcome.type === 'turn' ? event.outcome.pageCount : 0),
+						0
+					),
 				pageIndex: currentPageIndex
 			});
 		}
@@ -247,12 +311,19 @@
 	}
 
 	function dragStart(event: MouseEvent | TouchEvent) {
+		const previousState = gestureModel.motionState;
 		cancelInertia();
+		const interruption = gestureModel.interruptInertia();
+		applyGestureEvents(interruption.events);
+		gestureModel = interruption.model;
 		const position = pointerPosition(event);
-		gestureModel = gestureModel.beginDrag(position, performance.now());
-		logGesture('drag-start', {
+		gestureModel = gestureModel.beginPointerDown(position, performance.now());
+		logGesture('pointer-down', {
+			from: previousState,
+			to: gestureModel.motionState,
 			position: Number(position.toFixed(2)),
-			rotation: Number(gestureModel.rotation.toFixed(2))
+			rotation: Number(gestureModel.rotation.toFixed(2)),
+			inertiaCancelled: previousState === 'inertia'
 		});
 
 		if (!('touches' in event)) {
@@ -263,22 +334,44 @@
 
 	function dragMove(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) event.preventDefault();
+		const previousState = gestureModel.motionState;
 		const position = pointerPosition(event);
 		gestureModel = gestureModel.dragTo(position, performance.now());
+		if (previousState === 'pointer-down' && gestureModel.motionState === 'dragging') {
+			logGesture('dragging-start', {
+				from: previousState,
+				to: gestureModel.motionState,
+				position: Number(position.toFixed(2)),
+				rotation: Number(gestureModel.rotation.toFixed(2)),
+				velocity: Number(gestureModel.velocityDegPerMs.toFixed(4))
+			});
+		}
 	}
 
 	function dragEnd() {
 		window.removeEventListener('mousemove', dragMove);
 		window.removeEventListener('mouseup', dragEnd);
-		const transition = gestureModel.release(performance.now());
+		const previousState = gestureModel.motionState;
+		const releaseEvaluation = gestureModel.release(performance.now());
+		gestureModel = releaseEvaluation.model;
+		logGesture('release-evaluating', {
+			from: previousState,
+			to: gestureModel.motionState,
+			rotation: Number(gestureModel.rotation.toFixed(2)),
+			velocity: Number(gestureModel.velocityAtRelease.toFixed(4))
+		});
+		const transition = releaseEvaluation.model.evaluateRelease();
 		const released = transition.model;
 		gestureModel = released;
 		applyGestureEvents(transition.events);
-		logGesture('release', {
+		logGesture('release-outcome', {
+			from: releaseEvaluation.model.motionState,
+			to: released.motionState,
 			rotation: Number(released.rotation.toFixed(2)),
 			velocity: Number(released.velocityAtRelease.toFixed(4)),
-			state: released.motionState,
-			releaseDirection: released.releaseDirection ?? 'none'
+			releaseDirection: released.releaseDirection ?? 'none',
+			turnCount: released.releaseOutcome?.type === 'turn' ? released.releaseOutcome.pageCount : 0,
+			settled: transition.events.some((event) => event.type === 'settled')
 		});
 
 		if (released.motionState === 'settled') {
@@ -308,6 +401,15 @@
 	data-accepted-swipe-direction={acceptedSwipeDirection}
 	data-current-page-index={currentPageIndex}
 	data-committed-turns={committedTurnCount}
+	data-release-outcome={releaseOutcome?.type ?? 'none'}
+	data-planned-turns={releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0}
+	data-completed-turns={gestureModel.completedTurns}
+	data-remaining-turns={Math.max(
+		0,
+		(releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0) - gestureModel.completedTurns
+	)}
+	data-committed-page-label={currentPage.label}
+	data-visual-page-label={visualCurrentPage.label}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}
@@ -320,117 +422,42 @@
 			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
 				>{targetPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--back"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--next">
 			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
 				>{targetPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--back"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
 		</div>
 	</div>
 	<div class="flip-page flip-page--current">
 		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--front"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${previousPage.background}`}
-				>{previousPage.label}</span
+			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
 			>
 		</div>
 		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${currentPage.background}`}
-				>{currentPage.label}</span
+			<span
+				class="flip-face flip-face--front"
+				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${nextPage.background}`}
-				>{nextPage.label}</span
+			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
+				>{targetPage.label}</span
 			>
 		</div>
 	</div>
 </button>
-
-{#if debug}
-	<aside class="debug-panel" aria-label="Flap diagnostics">
-		<header class="debug-panel__header">
-			<span>Flap Diagnostics</span>
-			<span class="debug-panel__pulse" aria-hidden="true"></span>
-		</header>
-
-		<div class="debug-metrics">
-			<div class="debug-metric debug-metric--wide">
-				<span>Axis</span>
-				<strong>{axis}</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Motion</span>
-				<strong class="debug-status debug-status--{motionState}">{motionState}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Swipe</span>
-				<strong>{acceptedSwipeDirection ?? 'none'}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Rotation</span>
-				<strong>{rotation.toFixed(2)}°</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Velocity</span>
-				<strong>{velocityDegPerMs.toFixed(4)}</strong>
-			</div>
-			<div class="debug-metric">
-				<span>Release</span>
-				<strong>{velocityAtRelease.toFixed(4)}</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Elapsed</span>
-				<strong>{Math.max(0, performance.now() - releaseTimestamp).toFixed(0)} ms</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Inertia</span>
-				<strong>{inertiaDurationMs.toFixed(0)} ms</strong>
-			</div>
-			<div class="debug-metric debug-metric--wide">
-				<span>Threshold</span>
-				<strong>{Math.abs(velocityDegPerMs) < VELOCITY_STOP_THRESHOLD ? 'below' : 'above'}</strong>
-			</div>
-		</div>
-
-		<section class="debug-section">
-			<h2>Pages</h2>
-			{#each debugPositions as position}
-				<div class="debug-row">
-					<span>{position.name}</span>
-					<strong>{position.page.label}</strong>
-					<small>{position.page.background} / page index {currentPageIndex}</small>
-				</div>
-			{/each}
-		</section>
-
-		<section class="debug-section">
-			<h2>Visible Window</h2>
-			{#each debugVisibleSlots as item}
-				<div class="debug-row debug-row--compact">
-					<span>#{item.index}</span>
-					<strong>{item.slot.face.label}</strong>
-					<small>{item.slot.id} / {item.slot.role}</small>
-				</div>
-			{/each}
-		</section>
-
-		<section class="debug-section">
-			<h2>Ring</h2>
-			<div class="debug-ring">
-				{#each debugRing as item}
-					<span class="debug-ring__chip">{item.index}: {item.slot.face.label}</span>
-				{/each}
-			</div>
-		</section>
-	</aside>
-{/if}
 
 <style>
 	.flip-deck {
@@ -571,188 +598,5 @@
 
 	.flip-half--active-second {
 		transform: var(--second-transform);
-	}
-
-	.debug-panel {
-		position: fixed;
-		right: 1rem;
-		bottom: 1rem;
-		z-index: 10;
-		width: min(27rem, calc(100vw - 2rem));
-		max-height: min(31rem, calc(100vh - 2rem));
-		margin: 0;
-		padding: 0.9rem;
-		overflow: auto;
-		border: 1px solid rgba(34, 211, 238, 0.35);
-		border-radius: 0.9rem;
-		background:
-			linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(10, 14, 20, 0.95)),
-			linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(59, 130, 246, 0.08));
-		box-shadow:
-			0 0 0 1px rgba(148, 163, 184, 0.18),
-			0 1rem 2.5rem rgba(15, 23, 42, 0.72),
-			0 0 2rem rgba(34, 211, 238, 0.16);
-		color: #f8fafc;
-		font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-		font-size: 0.72rem;
-		line-height: 1.35;
-		text-align: left;
-		backdrop-filter: blur(14px);
-	}
-
-	.debug-panel__header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		margin-bottom: 0.8rem;
-		padding-bottom: 0.45rem;
-		border-bottom: 1px solid rgba(34, 211, 238, 0.2);
-		color: #dbeafe;
-		font-size: 0.68rem;
-		font-weight: 800;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-	}
-
-	.debug-panel__pulse {
-		width: 0.6rem;
-		height: 0.6rem;
-		border-radius: 999px;
-		background: #2dd4bf;
-		box-shadow: 0 0 0.8rem rgba(45, 212, 191, 0.95);
-		animation: pulse 1.2s ease-in-out infinite;
-	}
-
-	.debug-metrics {
-		display: grid;
-		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 0.5rem;
-		margin-bottom: 0.8rem;
-	}
-
-	.debug-metric {
-		display: flex;
-		flex-direction: column;
-		gap: 0.24rem;
-		padding: 0.5rem 0.55rem;
-		border: 1px solid rgba(148, 163, 184, 0.2);
-		border-radius: 0.55rem;
-		background: linear-gradient(180deg, rgba(9, 14, 20, 0.9), rgba(15, 23, 42, 0.7));
-		box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.08);
-	}
-
-	.debug-metric--wide {
-		grid-column: span 2;
-	}
-
-	.debug-metric span {
-		color: #7dd3fc;
-		font-size: 0.58rem;
-		letter-spacing: 0.14em;
-		text-transform: uppercase;
-	}
-
-	.debug-metric strong {
-		color: #f8fafc;
-		font-size: 0.82rem;
-		font-weight: 700;
-	}
-
-	.debug-status {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		padding: 0.12rem 0.45rem;
-		border-radius: 999px;
-		font-size: 0.7rem;
-		text-transform: uppercase;
-	}
-
-	.debug-status--idle {
-		background: rgba(148, 163, 184, 0.12);
-		color: #cbd5e1;
-	}
-
-	.debug-status--dragging {
-		background: rgba(250, 204, 21, 0.12);
-		color: #fde68a;
-	}
-
-	.debug-status--inertia {
-		background: rgba(34, 211, 238, 0.12);
-		color: #a5f3fc;
-	}
-
-	.debug-status--settled {
-		background: rgba(52, 211, 153, 0.12);
-		color: #a7f3d0;
-	}
-
-	.debug-section {
-		margin-top: 0.7rem;
-		padding: 0.6rem;
-		border: 1px solid rgba(148, 163, 184, 0.16);
-		border-radius: 0.6rem;
-		background: rgba(15, 23, 42, 0.54);
-	}
-
-	.debug-section h2 {
-		margin: 0 0 0.45rem;
-		color: #cbd5e1;
-		font-size: 0.6rem;
-		letter-spacing: 0.15em;
-		text-transform: uppercase;
-	}
-
-	.debug-row {
-		display: grid;
-		grid-template-columns: minmax(6rem, 1fr) auto minmax(7rem, 1fr);
-		gap: 0.5rem;
-		align-items: center;
-		padding: 0.28rem 0;
-	}
-
-	.debug-row--compact {
-		grid-template-columns: 2rem auto minmax(7rem, 1fr);
-	}
-
-	.debug-row + .debug-row {
-		border-top: 1px solid rgba(255, 255, 255, 0.08);
-	}
-
-	.debug-row span,
-	.debug-row small {
-		color: #94a3b8;
-	}
-
-	.debug-row strong {
-		color: #f8fafc;
-	}
-
-	.debug-ring {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.3rem;
-	}
-
-	.debug-ring__chip {
-		padding: 0.2rem 0.45rem;
-		border: 1px solid rgba(45, 212, 191, 0.4);
-		border-radius: 999px;
-		background: rgba(13, 148, 136, 0.12);
-		color: #a7f3d0;
-		font-size: 0.58rem;
-	}
-
-	@keyframes pulse {
-		0%,
-		100% {
-			opacity: 1;
-			transform: scale(1);
-		}
-		50% {
-			opacity: 0.6;
-			transform: scale(1.2);
-		}
 	}
 </style>
