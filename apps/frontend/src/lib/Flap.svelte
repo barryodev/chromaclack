@@ -161,7 +161,10 @@
 		});
 	});
 
-	function logGesture(event: string, values: Record<string, number | string | undefined>) {
+	function logGesture(
+		event: string,
+		values: Record<string, number | string | boolean | undefined>
+	) {
 		if (!onDiagnostics) return;
 		console.info(`[Flap gesture] ${event}`, values);
 	}
@@ -282,12 +285,16 @@
 	}
 
 	function dragStart(event: MouseEvent | TouchEvent) {
+		const previousState = gestureModel.motionState;
 		cancelInertia();
 		const position = pointerPosition(event);
-		gestureModel = gestureModel.beginDrag(position, performance.now());
-		logGesture('drag-start', {
+		gestureModel = gestureModel.beginPointerDown(position, performance.now());
+		logGesture('pointer-down', {
+			from: previousState,
+			to: gestureModel.motionState,
 			position: Number(position.toFixed(2)),
-			rotation: Number(gestureModel.rotation.toFixed(2))
+			rotation: Number(gestureModel.rotation.toFixed(2)),
+			inertiaCancelled: previousState === 'inertia'
 		});
 
 		if (!('touches' in event)) {
@@ -298,22 +305,44 @@
 
 	function dragMove(event: MouseEvent | TouchEvent) {
 		if ('touches' in event) event.preventDefault();
+		const previousState = gestureModel.motionState;
 		const position = pointerPosition(event);
 		gestureModel = gestureModel.dragTo(position, performance.now());
+		if (previousState === 'pointer-down' && gestureModel.motionState === 'dragging') {
+			logGesture('dragging-start', {
+				from: previousState,
+				to: gestureModel.motionState,
+				position: Number(position.toFixed(2)),
+				rotation: Number(gestureModel.rotation.toFixed(2)),
+				velocity: Number(gestureModel.velocityDegPerMs.toFixed(4))
+			});
+		}
 	}
 
 	function dragEnd() {
 		window.removeEventListener('mousemove', dragMove);
 		window.removeEventListener('mouseup', dragEnd);
-		const transition = gestureModel.release(performance.now());
+		const previousState = gestureModel.motionState;
+		const releaseEvaluation = gestureModel.release(performance.now());
+		gestureModel = releaseEvaluation.model;
+		logGesture('release-evaluating', {
+			from: previousState,
+			to: gestureModel.motionState,
+			rotation: Number(gestureModel.rotation.toFixed(2)),
+			velocity: Number(gestureModel.velocityAtRelease.toFixed(4))
+		});
+		const transition = releaseEvaluation.model.evaluateRelease();
 		const released = transition.model;
 		gestureModel = released;
 		applyGestureEvents(transition.events);
-		logGesture('release', {
+		logGesture('release-outcome', {
+			from: releaseEvaluation.model.motionState,
+			to: released.motionState,
 			rotation: Number(released.rotation.toFixed(2)),
 			velocity: Number(released.velocityAtRelease.toFixed(4)),
-			state: released.motionState,
-			releaseDirection: released.releaseDirection ?? 'none'
+			releaseDirection: released.releaseDirection ?? 'none',
+			turnEvents: transition.events.filter((event) => event.type === 'turn-committed').length,
+			settled: transition.events.some((event) => event.type === 'settled')
 		});
 
 		if (released.motionState === 'settled') {

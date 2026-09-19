@@ -1,5 +1,6 @@
 export type GestureAxis = 'vertical' | 'horizontal';
-export type MotionState = 'idle' | 'dragging' | 'inertia' | 'settled';
+export type MotionState =
+	'idle' | 'pointer-down' | 'dragging' | 'release-evaluating' | 'inertia' | 'settled';
 export type SwipeDirection = 'positive' | 'negative';
 export type GestureEvent =
 	{ type: 'turn-committed'; direction: SwipeDirection } | { type: 'settled' };
@@ -34,9 +35,10 @@ export type GestureModel = {
 	velocityStopThreshold: number;
 	frictionDecayPerSecond: number;
 	animationSpeed: number;
-	beginDrag: (position: number, time: number) => GestureModel;
+	beginPointerDown: (position: number, time: number) => GestureModel;
 	dragTo: (position: number, time: number) => GestureModel;
 	release: (time: number) => GestureTransition;
+	evaluateRelease: () => GestureTransition;
 	tick: (dtMs: number) => GestureTransition;
 };
 
@@ -84,10 +86,16 @@ export function createGestureModel(
 		velocityStopThreshold: resolved.velocityStopThreshold,
 		frictionDecayPerSecond: resolved.frictionDecayPerSecond,
 		animationSpeed: resolved.animationSpeed,
-		beginDrag(position, time) {
+		beginPointerDown(position, time) {
+			if (
+				this.motionState !== 'idle' &&
+				this.motionState !== 'settled' &&
+				this.motionState !== 'inertia'
+			)
+				return this;
 			return {
 				...this,
-				motionState: 'dragging',
+				motionState: 'pointer-down',
 				dragStartPosition: position,
 				dragStartRotation: this.rotation,
 				lastTouchPosition: position,
@@ -100,6 +108,7 @@ export function createGestureModel(
 			};
 		},
 		dragTo(position, time) {
+			if (this.motionState !== 'pointer-down' && this.motionState !== 'dragging') return this;
 			const elapsed = Math.max(time - this.lastTouchTime, 1);
 			const deltaFromDragStart = (position - this.dragStartPosition) * this.dragSensitivity;
 			const nextRotation = clampRotation(this.dragStartRotation + deltaFromDragStart);
@@ -116,6 +125,23 @@ export function createGestureModel(
 			};
 		},
 		release(time) {
+			if (this.motionState !== 'pointer-down' && this.motionState !== 'dragging') {
+				return { model: this, events: [] };
+			}
+
+			return {
+				model: {
+					...this,
+					motionState: 'release-evaluating',
+					velocityAtRelease: this.velocityDegPerMs,
+					releaseTimestamp: time
+				},
+				events: []
+			};
+		},
+		evaluateRelease() {
+			if (this.motionState !== 'release-evaluating') return { model: this, events: [] };
+
 			const nextVelocity = this.velocityDegPerMs;
 			const shouldInertia = Math.abs(nextVelocity) >= this.velocityStopThreshold;
 			const accepted = acceptedSwipeDirectionForRotation(
@@ -130,8 +156,8 @@ export function createGestureModel(
 				...this,
 				rotation: nextRotation,
 				motionState: shouldInertia ? 'inertia' : 'settled',
-				velocityAtRelease: nextVelocity,
-				releaseTimestamp: time,
+				velocityAtRelease: this.velocityAtRelease,
+				releaseTimestamp: this.releaseTimestamp,
 				inertiaDurationMs: 0,
 				releaseDirection
 			};
