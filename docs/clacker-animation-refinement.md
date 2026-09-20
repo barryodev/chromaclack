@@ -40,16 +40,18 @@ The branch should make the four directional gestures explicit before polishing i
 
 - A moving flap must remain visually and physically continuous throughout its travel.
 - A flap must not disappear behind a static flap at rest if it would have had to pass through that static flap to get there.
-- Z-order may change only at physically defensible moments, such as before motion begins, at the hinge crossing point, or after a settled transition updates logical content.
+- Z-order may change only at physically defensible moments, such as before motion begins, at the hinge crossing point, or when a completed-turn boundary updates hidden logical content.
 - In the current phase-one model, where flaps 3 and 4 are static and flaps 1 and 2 move, flap 1 folding down must not teleport behind flap 2.
 - Flicking down, letting flap 1 settle, and then flicking up should not reveal a sudden reappearance caused by an inconsistent visual stack.
 
 ### Phase-Two Recycling Model
 
 - When the display expands to more visible pages and a larger buffer, the physical continuity rule should extend to the full Rolodex loop.
-- A flap that exits the visible face should logically continue around the back of the Rolodex and return to the front/top in the correct order.
+- The display should use active-page emphasis: the focused page pair performs the visible foreground turn while neighboring pages remain in their layered resting stack.
+- A flap that exits the visible stack should logically continue around the back of the Rolodex and return to the front/top in the correct order.
 - The behind-the-Rolodex travel does not need to be visibly animated, but the slot/content recycling should behave as if that full physical path occurred.
-- Recycling should happen only after visible motion settles, while the recycled slot is outside the user's visible window.
+- Recycling should occur at each completed 180-degree whole-page boundary, while the recycled slot is outside the user's visible window.
+- This is deterministic transform and z-order choreography, not collision detection or whole-stack physics.
 
 ### Left/Right
 
@@ -91,8 +93,8 @@ The current CSS transform variables are still shared between vertical and horizo
 
 ## Future Mechanical Rules
 
-- Five complete page pairs should be visible at rest, with two buffer pairs above and below.
+- Visible and buffer page counts should be configurable; five visible page pairs with two buffer pairs on each side is the initial visual test preset.
 - A committed page movement is exactly 180 degrees.
-- Recycling occurs only after a transition settles and never changes DOM size during motion.
+- Recycling occurs at each completed whole-page boundary and never changes DOM size during motion.
 - A moving flap keeps a stable, physically defensible z-order through the hinge.
 - Animation work remains transform-driven and free of layout reads in the frame loop.

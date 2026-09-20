@@ -31,9 +31,10 @@ ChromaClack is being built in layers: validate the platforms, prove the mechanic
 
 ## Next Branch: Recycled Flap Display
 
-- [ ] Wire the tested half-slot ring into the rendered component.
-- [ ] Expand the static prototype to five visible page pairs with two buffer pairs above and below.
-- [ ] Keep the DOM fixed while recycling content only after a transition settles.
+- [ ] Add the pure configurable deck model and wire its fixed slot pool into the rendered component.
+- [ ] Expand the static prototype into a layered Rolodex stack; begin with five visible page pairs and two buffer pairs on each side, while keeping the counts tunable.
+- [ ] Animate only the focused page pair per turn; advance stack roles and recycle hidden buffer content at each completed whole-page boundary.
+- [ ] Preserve a compact configuration for dense multi-clacker displays using the same mechanics.
 - [ ] Verify physical continuity and z-order at the hinge across repeated turns.
 - [ ] Validate transform-only animation behavior on Android and desktop.
 
