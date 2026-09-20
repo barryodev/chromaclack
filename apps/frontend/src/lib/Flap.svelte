@@ -2,10 +2,6 @@
 	import { onDestroy } from 'svelte';
 	import type { FlapDiagnostics } from './flap-diagnostics';
 	import {
-		createHalfSlotRing,
-		visibleHalfSlotWindow,
-		type LogicalFace,
-		type PhysicalHalfSlot,
 		type SwipeDirection
 	} from './flap-model';
 	import {
@@ -49,21 +45,6 @@
 		{ label: '3', background: '#F43F5E' },
 		{ label: '4', background: '#F97316' }
 	];
-	const LOGICAL_FACES = Object.fromEntries(
-		PAGES.flatMap((page) => [
-			[`page-${page.label}-first`, { id: `page-${page.label}-first`, label: page.label }],
-			[`page-${page.label}-second`, { id: `page-${page.label}-second`, label: page.label }]
-		])
-	) as Record<string, LogicalFace>;
-	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
-	const INITIAL_VISIBLE_HALF_SLOTS = visibleHalfSlotWindow(INITIAL_HALF_SLOT_RING, 0, 4);
-	const PHYSICAL_HALF_SLOTS = {
-		currentFirst: initialVisibleHalfSlot(0),
-		currentSecond: initialVisibleHalfSlot(1),
-		nextFirst: initialVisibleHalfSlot(2),
-		nextSecond: initialVisibleHalfSlot(3)
-	} satisfies Record<string, PhysicalHalfSlot>;
-
 	let {
 		axis = 'vertical',
 		onDiagnostics
@@ -81,6 +62,7 @@
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
 	let currentPageIndex = $state(0);
+	// eslint-disable-next-line svelte/prefer-writable-derived -- Input handlers and animation frames replace this controller.
 	let gestureModel = $state<GestureModel>(
 		createGestureModel('vertical', {
 			dragSensitivity: DRAG_SENSITIVITY,
@@ -254,14 +236,6 @@
 			return touch?.[axisContract.coordinate] ?? gestureModel.dragStartPosition;
 		}
 		return event[axisContract.coordinate];
-	}
-
-	function initialVisibleHalfSlot(index: number): PhysicalHalfSlot {
-		const slot = INITIAL_VISIBLE_HALF_SLOTS[index];
-		if (slot === undefined) {
-			throw new RangeError('Initial visible half-slot is outside the model window.');
-		}
-		return slot;
 	}
 
 	function pageAt(index: number) {
