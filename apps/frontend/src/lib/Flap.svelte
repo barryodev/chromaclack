@@ -95,9 +95,7 @@
 	const displayDirectionSign = $derived(
 		releaseOutcome?.type === 'turn' ? turnDirectionSign : rotation > 0 ? -1 : 1
 	);
-	const visualPageIndex = $derived(
-		currentPageIndex + gestureModel.completedTurns * turnDirectionSign
-	);
+	const visualPageIndex = $derived(currentPageIndex);
 	const visualCurrentPage = $derived(pageAt(visualPageIndex));
 	const targetPage = $derived(pageAt(visualPageIndex + displayDirectionSign));
 	const firstTransform = $derived(
@@ -181,15 +179,12 @@
 
 	function applyGestureEvents(events: GestureEvent[]) {
 		for (const event of events) {
-			if (event.type === 'outcome-complete' && event.outcome.type === 'turn') {
-				committedTurnCount += event.outcome.pageCount;
-				currentPageIndex +=
-					event.outcome.direction === 'positive'
-						? -event.outcome.pageCount
-						: event.outcome.pageCount;
+			if (event.type === 'turn-completed') {
+				committedTurnCount += 1;
+				currentPageIndex += event.direction === 'positive' ? -1 : 1;
 				logGesture('turn-committed', {
-					direction: event.outcome.direction,
-					count: event.outcome.pageCount,
+					direction: event.direction,
+					count: 1,
 					pageIndex: currentPageIndex
 				});
 			}
@@ -197,17 +192,10 @@
 				logGesture('settled-event', { pageIndex: currentPageIndex });
 			}
 		}
-		if (events.some((event) => event.type === 'outcome-complete')) {
+		if (events.some((event) => event.type === 'turn-completed')) {
 			logGesture('turns-committed', {
 				count: events
-					.filter(
-						(event): event is Extract<GestureEvent, { type: 'outcome-complete' }> =>
-							event.type === 'outcome-complete'
-					)
-					.reduce(
-						(count, event) => count + (event.outcome.type === 'turn' ? event.outcome.pageCount : 0),
-						0
-					),
+					.filter((event) => event.type === 'turn-completed').length,
 				pageIndex: currentPageIndex
 			});
 		}

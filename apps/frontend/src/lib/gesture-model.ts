@@ -5,7 +5,7 @@ export type SwipeDirection = 'positive' | 'negative';
 export type ReleaseOutcome =
 	{ type: 'reject' } | { type: 'turn'; direction: SwipeDirection; pageCount: number };
 export type GestureEvent =
-	{ type: 'outcome-complete'; outcome: ReleaseOutcome } | { type: 'settled' };
+	{ type: 'turn-completed'; direction: SwipeDirection } | { type: 'settled' };
 export type GestureTransition = {
 	model: GestureModel;
 	events: GestureEvent[];
@@ -165,18 +165,20 @@ export function createGestureModel(
 			const releaseDirection =
 				accepted ?? (shouldInertia ? directionForVelocity(nextVelocity) : undefined);
 			const pageCount = releaseDirection
-				? Math.min(
-						8,
-						Math.max(
-							1,
-							Math.ceil(
-								(Math.abs(this.rotation) +
-									(Math.abs(nextVelocity) * this.animationSpeed * 1000) /
-										this.frictionDecayPerSecond) /
-									this.acceptedSwipeRotationDegrees
+				? shouldInertia
+					? Math.min(
+							8,
+							Math.max(
+								1,
+								Math.ceil(
+									(Math.abs(this.rotation) +
+										(Math.abs(nextVelocity) * this.animationSpeed * 1000) /
+											this.frictionDecayPerSecond) /
+										this.acceptedSwipeRotationDegrees
+								)
 							)
 						)
-					)
+					: 1
 				: 0;
 			const outcome: ReleaseOutcome =
 				releaseDirection && pageCount > 0
@@ -207,7 +209,12 @@ export function createGestureModel(
 						completedTurns: outcome.type === 'turn' ? outcome.pageCount : 0
 					},
 					events: [
-						...(outcome.type === 'turn' ? [{ type: 'outcome-complete' as const, outcome }] : []),
+						...(outcome.type === 'turn'
+							? Array.from({ length: outcome.pageCount }, () => ({
+									type: 'turn-completed' as const,
+									direction: outcome.direction
+								}))
+							: []),
 						{ type: 'settled' }
 					]
 				};
@@ -217,15 +224,6 @@ export function createGestureModel(
 		},
 		interruptInertia() {
 			if (this.motionState !== 'inertia') return { model: this, events: [] };
-
-			const completedOutcome =
-				this.releaseOutcome?.type === 'turn' && this.completedTurns > 0
-					? {
-							type: 'turn' as const,
-							direction: this.releaseOutcome.direction,
-							pageCount: this.completedTurns
-						}
-					: undefined;
 
 			return {
 				model: {
@@ -237,12 +235,7 @@ export function createGestureModel(
 					releaseOutcome: undefined,
 					completedTurns: 0
 				},
-				events: [
-					...(completedOutcome
-						? [{ type: 'outcome-complete' as const, outcome: completedOutcome }]
-						: []),
-					{ type: 'settled' }
-				]
+				events: [{ type: 'settled' }]
 			};
 		},
 		tick(dtMs) {
@@ -271,11 +264,14 @@ export function createGestureModel(
 			};
 
 			const plannedTurns = this.releaseOutcome?.type === 'turn' ? this.releaseOutcome.pageCount : 0;
-			const completedOutcome =
-				this.releaseOutcome?.type === 'turn' && nextState.completedTurns >= plannedTurns;
+			const reachedPlannedTurnCount = nextState.completedTurns >= plannedTurns;
+			const turnEvents = Array.from({ length: crossedTurns }, () => ({
+				type: 'turn-completed' as const,
+				direction: this.releaseDirection as SwipeDirection
+			}));
 
 			if (
-				completedOutcome ||
+				reachedPlannedTurnCount ||
 				Math.abs(nextVelocity) < this.velocityStopThreshold ||
 				nextState.inertiaDurationMs >= this.maxInertiaDurationMs
 			) {
@@ -286,20 +282,15 @@ export function createGestureModel(
 						releaseDirection: this.releaseDirection,
 						velocityDegPerMs: 0,
 						rotation: 0,
-						completedTurns: plannedTurns
+						completedTurns: nextState.completedTurns
 					},
-					events: [
-						...(this.releaseOutcome?.type === 'turn'
-							? [{ type: 'outcome-complete' as const, outcome: this.releaseOutcome }]
-							: []),
-						{ type: 'settled' }
-					]
+					events: [...turnEvents, { type: 'settled' }]
 				};
 			}
 
 			return {
 				model: nextState,
-				events: []
+				events: turnEvents
 			};
 		}
 	};

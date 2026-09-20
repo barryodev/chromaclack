@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	createGestureModel,
-	dragGesture,
-	releaseGesture,
 	tickGesture,
 	acceptedSwipeDirectionForRotation,
 	type GestureAxis
@@ -101,7 +99,7 @@ describe('gesture model', () => {
 
 		expect(released.model.motionState).toBe('settled');
 		expect(released.events).toEqual([
-			{ type: 'outcome-complete', outcome: { type: 'turn', direction: 'positive', pageCount: 2 } },
+			{ type: 'turn-completed', direction: 'positive' },
 			{ type: 'settled' }
 		]);
 	});
@@ -113,7 +111,7 @@ describe('gesture model', () => {
 
 		expect(released.model.motionState).toBe('settled');
 		expect(released.events).toEqual([
-			{ type: 'outcome-complete', outcome: { type: 'turn', direction: 'negative', pageCount: 2 } },
+			{ type: 'turn-completed', direction: 'negative' },
 			{ type: 'settled' }
 		]);
 	});
@@ -126,11 +124,11 @@ describe('gesture model', () => {
 		const turning = tickGesture(released, 1000);
 
 		expect(turning.model.motionState).toBe('settled');
-		expect(turning.events).toHaveLength(2);
-		expect(turning.events[0]).toEqual({
-			type: 'outcome-complete',
-			outcome: { type: 'turn', direction: 'positive', pageCount: 2 }
-		});
+		expect(turning.events).toEqual([
+			{ type: 'turn-completed', direction: 'positive' },
+			{ type: 'turn-completed', direction: 'positive' },
+			{ type: 'settled' }
+		]);
 		expect(turning.model.releaseOutcome).toEqual({
 			type: 'turn',
 			direction: 'positive',
@@ -178,7 +176,7 @@ describe('gesture model', () => {
 		expect(settled.events).toContainEqual({ type: 'settled' });
 	});
 
-	it('commits completed turns before interrupting inertia', () => {
+	it('does not repeat completed turns when interrupting inertia', () => {
 		const model = createGestureModel('vertical');
 		const released = model
 			.beginPointerDown(100, 50)
@@ -191,14 +189,7 @@ describe('gesture model', () => {
 		expect(turning.model.completedTurns).toBeGreaterThan(0);
 		expect(interrupted.model.motionState).toBe('settled');
 		expect(interrupted.model.completedTurns).toBe(0);
-		expect(interrupted.events[0]).toEqual({
-			type: 'outcome-complete',
-			outcome: {
-				type: 'turn',
-				direction: 'positive',
-				pageCount: turning.model.completedTurns
-			}
-		});
+		expect(interrupted.events).toEqual([{ type: 'settled' }]);
 	});
 
 	it('supports horizontal gestures with the opposite rotation direction contract', () => {

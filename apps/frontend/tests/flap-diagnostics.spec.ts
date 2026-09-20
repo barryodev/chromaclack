@@ -109,7 +109,7 @@ test('exposes the planned outcome and intermediate page progress', async ({ page
 
 	const committedPage = await deck.getAttribute('data-committed-page-label');
 	const visualPage = await deck.getAttribute('data-visual-page-label');
-	expect(visualPage).not.toBe(committedPage);
+	expect(visualPage).toBe(committedPage);
 });
 
 test('accepts a new gesture while previous inertia is active', async ({ page }) => {
