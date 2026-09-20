@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import type { FlapDiagnostics } from './flap-diagnostics';
-	import {
-		type SwipeDirection
-	} from './flap-model';
+	import { type SwipeDirection } from './flap-model';
 	import {
 		createGestureModel,
 		type GestureEvent,
