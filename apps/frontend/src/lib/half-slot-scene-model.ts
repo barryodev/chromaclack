@@ -13,13 +13,17 @@ export type HalfSlotPose = {
 export type HalfSlotSceneConfig = {
 	halfSlotCount: number;
 	visibleNeighborCount: number;
-	neighborAngleDegrees: number;
+	focusedAngleDegrees: number;
+	innerNeighborAngleDegrees: number;
+	outerNeighborAngleDegrees: number;
 };
 
 export const DEFAULT_HALF_SLOT_SCENE_CONFIG: HalfSlotSceneConfig = {
 	halfSlotCount: 14,
 	visibleNeighborCount: 2,
-	neighborAngleDegrees: 12
+	focusedAngleDegrees: 40,
+	innerNeighborAngleDegrees: 30,
+	outerNeighborAngleDegrees: 6
 };
 
 export function createSettledHalfSlotScene(
@@ -54,18 +58,26 @@ export function createSettledHalfSlotScene(
 			: isLowerNeighbor
 				? lowerNeighborIndex + 1
 				: 0;
+		const neighborAngleDegrees =
+			neighborDistance === 1
+				? config.innerNeighborAngleDegrees
+				: config.outerNeighborAngleDegrees;
 		const rotationDegrees =
-			isUpperNeighbor
-				? -config.neighborAngleDegrees * neighborDistance
-				: isLowerNeighbor
-					? config.neighborAngleDegrees * neighborDistance
-					: 0;
+			isActive
+				? side === 'first'
+					? -config.focusedAngleDegrees
+					: config.focusedAngleDegrees
+				: isUpperNeighbor
+					? -neighborAngleDegrees
+					: isLowerNeighbor
+						? neighborAngleDegrees
+						: 0;
 
 		return {
 			physicalHalfSlotId: `half-slot-${index + 1}`,
 			logicalFaceIndex: logicalFaceIndex + (isUpperNeighbor ? -neighborDistance : neighborDistance),
 			side,
-			rotationDegrees,
+			rotationDegrees: rotationDegrees === 0 ? 0 : rotationDegrees,
 			layer: isActive
 				? config.visibleNeighborCount + 1
 				: config.visibleNeighborCount - neighborDistance + 1,
@@ -76,7 +88,11 @@ export function createSettledHalfSlotScene(
 }
 
 function validateSceneConfig(config: HalfSlotSceneConfig) {
-	if (!Number.isInteger(config.halfSlotCount) || config.halfSlotCount < 2 || config.halfSlotCount % 2) {
+	if (
+		!Number.isInteger(config.halfSlotCount) ||
+		config.halfSlotCount < 2 ||
+		config.halfSlotCount % 2
+	) {
 		throw new RangeError('Half-slot count must be an even integer of at least two.');
 	}
 	if (!Number.isInteger(config.visibleNeighborCount) || config.visibleNeighborCount < 0) {
@@ -85,7 +101,11 @@ function validateSceneConfig(config: HalfSlotSceneConfig) {
 	if (config.visibleNeighborCount * 4 + 2 > config.halfSlotCount) {
 		throw new RangeError('Half-slot scene needs room for the requested visible neighbors.');
 	}
-	if (!Number.isFinite(config.neighborAngleDegrees)) {
-		throw new RangeError('Neighbor angle must be finite.');
+	if (
+		!Number.isFinite(config.focusedAngleDegrees) ||
+		!Number.isFinite(config.innerNeighborAngleDegrees) ||
+		!Number.isFinite(config.outerNeighborAngleDegrees)
+	) {
+		throw new RangeError('Half-slot pose angles must be finite.');
 	}
 }
