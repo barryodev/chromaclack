@@ -32,26 +32,43 @@ export function createSettledHalfSlotScene(
 	const bufferHalfCount = config.halfSlotCount - visibleHalfCount;
 	const focusFirstIndex = bufferHalfCount / 2 + config.visibleNeighborCount * 2;
 	const focusSecondIndex = focusFirstIndex + 1;
+	const upperFirstIndexes = Array.from(
+		{ length: config.visibleNeighborCount },
+		(_, offset) => focusFirstIndex - (config.visibleNeighborCount - offset) * 2
+	);
+	const lowerSecondIndexes = Array.from(
+		{ length: config.visibleNeighborCount },
+		(_, offset) => focusSecondIndex + (offset + 1) * 2
+	);
 
 	return Array.from({ length: config.halfSlotCount }, (_, index): HalfSlotPose => {
 		const side: HalfSlotSide = index % 2 === 0 ? 'first' : 'second';
-		const offset = Math.floor((index - focusFirstIndex) / 2);
 		const isActive = index === focusFirstIndex || index === focusSecondIndex;
-		const isVisible = index >= bufferHalfCount / 2 && index < config.halfSlotCount - bufferHalfCount / 2;
-		const distance = Math.abs(offset);
+		const upperNeighborIndex = upperFirstIndexes.indexOf(index);
+		const lowerNeighborIndex = lowerSecondIndexes.indexOf(index);
+		const isUpperNeighbor = upperNeighborIndex >= 0;
+		const isLowerNeighbor = lowerNeighborIndex >= 0;
+		const isVisible = isActive || isUpperNeighbor || isLowerNeighbor;
+		const neighborDistance = isUpperNeighbor
+			? config.visibleNeighborCount - upperNeighborIndex
+			: isLowerNeighbor
+				? lowerNeighborIndex + 1
+				: 0;
 		const rotationDegrees =
-			offset < 0
-				? -config.neighborAngleDegrees * distance
-				: offset > 0
-					? config.neighborAngleDegrees * distance
+			isUpperNeighbor
+				? -config.neighborAngleDegrees * neighborDistance
+				: isLowerNeighbor
+					? config.neighborAngleDegrees * neighborDistance
 					: 0;
 
 		return {
 			physicalHalfSlotId: `half-slot-${index + 1}`,
-			logicalFaceIndex: logicalFaceIndex + offset,
+			logicalFaceIndex: logicalFaceIndex + (isUpperNeighbor ? -neighborDistance : neighborDistance),
 			side,
 			rotationDegrees,
-			layer: isActive ? config.visibleNeighborCount + 1 : config.visibleNeighborCount - distance + 1,
+			layer: isActive
+				? config.visibleNeighborCount + 1
+				: config.visibleNeighborCount - neighborDistance + 1,
 			visibility: isVisible ? 'visible' : 'buffered',
 			isActive
 		};

@@ -22,10 +22,13 @@ describe('half-slot scene model', () => {
 		const visible = poses.filter((pose) => pose.visibility === 'visible');
 
 		expect(visible.map((pose) => pose.logicalFaceIndex)).toEqual([
-			-2, -2, -1, -1, 0, 0, 1, 1, 2, 2
+			-2, -1, 0, 0, 1, 2
+		]);
+		expect(visible.map((pose) => pose.side)).toEqual([
+			'first', 'first', 'first', 'second', 'second', 'second'
 		]);
 		expect(visible.map((pose) => pose.rotationDegrees)).toEqual([
-			-24, -24, -12, -12, 0, 0, 12, 12, 24, 24
+			-24, -12, 0, 0, 12, 24
 		]);
 	});
 
