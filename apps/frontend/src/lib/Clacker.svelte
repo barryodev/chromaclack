@@ -1,10 +1,15 @@
 <script lang="ts">
 	import Flap from './Flap.svelte';
+	import HalfSlotScene from './HalfSlotScene.svelte';
 	import type { FlapDiagnostics } from './flap-diagnostics';
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 
-	let { mode = 'vertical', debug = false }: { mode?: Mode; debug?: boolean } = $props();
+	let {
+		mode = 'vertical',
+		debug = false,
+		halfSlotScene = false
+	}: { mode?: Mode; debug?: boolean; halfSlotScene?: boolean } = $props();
 	let spinAngle = $state(0);
 	let isDragging = $state(false);
 	let spinSettling = $state(false);
@@ -67,7 +72,11 @@
 
 <section class="stage">
 	{#if mode === 'vertical'}
-		<Flap axis="vertical" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
+		{#if halfSlotScene}
+			<HalfSlotScene />
+		{:else}
+			<Flap axis="vertical" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
+		{/if}
 	{:else if mode === 'horizontal'}
 		<Flap axis="horizontal" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
 	{:else if mode === 'spin'}

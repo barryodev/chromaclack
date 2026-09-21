@@ -8,6 +8,7 @@
 	const debug = $derived(
 		page.url.searchParams.has('debug') && page.url.searchParams.get('debug') !== 'false'
 	);
+	const halfSlotScene = $derived(page.url.searchParams.get('scene') === 'half-slots');
 
 	const modes: { id: Mode; label: string }[] = [
 		{ id: 'vertical', label: 'Up / Down' },
@@ -22,7 +23,7 @@
 
 <section class="workspace" aria-label="Movement modes">
 	<nav class="tabs" aria-label="Select movement mode">
-		{#each modes as mode}
+		{#each modes as mode (mode.id)}
 			<button
 				type="button"
 				class:active={activeMode === mode.id}
@@ -35,7 +36,7 @@
 		{/each}
 	</nav>
 
-	<Clacker mode={activeMode} {debug} />
+	<Clacker mode={activeMode} {debug} {halfSlotScene} />
 </section>
 
 <style>
