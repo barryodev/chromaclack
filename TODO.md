@@ -31,10 +31,10 @@ ChromaClack is being built in layers: validate the platforms, prove the mechanic
 
 ## Next Branch: Recycled Flap Display
 
-- [ ] Add the pure configurable deck model and wire its fixed slot pool into the rendered component.
-- [ ] Expand the static prototype into a layered Rolodex stack; begin with five visible page pairs and two buffer pairs on each side, while keeping the counts tunable.
-- [ ] Animate only the focused page pair per turn; advance stack roles and recycle hidden buffer content at each completed whole-page boundary.
-- [ ] Preserve a compact configuration for dense multi-clacker displays using the same mechanics.
+- [ ] Follow [half-slot-scene-redesign.md](docs/half-slot-scene-redesign.md): replace page-slot ownership with a pure configurable half-slot deck model.
+- [ ] Build a static shared-axle half-slot pose scene with renderer-tunable visual density.
+- [ ] Animate only the active physical half per turn; advance ordered half-slot positions and recycle hidden face content at each completed whole-page boundary.
+- [ ] Preserve compact and dense pose generators for multi-clacker displays using the same half-slot mechanics.
 - [ ] Verify physical continuity and z-order at the hinge across repeated turns.
 - [ ] Validate transform-only animation behavior on Android and desktop.
 

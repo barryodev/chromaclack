@@ -1,5 +1,7 @@
 # Configurable Recycled Deck Model
 
+> Superseded for renderer and deck ownership by [half-slot-scene-redesign.md](half-slot-scene-redesign.md). This document remains as the historical page-slot design record and proposed lifecycle discussion.
+
 ## Status
 
 This document defines the next mechanical phase after the gesture-model refinement: a fixed, configurable Rolodex-style page deck with recycling at completed whole-page boundaries.

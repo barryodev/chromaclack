@@ -1,0 +1,105 @@
+# Half-Slot Scene Redesign
+
+## Status
+
+This document supersedes the page-slot renderer direction in `recycled-deck-model.md`. It records the redesign agreed after the page-card renderer produced occlusion, incoherent handoffs, and visual noise.
+
+The existing two-page prototype remains the behavioral baseline. The current renderer experiments after `dc3d05b` are not part of this design.
+
+## Goal
+
+Build a fixed, configurable pool of independent physical half-slots that can spin as a pleasing approximation of a split-flap display or Rolodex.
+
+The renderer is not required to show any fixed count of complete, readable pages. It should expose a tunable visual neighborhood that gives a convincing sense of free rotation around a shared axle.
+
+## Physical Primitive
+
+A half-slot is the physical unit:
+
+- It has a stable DOM identity.
+- It is either the first or second half of a composed resting page.
+- It has an ordered physical position in the Rolodex loop.
+- It owns one logical face assignment.
+- It may be active, visible, or buffered.
+
+A page is not a physical renderer unit. It is a logical resting composition when adjacent first and second half-slots display matching face content.
+
+## Half-Slot Deck Truth
+
+The pure deck model owns only deterministic physical/logical state:
+
+```ts
+type PhysicalHalfSlot = {
+  id: string;
+  side: 'first' | 'second';
+  physicalPosition: number;
+  logicalFaceIndex: number;
+};
+
+type HalfSlotDeckConfig = {
+  halfSlotCount: number;
+  bufferHalfSlotCount: number;
+};
+```
+
+`halfSlotCount` must be a positive even number. A deck instance fixes its DOM pool size; changing the configuration deliberately rebuilds the deck outside active interaction.
+
+A completed $180^\circ$ turn advances ordered half-slot positions and recycles only buffered half-slot face assignments. It never creates, removes, or changes the IDs of rendered physical halves.
+
+## Renderer Pose Scene
+
+The renderer derives an ordered pose scene from deck truth and gesture state:
+
+```ts
+type HalfSlotPose = {
+  physicalHalfSlotId: string;
+  logicalFaceIndex: number;
+  side: 'first' | 'second';
+  rotationDegrees: number;
+  layer: number;
+  visibility: 'visible' | 'buffered';
+  isActive: boolean;
+};
+```
+
+The initial pose generator should expose a small, configurable neighborhood around the active hinge. Visual density, rest angles, layers, and camera settings are renderer tuning values, not deck-state requirements.
+
+## Hinge Contract
+
+The established directional contract remains authoritative:
+
+- Downward gestures animate the active first half forward/down.
+- Upward gestures animate the active second half forward/up.
+- The accepted page movement is exactly $180^\circ$.
+- Incoming and outgoing halves overlap at the shared center hinge with explicit, physically defensible z-order.
+- A moving half must not disappear behind or teleport through another half.
+
+Only the active half receives per-frame transform updates in the initial renderer. Neighboring half-slot pose changes occur at discrete completed-turn boundaries.
+
+### Shared-Axle Depth Rule
+
+Do not use a constant `translateZ` offset to pop an individual half-slot or card toward the viewer. This has been tried and reverted on multiple branches: it makes that surface appear to leave the shared axle, breaking the continuous physical rotation illusion.
+
+Depth must come from hinge rotation, perspective, and physically consistent pose ordering. Layer rank may control paint order, but it must not be used as a substitute for moving a resting physical half closer to the viewer.
+
+## Visual Scope
+
+The target is a free-spinning, pleasing approximation of a real split-flap/Rolodex. It deliberately does not require five visible page pairs or any other fixed count of fully readable cards.
+
+The half-slot pose scene makes later renderer-only fidelity possible without changing deck or gesture truth. Examples include increased visual density, grouped settling delays, or a cascade where nearby half-slots gather and settle together. None of these effects are current scope.
+
+## Revised Implementation Slices
+
+1. Replace page-slot deck ownership with a pure half-slot deck model, including stable identities, face assignments, ordered positions, buffering, direction shifts, and wraparound tests.
+2. Build a static renderer from explicit half-slot poses around one shared axle. Review visual density and composed resting pages before connecting gestures.
+3. Connect the existing completed-turn gesture events to one active-half turn and discrete half-slot advancement. Verify up/down, long flicks, reversal, and interruption.
+4. Add buffered-half face recycling with a minimal synchronous content resolver.
+5. Tune pose density, z-order, camera, and optional settle effects only after the physical scene and handoff are coherent.
+
+## Verification
+
+- Pure half-slot deck tests cover configuration validation, stable IDs, face assignment shifts, direction, and wraparound.
+- Pure pose-generator tests cover active-half direction, visibility, layer rank, and composed resting pages.
+- Browser checks prove stable DOM identity, composed-face continuity at rest, one $180^\circ$ active-half turn, and interruption behavior.
+- Visual review confirms shared-hinge continuity before performance tuning.
+- Android and desktop checks confirm transform-only motion and no frame-loop layout reads.
