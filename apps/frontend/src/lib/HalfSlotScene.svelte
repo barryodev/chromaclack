@@ -5,14 +5,21 @@
 	} from './half-slot-scene-model';
 
 	const poses = createSettledHalfSlotScene();
+	const DIAGNOSTIC_SURFACES: Record<number, string> = {
+		[-2]: '#2563eb',
+		[-1]: '#d946ef',
+		0: '#ef4444',
+		1: '#facc15',
+		2: '#22d3ee'
+	};
 
 	function poseStyle(pose: HalfSlotPose) {
-		return `--scene-angle: ${pose.rotationDegrees}deg; --scene-layer: ${pose.layer}; --scene-surface: ${surfaceFor(pose.logicalFaceIndex)}`;
+		return `--scene-angle: ${pose.rotationDegrees}deg; --scene-layer: ${pose.layer}; --scene-surface: ${surfaceFor(pose)}`;
 	}
 
-	function surfaceFor(index: number) {
-		const hue = ((index * 47) % 360 + 360) % 360;
-		return `hsl(${hue} 72% 58%)`;
+	function surfaceFor(pose: HalfSlotPose) {
+		if (pose.visibility === 'buffered') return '#ffffff';
+		return DIAGNOSTIC_SURFACES[pose.logicalFaceIndex] ?? '#ffffff';
 	}
 </script>
 
