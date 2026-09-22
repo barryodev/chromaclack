@@ -45,15 +45,15 @@ The pure deck model owns only deterministic physical/logical state:
 
 ```ts
 type PhysicalHalfSlot = {
-  id: string;
-  side: 'first' | 'second';
-  physicalPosition: number;
-  logicalFaceIndex: number;
+	id: string;
+	side: 'first' | 'second';
+	physicalPosition: number;
+	logicalFaceIndex: number;
 };
 
 type HalfSlotDeckConfig = {
-  halfSlotCount: number;
-  bufferHalfSlotCount: number;
+	halfSlotCount: number;
+	bufferHalfSlotCount: number;
 };
 ```
 
@@ -67,13 +67,13 @@ The renderer derives an ordered pose scene from deck truth and gesture state:
 
 ```ts
 type HalfSlotPose = {
-  physicalHalfSlotId: string;
-  logicalFaceIndex: number;
-  side: 'first' | 'second';
-  rotationDegrees: number;
-  layer: number;
-  visibility: 'visible' | 'buffered';
-  isActive: boolean;
+	physicalHalfSlotId: string;
+	logicalFaceIndex: number;
+	side: 'first' | 'second';
+	rotationDegrees: number;
+	layer: number;
+	visibility: 'visible' | 'buffered';
+	isActive: boolean;
 };
 ```
 

@@ -194,8 +194,7 @@
 		}
 		if (events.some((event) => event.type === 'turn-completed')) {
 			logGesture('turns-committed', {
-				count: events
-					.filter((event) => event.type === 'turn-completed').length,
+				count: events.filter((event) => event.type === 'turn-completed').length,
 				pageIndex: currentPageIndex
 			});
 		}

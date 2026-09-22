@@ -1,16 +1,29 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import {
-		createSettledHalfSlotScene,
-		type HalfSlotPose
-	} from './half-slot-scene-model';
+	import { createSettledHalfSlotScene, type HalfSlotPose } from './half-slot-scene-model';
+	import type { HalfSlotDiagnostics } from './half-slot-diagnostics';
 
 	type PointerCoordinate = 'clientY';
 
 	const DRAG_SENSITIVITY = 0.6;
 	const MAX_ROTATION_DEGREES = 180;
 	const POINTER_COORDINATE: PointerCoordinate = 'clientY';
+	let {
+		debug = false,
+		onDiagnostics
+	}: {
+		debug?: boolean;
+		onDiagnostics?: (diagnostics: HalfSlotDiagnostics) => void;
+	} = $props();
+
 	const poses = createSettledHalfSlotScene();
+	const activePoses = poses.filter((pose) => pose.isActive);
+	const activeFirstPose = activePoses.find((pose) => pose.side === 'first');
+	const activeSecondPose = activePoses.find((pose) => pose.side === 'second');
+	if (!activeFirstPose || !activeSecondPose) {
+		throw new RangeError('Half-slot scene must provide one active half for each side.');
+	}
+	const visibleHalfSlotCount = poses.filter((pose) => pose.visibility === 'visible').length;
 	const DIAGNOSTIC_SURFACES: Record<number, string> = {
 		[-2]: '#2563eb',
 		[-1]: '#d946ef',
@@ -22,6 +35,22 @@
 	let rotation = $state(0);
 	let isDragging = $state(false);
 	let dragStartPosition = 0;
+	let loggedActiveSide: HalfSlotPose['side'] | 'none' = 'none';
+	const activeSide = $derived<HalfSlotPose['side'] | 'none'>(
+		rotation > 0 ? 'first' : rotation < 0 ? 'second' : 'none'
+	);
+
+	$effect(() => {
+		onDiagnostics?.({
+			motionState: isDragging ? 'dragging' : 'settled',
+			rotationDegrees: rotation,
+			activeSide,
+			activeHalfSlotIds: [activeFirstPose.physicalHalfSlotId, activeSecondPose.physicalHalfSlotId],
+			activeFaceIndex: activeFirstPose.logicalFaceIndex,
+			visibleHalfSlotCount,
+			focusedPose: [activeFirstPose.rotationDegrees, activeSecondPose.rotationDegrees]
+		});
+	});
 
 	function poseStyle(pose: HalfSlotPose) {
 		const activeRotation =
@@ -49,6 +78,8 @@
 	function startDrag(event: MouseEvent | TouchEvent) {
 		isDragging = true;
 		dragStartPosition = pointerPosition(event);
+		loggedActiveSide = 'none';
+		logDebug('pointer-down', { position: dragStartPosition });
 		if (!('touches' in event)) {
 			window.addEventListener('mousemove', drag);
 			window.addEventListener('mouseup', endDrag);
@@ -59,11 +90,18 @@
 		if (!isDragging) return;
 		if ('touches' in event) event.preventDefault();
 		rotation = clampRotation((pointerPosition(event) - dragStartPosition) * DRAG_SENSITIVITY);
+		logDebug('drag-sample', { rotation: Number(rotation.toFixed(1)) });
+		if (activeSide !== 'none' && activeSide !== loggedActiveSide) {
+			loggedActiveSide = activeSide;
+			logDebug('dragging-start', { activeSide, rotation: Number(rotation.toFixed(1)) });
+		}
 	}
 
 	function endDrag() {
+		logDebug('release', { rotation: Number(rotation.toFixed(1)) });
 		isDragging = false;
 		rotation = 0;
+		logDebug('settled', { rotation: 0 });
 		window.removeEventListener('mousemove', drag);
 		window.removeEventListener('mouseup', endDrag);
 	}
@@ -79,6 +117,10 @@
 
 	function clampRotation(value: number) {
 		return Math.max(-MAX_ROTATION_DEGREES, Math.min(MAX_ROTATION_DEGREES, value));
+	}
+
+	function logDebug(event: string, values: Record<string, number | string>) {
+		if (debug) console.info(`[Half-slot viewport] ${event}`, values);
 	}
 
 	onDestroy(() => {

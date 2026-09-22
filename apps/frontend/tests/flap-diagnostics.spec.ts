@@ -53,7 +53,25 @@ test('captures horizontal flap swipe diagnostics', async ({ page }, testInfo) =>
 	await attachScreenshot(testInfo, page, 'flap-swipe-right-after-release');
 });
 
-test('uses one camera root for matching initial and released half-slot lab poses', async ({ page }) => {
+test('shows scene-native diagnostics only when the half-slot lab debug flag is enabled', async ({
+	page
+}) => {
+	await page.goto('/half-slot-lab?debug');
+
+	const diagnostics = page.getByLabel('Half-slot diagnostics');
+	await expect(diagnostics).toBeVisible();
+	await expect(diagnostics).toContainText('settled');
+	await expect(diagnostics).toContainText('Visible halves');
+	await expect(diagnostics).toContainText('6');
+	await expect(diagnostics).toContainText('half-slot-7 / half-slot-8');
+
+	await page.goto('/half-slot-lab');
+	await expect(page.getByLabel('Half-slot diagnostics')).toHaveCount(0);
+});
+
+test('uses one camera root for matching initial and released half-slot lab poses', async ({
+	page
+}) => {
 	await page.goto('/half-slot-lab');
 
 	const viewport = page.locator('.half-slot-viewport');

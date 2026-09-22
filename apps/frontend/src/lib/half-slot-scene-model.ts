@@ -59,19 +59,16 @@ export function createSettledHalfSlotScene(
 				? lowerNeighborIndex + 1
 				: 0;
 		const neighborAngleDegrees =
-			neighborDistance === 1
-				? config.innerNeighborAngleDegrees
-				: config.outerNeighborAngleDegrees;
-		const rotationDegrees =
-			isActive
-				? side === 'first'
-					? -config.focusedAngleDegrees
-					: config.focusedAngleDegrees
-				: isUpperNeighbor
-					? -neighborAngleDegrees
-					: isLowerNeighbor
-						? neighborAngleDegrees
-						: 0;
+			neighborDistance === 1 ? config.innerNeighborAngleDegrees : config.outerNeighborAngleDegrees;
+		const rotationDegrees = isActive
+			? side === 'first'
+				? -config.focusedAngleDegrees
+				: config.focusedAngleDegrees
+			: isUpperNeighbor
+				? -neighborAngleDegrees
+				: isLowerNeighbor
+					? neighborAngleDegrees
+					: 0;
 
 		return {
 			physicalHalfSlotId: `half-slot-${index + 1}`,

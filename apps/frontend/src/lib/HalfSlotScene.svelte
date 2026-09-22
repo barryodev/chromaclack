@@ -1,8 +1,5 @@
 <script lang="ts">
-	import {
-		createSettledHalfSlotScene,
-		type HalfSlotPose
-	} from './half-slot-scene-model';
+	import { createSettledHalfSlotScene, type HalfSlotPose } from './half-slot-scene-model';
 
 	const poses = createSettledHalfSlotScene();
 	const DIAGNOSTIC_SURFACES: Record<number, string> = {
