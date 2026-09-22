@@ -16,7 +16,14 @@
 		onDiagnostics?: (diagnostics: HalfSlotDiagnostics) => void;
 	} = $props();
 
-	const poses = createSettledHalfSlotScene();
+	const poses = createSettledHalfSlotScene({
+		halfSlotCount: 14,
+		visibleWindowCount: 2,
+		returnBufferCount: 1,
+		focusedAngleDegrees: 40,
+		innerNeighborAngleDegrees: 30,
+		outerNeighborAngleDegrees: 6
+	});
 	const activePoses = poses.filter((pose) => pose.isActive);
 	const activeFirstPose = activePoses.find((pose) => pose.side === 'first');
 	const activeSecondPose = activePoses.find((pose) => pose.side === 'second');

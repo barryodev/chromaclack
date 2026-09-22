@@ -28,15 +28,15 @@ The deck direction must remain explicit in the model so the render layer never g
 export type DeckDirection = 'positive' | 'negative';
 
 export type DeckLogicalPage = {
-  id: string;
-  faceId: string;
+	id: string;
+	faceId: string;
 };
 
 export type DeckState = {
-  direction: DeckDirection;
-  visibleWindow: readonly DeckLogicalPage[];
-  returnBuffer: readonly DeckLogicalPage[];
-  hiddenBacksideQueue: readonly DeckLogicalPage[];
+	direction: DeckDirection;
+	visibleWindow: readonly DeckLogicalPage[];
+	returnBuffer: readonly DeckLogicalPage[];
+	hiddenBacksideQueue: readonly DeckLogicalPage[];
 };
 ```
 
@@ -75,11 +75,11 @@ The visible and buffered page counts are tuning variables, not structural consta
 
 ```ts
 type DeckConfig = {
-  visiblePageCount: number;
-  bufferPageCount: number;
-  focusVisiblePageIndex: number;
-  fanAngleDegrees: number;
-  pageDepthOffset: number;
+	visiblePageCount: number;
+	bufferPageCount: number;
+	focusVisiblePageIndex: number;
+	fanAngleDegrees: number;
+	pageDepthOffset: number;
 };
 ```
 
@@ -126,23 +126,23 @@ The initial lifecycle events are:
 
 ```ts
 type PageLeavesVisualSpace = {
-  type: 'page-leaves-visual-space';
-  physicalPageSlotId: string;
-  logicalPageIndex: number;
-  direction: 'positive' | 'negative';
+	type: 'page-leaves-visual-space';
+	physicalPageSlotId: string;
+	logicalPageIndex: number;
+	direction: 'positive' | 'negative';
 };
 
 type PageEntersPreRenderBuffer<FaceContent> = {
-  type: 'page-enters-pre-render-buffer';
-  physicalPageSlotId: string;
-  logicalPageIndex: number;
-  direction: 'positive' | 'negative';
-  content: PageContent<FaceContent>;
+	type: 'page-enters-pre-render-buffer';
+	physicalPageSlotId: string;
+	logicalPageIndex: number;
+	direction: 'positive' | 'negative';
+	content: PageContent<FaceContent>;
 };
 
 type PageContent<FaceContent> = {
-  first: FaceContent;
-  second: FaceContent;
+	first: FaceContent;
+	second: FaceContent;
 };
 ```
 
@@ -154,8 +154,8 @@ The host callback shape could be adapter-specific, for example:
 
 ```ts
 type DeckCallbacks<FaceContent> = {
-  onPageLeavesVisualSpace?: (event: PageLeavesVisualSpace) => void;
-  onPageEntersPreRenderBuffer?: (event: PageEntersPreRenderBuffer<FaceContent>) => void;
+	onPageLeavesVisualSpace?: (event: PageLeavesVisualSpace) => void;
+	onPageEntersPreRenderBuffer?: (event: PageEntersPreRenderBuffer<FaceContent>) => void;
 };
 ```
 

@@ -33,6 +33,22 @@ describe('half-slot scene model', () => {
 		expect(visible.map((pose) => pose.rotationDegrees)).toEqual([-6, -30, -40, 40, 30, 6]);
 	});
 
+	it('accepts explicit visible-window and return-buffer settings for a multi-page scene', () => {
+		const poses = createSettledHalfSlotScene({
+			halfSlotCount: 14,
+			visibleWindowCount: 2,
+			returnBufferCount: 1,
+			focusedAngleDegrees: 40,
+			innerNeighborAngleDegrees: 30,
+			outerNeighborAngleDegrees: 8
+		});
+
+		expect(poses).toHaveLength(14);
+		expect(
+			poses.filter((pose) => pose.visibility === 'visible').map((pose) => pose.logicalFaceIndex)
+		).toEqual([-2, -1, 0, 0, 1, 2]);
+	});
+
 	it('rejects a scene that cannot fit the visible neighborhood', () => {
 		expect(() =>
 			createSettledHalfSlotScene({
