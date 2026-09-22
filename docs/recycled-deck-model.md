@@ -32,11 +32,20 @@ export type DeckLogicalPage = {
 	faceId: string;
 };
 
+export type DeckPageAssignment = {
+	physicalPageSlotId: string;
+	page: DeckLogicalPage;
+};
+
 export type DeckState = {
+	config: DeckConfig;
+	physicalPageSlots: readonly PhysicalPageSlot[];
 	direction: DeckDirection;
-	visibleWindow: readonly DeckLogicalPage[];
-	returnBuffer: readonly DeckLogicalPage[];
+	upperReturnBuffer: readonly DeckPageAssignment[];
+	visibleWindow: readonly DeckPageAssignment[];
+	lowerReturnBuffer: readonly DeckPageAssignment[];
 	hiddenBacksideQueue: readonly DeckLogicalPage[];
+	completedTurns: number;
 };
 ```
 

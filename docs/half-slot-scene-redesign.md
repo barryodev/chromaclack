@@ -52,22 +52,34 @@ export type DeckLogicalPage = {
 	faceId: string;
 };
 
+export type DeckPageAssignment = {
+	physicalPageSlotId: string;
+	page: DeckLogicalPage;
+};
+
 export type DeckState = {
+	config: DeckConfig;
+	physicalPageSlots: readonly PhysicalPageSlot[];
 	direction: DeckDirection;
-	visibleWindow: readonly DeckLogicalPage[];
-	returnBuffer: readonly DeckLogicalPage[];
+	upperReturnBuffer: readonly DeckPageAssignment[];
+	visibleWindow: readonly DeckPageAssignment[];
+	lowerReturnBuffer: readonly DeckPageAssignment[];
 	hiddenBacksideQueue: readonly DeckLogicalPage[];
+	completedTurns: number;
 };
 ```
 
 Interpretation:
 
-- `visibleWindow` is the current active neighborhood around the hinge; these pages are in the user-visible stack.
-- `returnBuffer` is the nearest outgoing/incoming page ring just outside the visible window. It is the handoff zone for pages that are about to be recycled or re-introduced to the front side.
+- `visibleWindow` is the current active neighborhood around the hinge; these physical assignments are in the user-visible stack.
+- `upperReturnBuffer` and `lowerReturnBuffer` are the directional physical assignments just outside the visible window. Their first entries are the nearest pages available for the next positive or negative handoff.
 - `hiddenBacksideQueue` is the remainder of the full circular logical deck. These pages still exist in the ring, still have order, but they are behind the active window and not yet eligible to enter the return buffer.
 - `direction` is an explicit deck contract: `positive` advances the logical ring toward the outgoing/backside side; `negative` advances it toward the incoming/front side. This matches the same sign used by the gesture model's `SwipeDirection` contract, where a positive turn walks the logical index in the same direction the current interaction expects.
+- `completedTurns` counts successful atomic transitions.
 
 This allows a fixed viewport to render only a small slice of a much larger alphabet or content deck while preserving the full ring order underneath.
+
+The pure implementation lives in `apps/frontend/src/lib/deck-model.ts`. A positive turn consumes the front of `upperReturnBuffer`, moves the outgoing visible assignment to the front of `lowerReturnBuffer`, and replenishes the vacated upper slot from the front of the hidden queue. A negative turn performs the mirror operation from the lower side and the back of the hidden queue. Physical page and half-slot IDs remain fixed while assignments move.
 
 ## Physical Primitive
 

@@ -3,137 +3,190 @@ import { describe, expect, it } from 'vitest';
 import {
 	COMPACT_DECK_CONFIG,
 	DEFAULT_DECK_CONFIG,
-	completeDeckTurn,
-	createDeckModel,
 	bufferedPageSlots,
+	completeDeckTurn,
+	completeDeckTurns,
+	createDeckState,
 	visiblePageSlots,
-	type DeckConfig
+	type DeckConfig,
+	type DeckLogicalPage
 } from './deck-model';
 
-describe('deck model', () => {
-	it('creates the default fixed page and half-slot pool', () => {
-		const model = createDeckModel();
+function pages(ids: readonly string[]): DeckLogicalPage[] {
+	return ids.map((id) => ({ id, faceId: `face-${id}` }));
+}
 
-		expect(model.config).toEqual(DEFAULT_DECK_CONFIG);
-		expect(model.pageSlots).toHaveLength(9);
-		expect(model.pageSlots[0]).toMatchObject({
+describe('deck state machine', () => {
+	it('creates a fixed physical pool with explicit upper and lower buffers', () => {
+		const state = createDeckState();
+
+		expect(state.config).toEqual(DEFAULT_DECK_CONFIG);
+		expect(state.physicalPageSlots).toHaveLength(9);
+		expect(state.physicalPageSlots[0]).toMatchObject({
 			id: 'page-slot-1',
-			logicalPageIndex: -4,
 			halfSlots: [
-				{ id: 'page-slot-1-first', role: 'first' },
-				{ id: 'page-slot-1-second', role: 'second' }
+				{ id: 'page-slot-1-first', side: 'first' },
+				{ id: 'page-slot-1-second', side: 'second' }
 			]
 		});
-		expect(visiblePageSlots(model).map((slot) => slot.logicalPageIndex)).toEqual([-2, -1, 0, 1, 2]);
-		expect(bufferedPageSlots(model).map((slot) => slot.logicalPageIndex)).toEqual([-4, -3, 3, 4]);
+		expect(visiblePageSlots(state).map((slot) => slot.page.faceId)).toEqual([
+			'face--2',
+			'face--1',
+			'face-0',
+			'face-1',
+			'face-2'
+		]);
+		expect(state.upperReturnBuffer.map((slot) => slot.page.faceId)).toEqual([
+			'upper-face-1',
+			'upper-face-2'
+		]);
+		expect(state.lowerReturnBuffer.map((slot) => slot.page.faceId)).toEqual([
+			'lower-face-1',
+			'lower-face-2'
+		]);
 	});
 
-	it('supports the compact preset', () => {
-		const model = createDeckModel(COMPACT_DECK_CONFIG);
+	it('supports the compact fixed pool', () => {
+		const state = createDeckState(COMPACT_DECK_CONFIG);
 
-		expect(model.pageSlots).toHaveLength(3);
-		expect(visiblePageSlots(model).map((slot) => slot.logicalPageIndex)).toEqual([0]);
-		expect(bufferedPageSlots(model).map((slot) => slot.logicalPageIndex)).toEqual([-1, 1]);
+		expect(state.physicalPageSlots).toHaveLength(3);
+		expect(state.visibleWindow).toHaveLength(1);
+		expect(state.upperReturnBuffer).toHaveLength(1);
+		expect(state.lowerReturnBuffer).toHaveLength(1);
 	});
 
-	it('supports a deck with no buffers', () => {
-		const model = createDeckModel({
-			...COMPACT_DECK_CONFIG,
-			bufferPageCount: 0
-		});
-
-		expect(visiblePageSlots(model).map((slot) => slot.logicalPageIndex)).toEqual([0]);
-		expect(bufferedPageSlots(model)).toEqual([]);
-	});
-
-	it('rejects invalid configuration', () => {
+	it('rejects invalid counts, focus, duplicate pages, and visible input length', () => {
 		const invalidConfig = (overrides: Partial<DeckConfig>) => ({
 			...DEFAULT_DECK_CONFIG,
 			...overrides
 		});
 
-		expect(() => createDeckModel(invalidConfig({ visiblePageCount: 0 }))).toThrow(RangeError);
-		expect(() => createDeckModel(invalidConfig({ bufferPageCount: -1 }))).toThrow(RangeError);
-		expect(() => createDeckModel(invalidConfig({ focusVisiblePageIndex: 5 }))).toThrow(RangeError);
-		expect(() => createDeckModel(invalidConfig({ fanAngleDegrees: Number.NaN }))).toThrow(
+		expect(() => createDeckState(invalidConfig({ visiblePageCount: 0 }))).toThrow(RangeError);
+		expect(() => createDeckState(invalidConfig({ upperReturnBufferPageCount: -1 }))).toThrow(
 			RangeError
 		);
+		expect(() => createDeckState(invalidConfig({ lowerReturnBufferPageCount: -1 }))).toThrow(
+			RangeError
+		);
+		expect(() => createDeckState(invalidConfig({ focusVisiblePageIndex: 5 }))).toThrow(RangeError);
+		expect(() =>
+			createDeckState(DEFAULT_DECK_CONFIG, pages(['same', 'same', 'same', 'same', 'same']))
+		).toThrow(RangeError);
+		expect(() => createDeckState(DEFAULT_DECK_CONFIG, pages(['one']))).toThrow(RangeError);
 	});
 
-	it('advances one positive turn while recycling the hidden upper buffer slot', () => {
-		const model = createDeckModel();
-		const transition = completeDeckTurn(model, 'positive');
+	it('advances one positive turn and replenishes the upper side from hidden pages', () => {
+		const state = createDeckState(
+			DEFAULT_DECK_CONFIG,
+			pages(['v0', 'v1', 'v2', 'v3', 'v4']),
+			pages(['hidden-0', 'hidden-1'])
+		);
+		const transition = completeDeckTurn(state, 'positive');
 
-		expect(transition.model.pageSlots.map((slot) => slot.id)).toEqual([
-			'page-slot-9',
-			'page-slot-1',
-			'page-slot-2',
-			'page-slot-3',
-			'page-slot-4',
-			'page-slot-5',
-			'page-slot-6',
-			'page-slot-7',
-			'page-slot-8'
+		expect(transition.status).toBe('advanced');
+		expect(transition.state.visibleWindow.map((slot) => slot.page.id)).toEqual([
+			'upper-page-1',
+			'v0',
+			'v1',
+			'v2',
+			'v3'
 		]);
-		expect(visiblePageSlots(transition.model).map((slot) => slot.logicalPageIndex)).toEqual([
-			-3, -2, -1, 0, 1
+		expect(transition.state.upperReturnBuffer.map((slot) => slot.page.id)).toEqual([
+			'upper-page-2',
+			'hidden-0'
 		]);
-		expect(transition.events).toEqual([
-			{
-				type: 'turn-completed',
-				direction: 'positive',
-				focusLogicalPageIndex: -1,
-				recycledPageSlotId: 'page-slot-9',
-				recycledLogicalPageIndex: -5
-			}
+		expect(transition.state.lowerReturnBuffer.map((slot) => slot.page.id)).toEqual([
+			'v4',
+			'lower-page-1'
 		]);
-	});
-
-	it('advances one negative turn while recycling the hidden lower buffer slot', () => {
-		const model = createDeckModel();
-		const transition = completeDeckTurn(model, 'negative');
-
-		expect(visiblePageSlots(transition.model).map((slot) => slot.logicalPageIndex)).toEqual([
-			-1, 0, 1, 2, 3
+		expect(transition.state.hiddenBacksideQueue.map((page) => page.id)).toEqual([
+			'hidden-1',
+			'lower-page-2'
 		]);
 		expect(transition.events[0]).toMatchObject({
-			direction: 'negative',
-			focusLogicalPageIndex: 1,
-			recycledPageSlotId: 'page-slot-1',
-			recycledLogicalPageIndex: 5
+			direction: 'positive',
+			incomingPage: { id: 'upper-page-1' },
+			outgoingPage: { id: 'v4' }
 		});
 	});
 
-	it('preserves every page and half-slot identity across repeated turns', () => {
-		const initial = createDeckModel();
-		const initialPageIds = initial.pageSlots.map((slot) => slot.id).sort();
-		const initialHalfIds = initial.pageSlots
-			.flatMap((slot) => slot.halfSlots.map((half) => half.id))
-			.sort();
-		const advanced = completeDeckTurn(
-			completeDeckTurn(completeDeckTurn(initial, 'positive').model, 'positive').model,
-			'negative'
-		).model;
+	it('advances one negative turn and replenishes the lower side from the hidden deque', () => {
+		const state = createDeckState(
+			DEFAULT_DECK_CONFIG,
+			pages(['v0', 'v1', 'v2', 'v3', 'v4']),
+			pages(['hidden-0', 'hidden-1'])
+		);
+		const transition = completeDeckTurn(state, 'negative');
 
-		expect(advanced.pageSlots.map((slot) => slot.id).sort()).toEqual(initialPageIds);
-		expect(
-			advanced.pageSlots.flatMap((slot) => slot.halfSlots.map((half) => half.id)).sort()
-		).toEqual(initialHalfIds);
+		expect(transition.status).toBe('advanced');
+		expect(transition.state.visibleWindow.map((slot) => slot.page.id)).toEqual([
+			'v1',
+			'v2',
+			'v3',
+			'v4',
+			'lower-page-1'
+		]);
+		expect(transition.state.upperReturnBuffer.map((slot) => slot.page.id)).toEqual([
+			'v0',
+			'upper-page-1'
+		]);
+		expect(transition.state.lowerReturnBuffer.map((slot) => slot.page.id)).toEqual([
+			'lower-page-2',
+			'hidden-1'
+		]);
+		expect(transition.state.hiddenBacksideQueue.map((page) => page.id)).toEqual([
+			'upper-page-2',
+			'hidden-0'
+		]);
 	});
 
-	it('wraps physical slots while logical indices continue across a full pool rotation', () => {
-		const initial = createDeckModel();
-		let advanced = initial;
-
-		for (let turn = 0; turn < initial.pageSlots.length; turn += 1) {
-			advanced = completeDeckTurn(advanced, 'positive').model;
-		}
-
-		expect(advanced.pageSlots.map((slot) => slot.id)).toEqual(
-			initial.pageSlots.map((slot) => slot.id)
+	it('preserves physical IDs and restores state after a positive and negative reversal', () => {
+		const state = createDeckState(
+			DEFAULT_DECK_CONFIG,
+			pages(['v0', 'v1', 'v2', 'v3', 'v4']),
+			pages(['h0', 'h1'])
 		);
-		expect(visiblePageSlots(advanced).map((slot) => slot.logicalPageIndex)).toEqual([
-			-11, -10, -9, -8, -7
-		]);
+		const physicalIds = state.physicalPageSlots.map((slot) => slot.id);
+		const halfIds = state.physicalPageSlots.flatMap((slot) =>
+			slot.halfSlots.map((half) => half.id)
+		);
+		const positive = completeDeckTurn(state, 'positive').state;
+		const restored = completeDeckTurn(positive, 'negative').state;
+
+		expect(restored.visibleWindow).toEqual(state.visibleWindow);
+		expect(restored.upperReturnBuffer).toEqual(state.upperReturnBuffer);
+		expect(restored.lowerReturnBuffer).toEqual(state.lowerReturnBuffer);
+		expect(restored.hiddenBacksideQueue).toEqual(state.hiddenBacksideQueue);
+		expect(restored.physicalPageSlots.map((slot) => slot.id)).toEqual(physicalIds);
+		expect(
+			restored.physicalPageSlots.flatMap((slot) => slot.halfSlots.map((half) => half.id))
+		).toEqual(halfIds);
+	});
+
+	it('supports repeated turns and reports partial exhaustion', () => {
+		const state = createDeckState(COMPACT_DECK_CONFIG, pages(['v0']), pages(['h0', 'h1']));
+		const transition = completeDeckTurns(state, 'positive', 5);
+
+		expect(transition.status).toBe('advanced');
+		expect(transition.events).toHaveLength(5);
+		expect(transition.state.completedTurns).toBe(5);
+		expect(
+			completeDeckTurn(createDeckState(COMPACT_DECK_CONFIG, pages(['v0'])), 'positive')
+		).toMatchObject({
+			status: 'exhausted',
+			events: []
+		});
+	});
+
+	it('returns the original state for non-positive turn counts and keeps buffer helpers complete', () => {
+		const state = createDeckState();
+
+		expect(completeDeckTurns(state, 'positive', 0)).toEqual({
+			state,
+			status: 'no-op',
+			events: []
+		});
+		expect(completeDeckTurns(state, 'positive', -1).state).toBe(state);
+		expect(bufferedPageSlots(state)).toHaveLength(4);
 	});
 });
