@@ -53,6 +53,57 @@ test('captures horizontal flap swipe diagnostics', async ({ page }, testInfo) =>
 	await attachScreenshot(testInfo, page, 'flap-swipe-right-after-release');
 });
 
+test('uses one camera root for matching initial and released half-slot lab poses', async ({ page }) => {
+	await page.goto('/half-slot-lab');
+
+	const viewport = page.locator('.half-slot-viewport');
+	const activeHalves = viewport.locator('.half-slot--active');
+	await expect(activeHalves).toHaveCount(2);
+	const settledTransforms = await activeHalves.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).transform)
+	);
+	const box = await viewport.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+
+	const centerX = box.x + box.width / 2;
+	const centerY = box.y + box.height / 2;
+
+	await page.mouse.move(centerX, centerY);
+	await page.mouse.down();
+	await page.mouse.move(centerX, centerY - box.height * 0.45, { steps: 8 });
+	await expect(viewport).toHaveAttribute('data-motion-state', 'dragging');
+	const upwardTransforms = await activeHalves.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).transform)
+	);
+	expect(upwardTransforms[0]).toBe(settledTransforms[0]);
+	expect(upwardTransforms[1]).not.toBe(settledTransforms[1]);
+	await page.mouse.up();
+	await expect(viewport).toHaveAttribute('data-motion-state', 'settled');
+	expect(
+		await activeHalves.evaluateAll((elements) =>
+			elements.map((element) => getComputedStyle(element).transform)
+		)
+	).toEqual(settledTransforms);
+
+	await page.mouse.move(centerX, centerY);
+	await page.mouse.down();
+	await page.mouse.move(centerX, centerY + box.height * 0.45, { steps: 8 });
+	await expect(viewport).toHaveAttribute('data-motion-state', 'dragging');
+	const downwardTransforms = await activeHalves.evaluateAll((elements) =>
+		elements.map((element) => getComputedStyle(element).transform)
+	);
+	expect(downwardTransforms[0]).not.toBe(settledTransforms[0]);
+	expect(downwardTransforms[1]).toBe(settledTransforms[1]);
+	await page.mouse.up();
+	await expect(viewport).toHaveAttribute('data-motion-state', 'settled');
+	expect(
+		await activeHalves.evaluateAll((elements) =>
+			elements.map((element) => getComputedStyle(element).transform)
+		)
+	).toEqual(settledTransforms);
+});
+
 test('carries a hard swipe through multiple turns before settling', async ({ page }) => {
 	await page.goto('/?debug');
 
