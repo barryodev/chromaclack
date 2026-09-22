@@ -27,6 +27,19 @@ Build a fixed, configurable pool of independent physical half-slots that can spi
 
 The renderer is not required to show any fixed count of complete, readable pages. It should expose a tunable visual neighborhood that gives a convincing sense of free rotation around a shared axle.
 
+The current branch should aim for multiple visible pages at rest, not a hard-coded "five page pairs" rule. That count was a visual placeholder and should remain a tuning preset rather than a mechanical contract.
+
+## Current Branch Checklist
+
+1. Keep the logical deck and gesture models as the durable truth. The deck owns page direction, focus, buffer ordering, and completed-turn transitions. The half-slot scene owns physical IDs, hinge motion, visibility, and stable pose ordering.
+2. Keep the Svelte viewport as a thin adapter over those states. It normalizes pointer input, binds CSS transforms, and manages DOM event wiring; it does not become the source of truth for page movement.
+3. Make the visible page count a configurable visual preset instead of a sacred rule. The actual acceptance target is a multi-page scene that invites interaction and preserves the Rolodex feel.
+4. Keep the full-page abstraction out of the physical renderer. A page remains a logical resting composition; the active moving unit is the physical half-slot.
+5. Validate the branch against the shared-hinge contract before expanding to larger recycled decks: multiple visible pages, stable hinge overlap, coherent z-order, and a settled pose that reads as a layered stack.
+6. Add a minimal recycle boundary only after the scene and hinge behavior are physically coherent. Recycled content must change only at a completed turn boundary and never expose partial state mid-motion.
+7. Treat a working multi-page half-slot scene as the milestone for this branch. Do not force a larger or more elaborate deck until the visual and mechanical contract is stable.
+8. Verify behavior on desktop and Android using the same transform-only motion contract: no DOM churn, no layout reads during motion, and no hidden half-slot teleporting through the hinge.
+
 ## Physical Primitive
 
 A half-slot is the physical unit:
