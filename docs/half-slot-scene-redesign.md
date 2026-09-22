@@ -6,6 +6,21 @@ This document supersedes the page-slot renderer direction in `recycled-deck-mode
 
 The existing two-page prototype remains the behavioral baseline. The current renderer experiments after `dc3d05b` are not part of this design.
 
+## Branch Implementation Approach
+
+`HalfSlotViewport` and `/half-slot-lab` are the controlled vertical-renderer foundation for this branch. One viewport owns the scene dimensions, perspective, half-slot poses, and pointer input, so initial, dragging, and released states share one projection environment.
+
+The lab's accepted first checkpoint is:
+
+- Initial output is already a valid settled half-slot pose.
+- Upward drag moves only the focused second half; downward drag moves only the focused first half.
+- Releasing returns to the exact initial settled pose.
+- No face recycling, logical advancement, or inertia handoff is introduced until this scene is extended deliberately.
+
+The legacy vertical `Flap` implementation is retained as behavioral reference only. It is not a migration source for the half-slot viewport. Its state structure, logging, diagnostics data, and renderer assumptions must not be copied into the new implementation by default.
+
+The diagnostic panel may preserve its visual presentation, but new half-slot diagnostics begin from the half-slot scene's actual state and are added only when they help validate the new model.
+
 ## Goal
 
 Build a fixed, configurable pool of independent physical half-slots that can spin as a pleasing approximation of a split-flap display or Rolodex.
@@ -91,10 +106,11 @@ The half-slot pose scene makes later renderer-only fidelity possible without cha
 ## Revised Implementation Slices
 
 1. Replace page-slot deck ownership with a pure half-slot deck model, including stable identities, face assignments, ordered positions, buffering, direction shifts, and wraparound tests.
-2. Build a static renderer from explicit half-slot poses around one shared axle. Review visual density and composed resting pages before connecting gestures.
-3. Connect the existing completed-turn gesture events to one active-half turn and discrete half-slot advancement. Verify up/down, long flicks, reversal, and interruption.
-4. Add buffered-half face recycling with a minimal synchronous content resolver.
-5. Tune pose density, z-order, camera, and optional settle effects only after the physical scene and handoff are coherent.
+2. Establish the standalone half-slot viewport as the vertical renderer base: static pose, one camera root, drag-only active-half behavior, and initial/settled pose parity.
+3. Add new half-slot diagnostics from scene state, retaining only the existing panel's visual shell if useful.
+4. Connect completed-turn gesture events to discrete half-slot advancement. Verify up/down, long flicks, reversal, and interruption.
+5. Add buffered-half face recycling with a minimal synchronous content resolver.
+6. Tune pose density, z-order, camera, and optional settle effects only after the physical scene and handoff are coherent.
 
 ## Verification
 

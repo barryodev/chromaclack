@@ -32,7 +32,8 @@ ChromaClack is being built in layers: validate the platforms, prove the mechanic
 ## Next Branch: Recycled Flap Display
 
 - [ ] Follow [half-slot-scene-redesign.md](docs/half-slot-scene-redesign.md): replace page-slot ownership with a pure configurable half-slot deck model.
-- [ ] Build a static shared-axle half-slot pose scene with renderer-tunable visual density.
+- [ ] Use `HalfSlotViewport` as the new vertical renderer base; keep legacy vertical `Flap` only as reference until the new scene replaces it.
+- [ ] Add new half-slot diagnostics from scene state, reusing only the diagnostic panel's visual shell if useful.
 - [ ] Animate only the active physical half per turn; advance ordered half-slot positions and recycle hidden face content at each completed whole-page boundary.
 - [ ] Preserve compact and dense pose generators for multi-clacker displays using the same half-slot mechanics.
 - [ ] Verify physical continuity and z-order at the hinge across repeated turns.
