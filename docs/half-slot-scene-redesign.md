@@ -81,6 +81,8 @@ This allows a fixed viewport to render only a small slice of a much larger alpha
 
 The pure implementation lives in `apps/frontend/src/lib/deck-model.ts`. A positive turn consumes the front of `upperReturnBuffer`, moves the outgoing visible assignment to the front of `lowerReturnBuffer`, and replenishes the vacated upper slot from the front of the hidden queue. A negative turn performs the mirror operation from the lower side and the back of the hidden queue. Physical page and half-slot IDs remain fixed while assignments move.
 
+Production rendering uses `apps/frontend/src/lib/half-flap-turn-model.ts` as the pose simulation boundary. At rest all visible half-flaps are stationary. During a turn, every visible upper half and every visible lower half receives a direction-specific hinge rotation. Gesture progress is continuous between completed $180^\circ$ boundaries; the deck assignment changes only when the gesture model emits a completed turn, after which any remaining inertial progress continues with the new assignments.
+
 ## Physical Primitive
 
 A half-slot is the physical unit:

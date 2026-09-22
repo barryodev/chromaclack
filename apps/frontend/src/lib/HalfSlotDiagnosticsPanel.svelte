@@ -42,6 +42,12 @@
 				<div class="debug-value">
 					<span>Hidden queue</span><strong>{diagnostics.hiddenBacksideQueueCount}</strong>
 				</div>
+				<div class="debug-value">
+					<span>Last turn</span><strong>{diagnostics.lastTurnDirection}</strong>
+				</div>
+				<div class="debug-value">
+					<span>Completed turns</span><strong>{diagnostics.completedTurnCount}</strong>
+				</div>
 			</div>
 		</section>
 

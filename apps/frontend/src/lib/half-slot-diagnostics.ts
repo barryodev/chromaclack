@@ -12,4 +12,6 @@ export type HalfSlotDiagnostics = {
 	visibleFaceIds: readonly string[];
 	returnBufferFaceIds: readonly string[];
 	hiddenBacksideQueueCount: number;
+	lastTurnDirection: 'positive' | 'negative' | 'none';
+	completedTurnCount: number;
 };
