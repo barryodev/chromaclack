@@ -22,6 +22,26 @@ The system has three separate responsibilities:
 gesture model -> deck model -> content provider -> framework renderer
 ```
 
+The deck direction must remain explicit in the model so the render layer never guesses whether a page is moving in or out of the visible stack. We use the same sign convention as the gesture model: `positive` moves toward the outgoing/backside side of the ring; `negative` moves toward the incoming/front side.
+
+```ts
+export type DeckDirection = 'positive' | 'negative';
+
+export type DeckLogicalPage = {
+  id: string;
+  faceId: string;
+};
+
+export type DeckState = {
+  direction: DeckDirection;
+  visibleWindow: readonly DeckLogicalPage[];
+  returnBuffer: readonly DeckLogicalPage[];
+  hiddenBacksideQueue: readonly DeckLogicalPage[];
+};
+```
+
+This makes the hidden backside queue a real logical state, not an accidental render artifact. The ring may contain far more pages than the viewport can show at once; only a small neighborhood is surfaced for motion and display.
+
 ### Gesture Model
 
 The existing gesture model remains responsible for pointer lifecycle, release evaluation, bounded inertia, interruption, and the resolved turn direction/count. It does not know slot geometry or page content.

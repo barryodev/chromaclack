@@ -40,6 +40,35 @@ The current branch should aim for multiple visible pages at rest, not a hard-cod
 7. Treat a working multi-page half-slot scene as the milestone for this branch. Do not force a larger or more elaborate deck until the visual and mechanical contract is stable.
 8. Verify behavior on desktop and Android using the same transform-only motion contract: no DOM churn, no layout reads during motion, and no hidden half-slot teleporting through the hinge.
 
+## Logical Deck State Contract
+
+The deck should model the full circular logical sequence separately from the small render neighborhood. The renderer need only show the active window; the logical ring may be much larger.
+
+```ts
+export type DeckDirection = 'positive' | 'negative';
+
+export type DeckLogicalPage = {
+	id: string;
+	faceId: string;
+};
+
+export type DeckState = {
+	direction: DeckDirection;
+	visibleWindow: readonly DeckLogicalPage[];
+	returnBuffer: readonly DeckLogicalPage[];
+	hiddenBacksideQueue: readonly DeckLogicalPage[];
+};
+```
+
+Interpretation:
+
+- `visibleWindow` is the current active neighborhood around the hinge; these pages are in the user-visible stack.
+- `returnBuffer` is the nearest outgoing/incoming page ring just outside the visible window. It is the handoff zone for pages that are about to be recycled or re-introduced to the front side.
+- `hiddenBacksideQueue` is the remainder of the full circular logical deck. These pages still exist in the ring, still have order, but they are behind the active window and not yet eligible to enter the return buffer.
+- `direction` is an explicit deck contract: `positive` advances the logical ring toward the outgoing/backside side; `negative` advances it toward the incoming/front side. This matches the same sign used by the gesture model's `SwipeDirection` contract, where a positive turn walks the logical index in the same direction the current interaction expects.
+
+This allows a fixed viewport to render only a small slice of a much larger alphabet or content deck while preserving the full ring order underneath.
+
 ## Physical Primitive
 
 A half-slot is the physical unit:
