@@ -28,6 +28,24 @@
 		</section>
 
 		<section class="debug-section">
+			<h2>Deck Handoff</h2>
+			<div class="debug-grid">
+				<div class="debug-value">
+					<span>Direction</span><strong>{diagnostics.deckDirection}</strong>
+				</div>
+				<div class="debug-value">
+					<span>Visible faces</span><strong>{diagnostics.visibleFaceIds.join(' / ')}</strong>
+				</div>
+				<div class="debug-value">
+					<span>Return buffer</span><strong>{diagnostics.returnBufferFaceIds.join(' / ')}</strong>
+				</div>
+				<div class="debug-value">
+					<span>Hidden queue</span><strong>{diagnostics.hiddenBacksideQueueCount}</strong>
+				</div>
+			</div>
+		</section>
+
+		<section class="debug-section">
 			<h2>Focused Pair</h2>
 			<div class="debug-grid">
 				<div class="debug-value">

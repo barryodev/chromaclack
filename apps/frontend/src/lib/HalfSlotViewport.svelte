@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { createInitialDeckState, mapDeckStateToSceneInput } from './deck-scene-handoff';
 	import { createSettledHalfSlotScene, type HalfSlotPose } from './half-slot-scene-model';
 	import type { HalfSlotDiagnostics } from './half-slot-diagnostics';
 
@@ -16,7 +17,8 @@
 		onDiagnostics?: (diagnostics: HalfSlotDiagnostics) => void;
 	} = $props();
 
-	const poses = createSettledHalfSlotScene({
+	const deckState = createInitialDeckState({ visibleWindowCount: 5, returnBufferCount: 2 });
+	const sourcePoses = createSettledHalfSlotScene({
 		halfSlotCount: 14,
 		visibleWindowCount: 2,
 		returnBufferCount: 1,
@@ -24,6 +26,8 @@
 		innerNeighborAngleDegrees: 30,
 		outerNeighborAngleDegrees: 6
 	});
+	const sceneInput = mapDeckStateToSceneInput(deckState, sourcePoses);
+	const poses = sceneInput.settledPoses;
 	const activePoses = poses.filter((pose) => pose.isActive);
 	const activeFirstPose = activePoses.find((pose) => pose.side === 'first');
 	const activeSecondPose = activePoses.find((pose) => pose.side === 'second');
@@ -55,7 +59,11 @@
 			activeHalfSlotIds: [activeFirstPose.physicalHalfSlotId, activeSecondPose.physicalHalfSlotId],
 			activeFaceIndex: activeFirstPose.logicalFaceIndex,
 			visibleHalfSlotCount,
-			focusedPose: [activeFirstPose.rotationDegrees, activeSecondPose.rotationDegrees]
+			focusedPose: [activeFirstPose.rotationDegrees, activeSecondPose.rotationDegrees],
+			deckDirection: sceneInput.direction,
+			visibleFaceIds: sceneInput.visibleFaceIds,
+			returnBufferFaceIds: sceneInput.returnBufferFaceIds,
+			hiddenBacksideQueueCount: sceneInput.hiddenBacksideQueueCount
 		});
 	});
 
@@ -131,6 +139,12 @@
 	}
 
 	onDestroy(() => {
+		logDebug('deck-handoff', {
+			direction: sceneInput.direction,
+			visibleFaces: sceneInput.visibleFaceIds.join(','),
+			returnBufferFaces: sceneInput.returnBufferFaceIds.join(','),
+			hiddenBacksideQueueCount: sceneInput.hiddenBacksideQueueCount
+		});
 		window.removeEventListener('mousemove', drag);
 		window.removeEventListener('mouseup', endDrag);
 	});

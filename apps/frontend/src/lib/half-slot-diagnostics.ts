@@ -8,4 +8,8 @@ export type HalfSlotDiagnostics = {
 	activeFaceIndex: number;
 	visibleHalfSlotCount: number;
 	focusedPose: readonly [number, number];
+	deckDirection: 'positive' | 'negative';
+	visibleFaceIds: readonly string[];
+	returnBufferFaceIds: readonly string[];
+	hiddenBacksideQueueCount: number;
 };
