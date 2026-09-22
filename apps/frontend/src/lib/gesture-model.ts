@@ -1,6 +1,6 @@
 export type GestureAxis = 'vertical' | 'horizontal';
 export type MotionState =
-	'idle' | 'pointer-down' | 'dragging' | 'release-evaluating' | 'inertia' | 'settled';
+	'idle' | 'pointer-down' | 'dragging' | 'release-evaluating' | 'inertia' | 'settling' | 'settled';
 export type SwipeDirection = 'positive' | 'negative';
 export type ReleaseOutcome =
 	{ type: 'reject' } | { type: 'turn'; direction: SwipeDirection; pageCount: number };
@@ -100,7 +100,8 @@ export function createGestureModel(
 			if (
 				this.motionState !== 'idle' &&
 				this.motionState !== 'settled' &&
-				this.motionState !== 'inertia'
+				this.motionState !== 'inertia' &&
+				this.motionState !== 'settling'
 			)
 				return this;
 			return {
@@ -201,11 +202,13 @@ export function createGestureModel(
 			};
 
 			if (!shouldInertia || outcome.type === 'reject') {
+				const acceptedTurn = outcome.type === 'turn';
 				return {
 					model: {
 						...nextState,
+						motionState: acceptedTurn ? 'settling' : 'settled',
 						velocityDegPerMs: 0,
-						rotation: 0,
+						rotation: acceptedTurn ? this.rotation : 0,
 						completedTurns: outcome.type === 'turn' ? outcome.pageCount : 0
 					},
 					events: [
@@ -215,7 +218,7 @@ export function createGestureModel(
 									direction: outcome.direction
 								}))
 							: []),
-						{ type: 'settled' }
+							...(acceptedTurn ? [] : [{ type: 'settled' as const }])
 					]
 				};
 			}
@@ -223,7 +226,9 @@ export function createGestureModel(
 			return { model: nextState, events: [] };
 		},
 		interruptInertia() {
-			if (this.motionState !== 'inertia') return { model: this, events: [] };
+			if (this.motionState !== 'inertia' && this.motionState !== 'settling') {
+				return { model: this, events: [] };
+			}
 
 			return {
 				model: {
@@ -239,6 +244,17 @@ export function createGestureModel(
 			};
 		},
 		tick(dtMs) {
+			if (this.motionState === 'settling') {
+				const settleFactor = Math.exp(-this.frictionDecayPerSecond * (dtMs / 1000));
+				const nextRotation = this.rotation * settleFactor;
+				if (Math.abs(nextRotation) < 0.5) {
+					return {
+						model: { ...this, motionState: 'settled', rotation: 0 },
+						events: [{ type: 'settled' }]
+					};
+				}
+				return { model: { ...this, rotation: nextRotation }, events: [] };
+			}
 			if (this.motionState !== 'inertia') {
 				return { model: this, events: [] };
 			}
@@ -246,13 +262,17 @@ export function createGestureModel(
 			const animationDtMs = dtMs * this.animationSpeed;
 			const rawRotation = this.rotation + this.velocityDegPerMs * animationDtMs;
 			const turnDirection = this.velocityDegPerMs >= 0 ? 1 : -1;
+			const plannedTurns = this.releaseOutcome?.type === 'turn' ? this.releaseOutcome.pageCount : 0;
+			const physicalCrossedTurns = Math.floor(
+				Math.abs(rawRotation) / this.acceptedSwipeRotationDegrees
+			);
 			const crossedTurns = Math.min(
-				Math.floor(Math.abs(rawRotation) / this.acceptedSwipeRotationDegrees),
-				(this.releaseOutcome?.type === 'turn' ? this.releaseOutcome.pageCount : 0) -
-					this.completedTurns
+				physicalCrossedTurns,
+				Math.max(0, plannedTurns - this.completedTurns)
 			);
 			const nextRotation =
-				rawRotation - crossedTurns * turnDirection * this.acceptedSwipeRotationDegrees;
+				rawRotation -
+				physicalCrossedTurns * turnDirection * this.acceptedSwipeRotationDegrees;
 			const nextVelocity =
 				this.velocityDegPerMs * Math.exp(-this.frictionDecayPerSecond * (animationDtMs / 1000));
 			const nextState: GestureModel = {
@@ -262,9 +282,8 @@ export function createGestureModel(
 				inertiaDurationMs: this.inertiaDurationMs + dtMs,
 				completedTurns: this.completedTurns + crossedTurns
 			};
+			const reachedPlannedTurnCount = plannedTurns > 0 && nextState.completedTurns >= plannedTurns;
 
-			const plannedTurns = this.releaseOutcome?.type === 'turn' ? this.releaseOutcome.pageCount : 0;
-			const reachedPlannedTurnCount = nextState.completedTurns >= plannedTurns;
 			const turnEvents = Array.from({ length: crossedTurns }, () => ({
 				type: 'turn-completed' as const,
 				direction: this.releaseDirection as SwipeDirection
@@ -278,13 +297,12 @@ export function createGestureModel(
 				return {
 					model: {
 						...nextState,
-						motionState: 'settled',
+						motionState: 'settling',
 						releaseDirection: this.releaseDirection,
-						velocityDegPerMs: 0,
-						rotation: 0,
+						velocityDegPerMs: nextVelocity,
 						completedTurns: nextState.completedTurns
 					},
-					events: [...turnEvents, { type: 'settled' }]
+					events: turnEvents
 				};
 			}
 

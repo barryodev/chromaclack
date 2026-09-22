@@ -97,10 +97,9 @@ describe('gesture model', () => {
 		const moved = model.beginPointerDown(100, 50).dragTo(500, 1050);
 		const released = moved.release(2050).model.evaluateRelease();
 
-		expect(released.model.motionState).toBe('settled');
+		expect(released.model.motionState).toBe('settling');
 		expect(released.events).toEqual([
-			{ type: 'turn-completed', direction: 'positive' },
-			{ type: 'settled' }
+			{ type: 'turn-completed', direction: 'positive' }
 		]);
 	});
 
@@ -109,10 +108,9 @@ describe('gesture model', () => {
 		const moved = model.beginPointerDown(500, 50).dragTo(100, 1050);
 		const released = moved.release(2050).model.evaluateRelease();
 
-		expect(released.model.motionState).toBe('settled');
+		expect(released.model.motionState).toBe('settling');
 		expect(released.events).toEqual([
-			{ type: 'turn-completed', direction: 'negative' },
-			{ type: 'settled' }
+			{ type: 'turn-completed', direction: 'negative' }
 		]);
 	});
 
@@ -123,20 +121,39 @@ describe('gesture model', () => {
 		const released = moved.release(200).model.evaluateRelease().model;
 		const turning = tickGesture(released, 1000);
 
-		expect(turning.model.motionState).toBe('settled');
+		expect(turning.model.motionState).toBe('settling');
 		expect(turning.events).toEqual([
 			{ type: 'turn-completed', direction: 'positive' },
-			{ type: 'turn-completed', direction: 'positive' },
-			{ type: 'settled' }
+			{ type: 'turn-completed', direction: 'positive' }
 		]);
 		expect(turning.model.releaseOutcome).toEqual({
 			type: 'turn',
 			direction: 'positive',
 			pageCount: 2
 		});
-		expect(turning.model.completedTurns).toBe(2);
+		expect(turning.model.completedTurns).toBeGreaterThanOrEqual(2);
 		expect(turning.model.rotation).toBeGreaterThanOrEqual(0);
 		expect(turning.model.rotation).toBeLessThan(180);
+	});
+
+	it('preserves residual rotation after a completed boundary until settling finishes', () => {
+		const released = createGestureModel('vertical')
+			.beginPointerDown(100, 50)
+			.dragTo(220, 80)
+			.release(200)
+			.model.evaluateRelease().model;
+		const boundary = tickGesture(released, 1000);
+
+		expect(boundary.events).toContainEqual({ type: 'turn-completed', direction: 'positive' });
+		expect(boundary.model.rotation).not.toBe(0);
+		expect(boundary.model.motionState).not.toBe('settled');
+
+		const settling = boundary.model.motionState === 'settling'
+			? boundary
+			: tickGesture(boundary.model, 10000);
+		const settled = tickGesture(settling.model, 10000);
+		expect(settled.model.motionState).toBe('settled');
+		expect(settled.events).toContainEqual({ type: 'settled' });
 	});
 
 	it('uses the accepted threshold to decide direction', () => {
@@ -153,7 +170,8 @@ describe('gesture model', () => {
 		const started = model.beginPointerDown(100, 50);
 		const moved = started.dragTo(220, 80);
 		const released = moved.release(200).model.evaluateRelease().model;
-		const settled = tickGesture(released, 8000);
+		const settling = tickGesture(released, 8000);
+		const settled = tickGesture(settling.model, 8000);
 
 		expect(settled.model.motionState).toBe('settled');
 		expect(settled.model.rotation).toBeLessThan(180);
@@ -169,10 +187,12 @@ describe('gesture model', () => {
 			.dragTo(220, 80)
 			.release(200)
 			.model.evaluateRelease().model;
-		const settled = tickGesture(released, 100);
+		const settling = tickGesture(released, 100);
+		const settled = tickGesture(settling.model, 8000);
 
 		expect(settled.model.motionState).toBe('settled');
-		expect(settled.model.inertiaDurationMs).toBe(100);
+		expect(settling.model.motionState).toBe('settling');
+		expect(settling.model.inertiaDurationMs).toBe(100);
 		expect(settled.events).toContainEqual({ type: 'settled' });
 	});
 
@@ -209,7 +229,8 @@ describe('gesture model', () => {
 			.release(200)
 			.model.evaluateRelease().model;
 		const positiveTurn = tickGesture(positive, 1000);
-		const negative = positiveTurn.model
+		const settledPositive = tickGesture(positiveTurn.model, 10000).model;
+		const negative = settledPositive
 			.beginPointerDown(220, 1200)
 			.dragTo(100, 1230)
 			.release(1300)

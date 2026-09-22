@@ -63,7 +63,8 @@
 	]);
 	const renderDirection = $derived<DeckDirection>(rotation < 0 ? 'negative' : 'positive');
 	const renderPoses = $derived<readonly HalfFlapRenderPose[]>(
-		createHalfFlapTurnFrame(sourcePoses, assignments, renderDirection, Math.abs(rotation) / 180).poses
+		createHalfFlapTurnFrame(sourcePoses, assignments, renderDirection, Math.abs(rotation) / 180)
+			.poses
 	);
 	const activeRenderPoses = $derived(renderPoses.filter((pose) => pose.isActive));
 	const activeRenderFirst = $derived(activeRenderPoses.find((pose) => pose.side === 'first'));
@@ -72,7 +73,10 @@
 	$effect(() => {
 		if (!onDiagnostics || !activeRenderFirst || !activeRenderSecond) return;
 		onDiagnostics({
-			motionState: isDragging || gesture.motionState === 'inertia' ? 'dragging' : 'settled',
+			motionState:
+				isDragging || gesture.motionState === 'inertia' || gesture.motionState === 'settling'
+					? 'dragging'
+					: 'settled',
 			rotationDegrees: rotation,
 			activeSide,
 			activeHalfSlotIds: [
@@ -137,7 +141,7 @@
 		window.removeEventListener('mousemove', drag);
 		window.removeEventListener('mouseup', endDrag);
 		logDebug('release', { rotation: Number(rotation.toFixed(1)), state: gesture.motionState });
-		if (gesture.motionState === 'inertia') startAnimation();
+		if (gesture.motionState === 'inertia' || gesture.motionState === 'settling') startAnimation();
 	}
 
 	function startAnimation() {
@@ -152,7 +156,7 @@
 		lastFrameTime = now;
 		gesture = transition.model;
 		processEvents(transition.events);
-		if (gesture.motionState === 'inertia') startAnimation();
+		if (gesture.motionState === 'inertia' || gesture.motionState === 'settling') startAnimation();
 	}
 
 	function processEvents(events: readonly { type: string; direction?: DeckDirection }[]) {
@@ -200,7 +204,11 @@
 <button
 	type="button"
 	class="half-slot-viewport"
-	data-motion-state={isDragging || gesture.motionState === 'inertia' ? 'dragging' : 'settled'}
+	data-motion-state={
+		isDragging || gesture.motionState === 'inertia' || gesture.motionState === 'settling'
+			? 'dragging'
+			: 'settled'
+	}
 	onmousedown={startDrag}
 	ontouchstart={startDrag}
 	use:nonPassiveTouchMove={drag}
@@ -239,7 +247,9 @@
 		overflow: visible;
 	}
 
-	.half-slot-viewport:active { cursor: grabbing; }
+	.half-slot-viewport:active {
+		cursor: grabbing;
+	}
 
 	.half-slot {
 		position: absolute;
@@ -261,8 +271,20 @@
 		transition: background-color 90ms linear;
 	}
 
-	.half-slot--first { top: 0; transform-origin: center bottom; border-radius: 0.75rem 0.75rem 0 0; }
-	.half-slot--second { bottom: 0; transform-origin: center top; border-radius: 0 0 0.75rem 0.75rem; }
-	.half-slot--active { box-shadow: 0 0 0 2px color-mix(in srgb, var(--scene-surface), white 48%); }
-	.half-slot--buffered { visibility: hidden; }
+	.half-slot--first {
+		top: 0;
+		transform-origin: center bottom;
+		border-radius: 0.75rem 0.75rem 0 0;
+	}
+	.half-slot--second {
+		bottom: 0;
+		transform-origin: center top;
+		border-radius: 0 0 0.75rem 0.75rem;
+	}
+	.half-slot--active {
+		box-shadow: 0 0 0 2px color-mix(in srgb, var(--scene-surface), white 48%);
+	}
+	.half-slot--buffered {
+		visibility: hidden;
+	}
 </style>

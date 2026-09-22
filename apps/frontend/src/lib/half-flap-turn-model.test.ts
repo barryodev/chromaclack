@@ -21,38 +21,54 @@ describe('half-flap turn model', () => {
 	});
 	const assignments = [...deck.upperReturnBuffer, ...deck.visibleWindow, ...deck.lowerReturnBuffer];
 
-	it('leaves every half exactly at rest when progress is zero', () => {
+	it('leaves every half exactly at rest before the rolling wave starts', () => {
 		const frame = createHalfFlapTurnFrame(poses, assignments, 'positive', 0);
+
 		expect(frame.poses.map((pose) => pose.rotationDegrees)).toEqual(
 			poses.map((pose) => pose.rotationDegrees)
 		);
+		expect(frame.poses.every((pose) => pose.phase === 0)).toBe(true);
 	});
 
-	it('moves all six visible half flaps together around the hinge', () => {
-		const frame = createHalfFlapTurnFrame(poses, assignments, 'positive', 0.5);
+	it('lets the leading half move before its neighbors follow', () => {
+		const early = createHalfFlapTurnFrame(poses, assignments, 'positive', 0.05);
+		const moving = early.poses.filter((pose) => pose.phase > 0);
+		const settled = early.poses.filter((pose) => pose.visibility === 'visible' && pose.phase === 0);
+
+		expect(moving).toHaveLength(1);
+		expect(moving[0]?.isActive).toBe(true);
+		expect(settled).toHaveLength(5);
+	});
+
+	it('forms a sequential rolling wave instead of gluing all flaps together', () => {
+		const frame = createHalfFlapTurnFrame(poses, assignments, 'positive', 0.7);
 		const visible = frame.poses.filter((pose) => pose.visibility === 'visible');
-		const upper = visible.filter((pose) => pose.side === 'first');
-		const lower = visible.filter((pose) => pose.side === 'second');
+		const phases = visible.map((pose) => pose.phase);
 
-		expect(upper).toHaveLength(3);
-		expect(lower).toHaveLength(3);
-		expect(upper.every((pose) => pose.rotationDegrees < -40)).toBe(true);
-		expect(lower.every((pose) => pose.rotationDegrees < 40)).toBe(true);
+		expect(new Set(phases).size).toBeGreaterThan(3);
+		expect(phases.filter((phase) => phase > 0 && phase < 1).length).toBeGreaterThan(0);
+		expect(phases.filter((phase) => phase === 1).length).toBeGreaterThan(0);
 	});
 
-	it('clamps progress and mirrors the movement direction', () => {
-		const positive = createHalfFlapTurnFrame(poses, assignments, 'positive', 1);
-		const negative = createHalfFlapTurnFrame(poses, assignments, 'negative', 1);
-		const negativeMidpoint = createHalfFlapTurnFrame(poses, assignments, 'negative', 0.5);
+	it('reverses the leading half and rolling order for the opposite direction', () => {
+		const positive = createHalfFlapTurnFrame(poses, assignments, 'positive', 0.05);
+		const negative = createHalfFlapTurnFrame(poses, assignments, 'negative', 0.05);
 
-		expect(positive.progress).toBe(1);
-		expect(negative.progress).toBe(1);
-		expect(createHalfFlapTurnFrame(poses, assignments, 'positive', -1).progress).toBe(0);
-		expect(positive.poses[2]?.rotationDegrees).toBe(-186);
-		expect(negative.poses[2]?.rotationDegrees).toBe(174);
-		expect(negative.poses[7]?.rotationDegrees).toBe(220);
-		expect(negativeMidpoint.poses.filter((pose) => pose.visibility === 'visible').every((pose) =>
-			pose.rotationDegrees > (poses.find((rest) => rest.physicalHalfSlotId === pose.physicalHalfSlotId)?.rotationDegrees ?? 0)
-		)).toBe(true);
+		expect(positive.poses.find((pose) => pose.phase > 0)?.side).toBe('first');
+		expect(negative.poses.find((pose) => pose.phase > 0)?.side).toBe('second');
+		expect(positive.poses.find((pose) => pose.phase > 0)?.rotationDegrees).toBeLessThan(-40);
+		expect(negative.poses.find((pose) => pose.phase > 0)?.rotationDegrees).toBeGreaterThan(40);
+	});
+
+	it('clamps progress and preserves stable physical identities', () => {
+		const frame = createHalfFlapTurnFrame(poses, assignments, 'negative', 2);
+
+		expect(frame.progress).toBe(1);
+		expect(frame.poses.map((pose) => pose.physicalHalfSlotId)).toEqual(
+			assignments.flatMap((assignment) => [
+				`${assignment.physicalPageSlotId}-first`,
+				`${assignment.physicalPageSlotId}-second`
+			])
+		);
 	});
 });
