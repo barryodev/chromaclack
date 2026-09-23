@@ -79,6 +79,12 @@ type ClackerMotion = {
 
 The fixed collection may contain more than four flaps, for example eight or twelve, but every flap has a permanent physical identity and a static label. There is no recycling in this branch slice.
 
+### Face Continuity
+
+The established `Flap.svelte` visual behavior is authoritative: whenever two neighboring flap faces meet at the visible hinge and read as one page, those two faces must use the same label and background color. A readable page is therefore derived from the current neighboring face relationship, not stored as a permanent page object.
+
+Each physical flap still has distinct front and back faces. As the Clacker rotates, a flap exposes the face appropriate to its orientation; the adjacent exposed face must be assigned the matching visual data when the two surfaces form the user-facing page. This pairing rule applies to every physical adjacency around the fixed flap loop.
+
 The motion pipeline is:
 
 ```text

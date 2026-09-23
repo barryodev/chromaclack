@@ -35,7 +35,7 @@
 		{/each}
 	</nav>
 
-	<Clacker mode={activeMode} {debug} />
+	<Clacker mode={activeMode} {debug} config={{ flapCount: 6 }} />
 </section>
 
 <style>

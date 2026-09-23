@@ -1,10 +1,31 @@
 <script lang="ts">
 	import Flap from './Flap.svelte';
+	import { createClackerConfig, createFlaps, type ClackerConfig } from './clacker-model';
 	import type { FlapDiagnostics } from './flap-diagnostics';
 
 	type Mode = 'vertical' | 'horizontal' | 'spin';
 
-	let { mode = 'vertical', debug = false }: { mode?: Mode; debug?: boolean } = $props();
+	let {
+		mode = 'vertical',
+		debug = false,
+		config
+	}: {
+		mode?: Mode;
+		debug?: boolean;
+		config: ClackerConfig;
+	} = $props();
+	const clackerConfig = $derived(createClackerConfig(config));
+	const flaps = $derived(createFlaps(clackerConfig, (position, side) => {
+		const pairedPosition =
+			side === 'front'
+				? position
+				: (position - 1 + clackerConfig.flapCount) % clackerConfig.flapCount;
+		return {
+			id: `face-${pairedPosition + 1}`,
+			label: `${pairedPosition + 1}`,
+			background: `hsl(${(pairedPosition * 47) % 360} 72% 56%)`
+		};
+	}));
 	let spinAngle = $state(0);
 	let isDragging = $state(false);
 	let spinSettling = $state(false);
@@ -67,9 +88,9 @@
 
 <section class="stage">
 	{#if mode === 'vertical'}
-		<Flap axis="vertical" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
+		<Flap {flaps} axis="vertical" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
 	{:else if mode === 'horizontal'}
-		<Flap axis="horizontal" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
+		<Flap {flaps} axis="horizontal" onDiagnostics={debug ? updateFlapDiagnostics : undefined} />
 	{:else if mode === 'spin'}
 		<button
 			type="button"
@@ -84,6 +105,7 @@
 			ontouchmove={dragSpin}
 			ontouchend={releaseSpin}
 			aria-label="Hold and rotate"
+			data-flap-count={clackerConfig.flapCount}
 		>
 			<span class="segment segment--left"></span>
 			<span class="segment segment--right"></span>

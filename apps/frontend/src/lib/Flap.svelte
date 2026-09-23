@@ -1,19 +1,15 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import type { FlapDiagnostics } from './flap-diagnostics';
-	import {
-		createHalfSlotRing,
-		visibleHalfSlotWindow,
-		type LogicalFace,
-		type PhysicalHalfSlot,
-		type SwipeDirection
-	} from './flap-model';
+	import type { Flap as PhysicalFlap } from './clacker-model';
+	import type { Face } from './clacker-model';
 	import {
 		createGestureModel,
 		type GestureEvent,
 		type GestureModel,
 		type MotionState,
-		type ReleaseOutcome
+		type ReleaseOutcome,
+		type SwipeDirection
 	} from './gesture-model';
 
 	type Axis = 'vertical' | 'horizontal';
@@ -25,10 +21,12 @@
 		rotationSign: -1 | 1;
 		ariaLabel: string;
 	};
-	type PageState = {
-		label: string;
-		background: string;
-	};
+	type FlapRole =
+		| 'previous-first'
+		| 'current-first'
+		| 'current-second'
+		| 'following-second'
+		| 'buffered';
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
 			coordinate: 'clientY',
@@ -43,32 +41,14 @@
 			ariaLabel: 'Swipe left or right'
 		}
 	};
-	const PAGES: PageState[] = [
-		{ label: '1', background: '#581C87' },
-		{ label: '2', background: '#C026D3' },
-		{ label: '3', background: '#F43F5E' },
-		{ label: '4', background: '#F97316' }
-	];
-	const LOGICAL_FACES = Object.fromEntries(
-		PAGES.flatMap((page) => [
-			[`page-${page.label}-first`, { id: `page-${page.label}-first`, label: page.label }],
-			[`page-${page.label}-second`, { id: `page-${page.label}-second`, label: page.label }]
-		])
-	) as Record<string, LogicalFace>;
-	const INITIAL_HALF_SLOT_RING = createHalfSlotRing(Object.values(LOGICAL_FACES));
-	const INITIAL_VISIBLE_HALF_SLOTS = visibleHalfSlotWindow(INITIAL_HALF_SLOT_RING, 0, 4);
-	const PHYSICAL_HALF_SLOTS = {
-		currentFirst: initialVisibleHalfSlot(0),
-		currentSecond: initialVisibleHalfSlot(1),
-		nextFirst: initialVisibleHalfSlot(2),
-		nextSecond: initialVisibleHalfSlot(3)
-	} satisfies Record<string, PhysicalHalfSlot>;
 
 	let {
 		axis = 'vertical',
+		flaps,
 		onDiagnostics
 	}: {
 		axis?: Axis;
+		flaps: readonly PhysicalFlap[];
 		onDiagnostics?: (diagnostics: FlapDiagnostics) => void;
 	} = $props();
 	const axisContract = $derived(AXIS_CONTRACTS[axis]);
@@ -80,7 +60,7 @@
 	const ACCEPTED_SWIPE_ROTATION_DEGREES = 180;
 	const VELOCITY_STOP_THRESHOLD = 0.01;
 
-	let currentPageIndex = $state(0);
+	let currentFlapIndex = $state(0);
 	let gestureModel = $state<GestureModel>(
 		createGestureModel('vertical', {
 			dragSensitivity: DRAG_SENSITIVITY,
@@ -107,7 +87,6 @@
 	const velocityDegPerMs = $derived(gestureModel.velocityDegPerMs);
 	const velocityAtRelease = $derived(gestureModel.velocityAtRelease);
 	const inertiaDurationMs = $derived(gestureModel.inertiaDurationMs);
-	const currentPage = $derived(pageAt(currentPageIndex));
 	const releaseOutcome = $derived<ReleaseOutcome | undefined>(gestureModel.releaseOutcome);
 	const turnDirectionSign = $derived(
 		releaseOutcome?.type === 'turn' && releaseOutcome.direction === 'positive' ? -1 : 1
@@ -115,11 +94,15 @@
 	const displayDirectionSign = $derived(
 		releaseOutcome?.type === 'turn' ? turnDirectionSign : rotation > 0 ? -1 : 1
 	);
-	const visualPageIndex = $derived(
-		currentPageIndex + gestureModel.completedTurns * turnDirectionSign
+	const visualFlapIndex = $derived(
+		currentFlapIndex + gestureModel.completedTurns * turnDirectionSign
 	);
-	const visualCurrentPage = $derived(pageAt(visualPageIndex));
-	const targetPage = $derived(pageAt(visualPageIndex + displayDirectionSign));
+	const currentFaces = $derived(facesAt(visualFlapIndex));
+	const targetFaces = $derived(facesAt(visualFlapIndex + displayDirectionSign));
+	const renderedFlaps = $derived(flaps.map((flap) => ({
+		flap,
+		role: roleFor(flap.position, visualFlapIndex)
+	})));
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -162,10 +145,10 @@
 			outcomeComplete:
 				releaseOutcome?.type === 'turn' && gestureModel.completedTurns >= releaseOutcome.pageCount,
 			acceptedSwipeDirection,
-			currentPageIndex,
-			committedPageLabel: currentPage.label,
-			visualPageLabel: visualCurrentPage.label,
-			targetPageLabel: rotation === 0 ? undefined : targetPage.label,
+			currentPageIndex: currentFlapIndex,
+			committedPageLabel: facesAt(currentFlapIndex).first.label,
+			visualPageLabel: currentFaces.first.label,
+			targetPageLabel: rotation === 0 ? undefined : targetFaces.first.label,
 			transformAxis: axisContract.rotationFunction,
 			firstTransform,
 			secondTransform,
@@ -203,18 +186,18 @@
 		for (const event of events) {
 			if (event.type === 'outcome-complete' && event.outcome.type === 'turn') {
 				committedTurnCount += event.outcome.pageCount;
-				currentPageIndex +=
+				currentFlapIndex +=
 					event.outcome.direction === 'positive'
 						? -event.outcome.pageCount
 						: event.outcome.pageCount;
 				logGesture('turn-committed', {
 					direction: event.outcome.direction,
 					count: event.outcome.pageCount,
-					pageIndex: currentPageIndex
+					pageIndex: currentFlapIndex
 				});
 			}
 			if (event.type === 'settled') {
-				logGesture('settled-event', { pageIndex: currentPageIndex });
+				logGesture('settled-event', { pageIndex: currentFlapIndex });
 			}
 		}
 		if (events.some((event) => event.type === 'outcome-complete')) {
@@ -228,7 +211,7 @@
 						(count, event) => count + (event.outcome.type === 'turn' ? event.outcome.pageCount : 0),
 						0
 					),
-				pageIndex: currentPageIndex
+				pageIndex: currentFlapIndex
 			});
 		}
 	}
@@ -256,20 +239,40 @@
 		return event[axisContract.coordinate];
 	}
 
-	function initialVisibleHalfSlot(index: number): PhysicalHalfSlot {
-		const slot = INITIAL_VISIBLE_HALF_SLOTS[index];
-		if (slot === undefined) {
-			throw new RangeError('Initial visible half-slot is outside the model window.');
-		}
-		return slot;
+	function facesAt(index: number): { first: Face; second: Face } {
+		const firstFlap = flapAt(index);
+		const secondFlap = flapAt(index + 1);
+		return {
+			first: firstFlap.frontFace,
+			second: secondFlap.backFace
+		};
 	}
 
-	function pageAt(index: number) {
-		const page = PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
-		if (page === undefined) {
-			throw new RangeError('Page index is outside the circular page model.');
-		}
-		return page;
+	function flapAt(index: number): PhysicalFlap {
+		const flap = flaps[((index % flaps.length) + flaps.length) % flaps.length];
+		if (flap === undefined) throw new RangeError('Clacker must contain at least one flap.');
+		return flap;
+	}
+
+	function roleFor(position: number, startIndex: number): FlapRole {
+		const relativePosition = modulo(position - startIndex, flaps.length);
+		if (relativePosition === 0) return 'current-first';
+		if (relativePosition === 1) return 'current-second';
+		if (relativePosition === 2) return 'following-second';
+		if (relativePosition === flaps.length - 1) return 'previous-first';
+		return 'buffered';
+	}
+
+	function faceForRole(flap: PhysicalFlap, role: FlapRole): Face {
+		return role.endsWith('first') ? flap.frontFace : flap.backFace;
+	}
+
+	function oppositeFaceForRole(flap: PhysicalFlap, role: FlapRole): Face {
+		return role.endsWith('first') ? flap.backFace : flap.frontFace;
+	}
+
+	function modulo(value: number, length: number) {
+		return ((value % length) + length) % length;
 	}
 
 	function startInertia() {
@@ -398,8 +401,9 @@
 	class:flip-deck--negative={rotation < 0}
 	style={`--first-transform: ${firstTransform}; --second-transform: ${secondTransform}`}
 	data-motion-state={motionState}
+	data-flap-count={flaps.length}
 	data-accepted-swipe-direction={acceptedSwipeDirection}
-	data-current-page-index={currentPageIndex}
+	data-current-page-index={currentFlapIndex}
 	data-committed-turns={committedTurnCount}
 	data-release-outcome={releaseOutcome?.type ?? 'none'}
 	data-planned-turns={releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0}
@@ -408,8 +412,8 @@
 		0,
 		(releaseOutcome?.type === 'turn' ? releaseOutcome.pageCount : 0) - gestureModel.completedTurns
 	)}
-	data-committed-page-label={currentPage.label}
-	data-visual-page-label={visualCurrentPage.label}
+	data-committed-page-label={facesAt(currentFlapIndex).first.label}
+	data-visual-page-label={currentFaces.first.label}
 	onmousedown={dragStart}
 	ontouchstart={dragStart}
 	use:nonPassiveTouchMove={dragMove}
@@ -417,46 +421,28 @@
 	ontouchcancel={dragEnd}
 	aria-label={axisContract.ariaLabel}
 >
-	<div class="flip-page flip-page--next" aria-hidden="true">
-		<div class="flip-half flip-half--first flip-half--next">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
-				>{targetPage.label}</span
+	{#each renderedFlaps as { flap, role } (flap.id)}
+		<div
+			class="physical-flap"
+			class:physical-flap--first={role.endsWith('first')}
+			class:physical-flap--second={role.endsWith('second')}
+			class:physical-flap--incoming={role.startsWith('previous') || role.startsWith('following')}
+			class:physical-flap--current={role.startsWith('current')}
+			class:physical-flap--active-first={role === 'current-first'}
+			class:physical-flap--active-second={role === 'current-second'}
+			class:physical-flap--buffered={role === 'buffered'}
+			data-flap-id={flap.id}
+			data-flap-position={flap.position}
+			data-flap-role={role}
+		>
+			<span class="flip-face flip-face--front" style={`--page-surface: ${faceForRole(flap, role).background}`}
+				>{faceForRole(flap, role).label}</span
 			>
-			<span
-				class="flip-face flip-face--back"
-				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
-			>
-		</div>
-		<div class="flip-half flip-half--second flip-half--next">
-			<span class="flip-face flip-face--front" style={`--page-surface: ${targetPage.background}`}
-				>{targetPage.label}</span
-			>
-			<span
-				class="flip-face flip-face--back"
-				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
-			>
-		</div>
-	</div>
-	<div class="flip-page flip-page--current">
-		<div class="flip-half flip-half--first flip-half--current flip-half--active-first">
-			<span
-				class="flip-face flip-face--front"
-				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
-			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
-				>{targetPage.label}</span
+			<span class="flip-face flip-face--back" style={`--page-surface: ${oppositeFaceForRole(flap, role).background}`}
+				>{oppositeFaceForRole(flap, role).label}</span
 			>
 		</div>
-		<div class="flip-half flip-half--second flip-half--current flip-half--active-second">
-			<span
-				class="flip-face flip-face--front"
-				style={`--page-surface: ${visualCurrentPage.background}`}>{visualCurrentPage.label}</span
-			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${targetPage.background}`}
-				>{targetPage.label}</span
-			>
-		</div>
-	</div>
+	{/each}
 </button>
 
 <style>
@@ -481,57 +467,52 @@
 		}
 	}
 
-	.flip-page {
-		position: absolute;
-		inset: 0;
-		transform-style: preserve-3d;
-	}
-
-	.flip-page--next {
-		z-index: 1;
-	}
-
-	.flip-page--current {
-		z-index: 2;
-	}
-
-	.flip-half {
+	.physical-flap {
 		position: absolute;
 		transform-style: preserve-3d;
 		--page-surface: #fff;
+		z-index: 1;
 	}
 
-	.flip-deck--vertical .flip-half {
+	.physical-flap--current {
+		z-index: 2;
+	}
+
+	.physical-flap--buffered {
+		visibility: hidden;
+	}
+
+	.flip-deck--vertical .physical-flap {
 		left: 0;
 		width: 100%;
 		height: 50%;
 	}
 
-	.flip-deck--horizontal .flip-half {
+	.flip-deck--horizontal .physical-flap {
 		top: 0;
 		width: 50%;
 		height: 100%;
 	}
 
-	.flip-deck--vertical .flip-half--first {
+	.flip-deck--vertical .physical-flap--first {
 		top: 0;
 		transform-origin: center bottom;
 		border-radius: 0.75rem 0.75rem 0 0;
 	}
 
-	.flip-deck--vertical .flip-half--second {
+	.flip-deck--vertical .physical-flap--second {
 		bottom: 0;
 		transform-origin: center top;
 		border-radius: 0 0 0.75rem 0.75rem;
 	}
 
-	.flip-deck--horizontal .flip-half--first {
+	.flip-deck--horizontal .physical-flap--first {
 		left: 0;
 		transform-origin: right center;
 		border-radius: 0.75rem 0 0 0.75rem;
 	}
 
-	.flip-deck--horizontal .flip-half--second {
+	.flip-deck--horizontal .physical-flap--second {
 		right: 0;
 		transform-origin: left center;
 		border-radius: 0 0.75rem 0.75rem 0;
@@ -553,23 +534,23 @@
 		backface-visibility: hidden;
 	}
 
-	.flip-deck--vertical .flip-half--first .flip-face--front,
-	.flip-deck--vertical .flip-half--second .flip-face--back {
+	.flip-deck--vertical .physical-flap--first .flip-face--front,
+	.flip-deck--vertical .physical-flap--second .flip-face--back {
 		border-radius: 0.75rem 0.75rem 0 0;
 	}
 
-	.flip-deck--vertical .flip-half--first .flip-face--back,
-	.flip-deck--vertical .flip-half--second .flip-face--front {
+	.flip-deck--vertical .physical-flap--first .flip-face--back,
+	.flip-deck--vertical .physical-flap--second .flip-face--front {
 		border-radius: 0 0 0.75rem 0.75rem;
 	}
 
-	.flip-deck--horizontal .flip-half--first .flip-face--front,
-	.flip-deck--horizontal .flip-half--second .flip-face--back {
+	.flip-deck--horizontal .physical-flap--first .flip-face--front,
+	.flip-deck--horizontal .physical-flap--second .flip-face--back {
 		border-radius: 0.75rem 0 0 0.75rem;
 	}
 
-	.flip-deck--horizontal .flip-half--first .flip-face--back,
-	.flip-deck--horizontal .flip-half--second .flip-face--front {
+	.flip-deck--horizontal .physical-flap--first .flip-face--back,
+	.flip-deck--horizontal .physical-flap--second .flip-face--front {
 		border-radius: 0 0.75rem 0.75rem 0;
 	}
 
@@ -581,22 +562,22 @@
 		transform: rotateY(180deg);
 	}
 
-	.flip-half--active-first,
-	.flip-half--active-second {
+	.physical-flap--active-first,
+	.physical-flap--active-second {
 		z-index: 3;
 		will-change: transform;
 	}
 
-	.flip-deck--positive .flip-half--active-first,
-	.flip-deck--negative .flip-half--active-second {
+	.flip-deck--positive .physical-flap--active-first,
+	.flip-deck--negative .physical-flap--active-second {
 		z-index: 4;
 	}
 
-	.flip-half--active-first {
+	.physical-flap--active-first {
 		transform: var(--first-transform);
 	}
 
-	.flip-half--active-second {
+	.physical-flap--active-second {
 		transform: var(--second-transform);
 	}
 </style>

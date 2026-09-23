@@ -1,5 +1,46 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 
+test('renders the configured six-flap pool with adjacent matching faces', async ({ page }) => {
+	await page.goto('/?debug');
+
+	const deck = page.locator('.flip-deck');
+	const flaps = page.locator('[data-flap-id]');
+	await expect(flaps).toHaveCount(6);
+	await expect(deck).toHaveAttribute('data-flap-count', '6');
+
+	const currentFirst = page.locator('[data-flap-role="current-first"]');
+	const currentSecond = page.locator('[data-flap-role="current-second"]');
+	const previousFirst = page.locator('[data-flap-role="previous-first"]');
+	const followingSecond = page.locator('[data-flap-role="following-second"]');
+
+	expect(await currentFirst.locator('.flip-face--front').textContent()).toBe(
+		await currentSecond.locator('.flip-face--front').textContent()
+	);
+	expect(await currentFirst.locator('.flip-face--back').textContent()).toBe(
+		await previousFirst.locator('.flip-face--front').textContent()
+	);
+	expect(await currentSecond.locator('.flip-face--back').textContent()).toBe(
+		await followingSecond.locator('.flip-face--front').textContent()
+	);
+
+	const idsBefore = await flaps.evaluateAll((nodes) =>
+		nodes.map((node) => node.getAttribute('data-flap-id'))
+	);
+	const box = await deck.boundingBox();
+	expect(box).not.toBeNull();
+	if (!box) return;
+
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.7, { steps: 12 });
+	await page.mouse.up();
+	await expect(deck).toHaveAttribute('data-motion-state', 'idle', { timeout: 10000 });
+
+	expect(await flaps.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-flap-id')))).toEqual(
+		idsBefore
+	);
+});
+
 test('captures vertical flap swipe diagnostics', async ({ page }, testInfo) => {
 	await page.goto('/?debug');
 
