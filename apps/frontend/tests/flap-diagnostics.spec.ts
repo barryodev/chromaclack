@@ -36,9 +36,84 @@ test('renders the configured six-flap pool with adjacent matching faces', async 
 	await page.mouse.up();
 	await expect(deck).toHaveAttribute('data-motion-state', 'idle', { timeout: 10000 });
 
-	expect(await flaps.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-flap-id')))).toEqual(
-		idsBefore
-	);
+	expect(
+		await flaps.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-flap-id')))
+	).toEqual(idsBefore);
+});
+
+test('applies the six-flap rest tiers and moves all visible roles in either direction', async ({ page }) => {
+	const sampleDrag = async (delta: number) => {
+		await page.goto('/?debug');
+		const deck = page.locator('.flip-deck');
+		const roles = ['previous-first', 'current-first', 'current-second', 'following-second'];
+
+		await expect(deck).toHaveAttribute('data-flap-count', '6');
+		await expect(page.locator('[data-flap-role="previous-first"]')).toHaveAttribute(
+			'data-rest-angle',
+			'-36'
+		);
+		await expect(page.locator('[data-flap-role="current-first"]')).toHaveAttribute(
+			'data-rest-angle',
+			'-42'
+		);
+		await expect(page.locator('[data-flap-role="current-second"]')).toHaveAttribute(
+			'data-rest-angle',
+			'42'
+		);
+		await expect(page.locator('[data-flap-role="following-second"]')).toHaveAttribute(
+			'data-rest-angle',
+			'36'
+		);
+		await expect(page.locator('[data-flap-role="previous-first"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(-36deg)')
+		);
+		await expect(page.locator('[data-flap-role="current-first"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(-42deg)')
+		);
+		await expect(page.locator('[data-flap-role="current-second"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(42deg)')
+		);
+		await expect(page.locator('[data-flap-role="following-second"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(36deg)')
+		);
+
+		const before = await Promise.all(
+			roles.map(async (role) => page.locator(`[data-flap-role="${role}"]`).getAttribute('style'))
+		);
+		const box = await deck.boundingBox();
+		expect(box).not.toBeNull();
+		if (!box) return;
+
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + delta, {
+			steps: 8
+		});
+		const during = await Promise.all(
+			roles.map(async (role) => page.locator(`[data-flap-role="${role}"]`).getAttribute('style'))
+		);
+		await page.mouse.up();
+
+		for (const [index, role] of roles.entries()) {
+			expect(during[index], `${role} must move during the swipe`).not.toBe(before[index]);
+		}
+		await expect(deck).toHaveAttribute('data-motion-state', 'idle', { timeout: 10000 });
+		await expect(page.locator('[data-flap-role="current-first"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(-42deg)')
+		);
+		await expect(page.locator('[data-flap-role="current-second"]')).toHaveAttribute(
+			'style',
+			expect.stringContaining('transform: rotateX(42deg)')
+		);
+	};
+
+	await sampleDrag(140);
+	await sampleDrag(-140);
 });
 
 test('captures vertical flap swipe diagnostics', async ({ page }, testInfo) => {

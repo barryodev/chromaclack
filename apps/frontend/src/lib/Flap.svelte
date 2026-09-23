@@ -22,11 +22,7 @@
 		ariaLabel: string;
 	};
 	type FlapRole =
-		| 'previous-first'
-		| 'current-first'
-		| 'current-second'
-		| 'following-second'
-		| 'buffered';
+		'previous-first' | 'current-first' | 'current-second' | 'following-second' | 'buffered';
 	const AXIS_CONTRACTS: Record<Axis, AxisContract> = {
 		vertical: {
 			coordinate: 'clientY',
@@ -99,10 +95,13 @@
 	);
 	const currentFaces = $derived(facesAt(visualFlapIndex));
 	const targetFaces = $derived(facesAt(visualFlapIndex + displayDirectionSign));
-	const renderedFlaps = $derived(flaps.map((flap) => ({
-		flap,
-		role: roleFor(flap.position, visualFlapIndex)
-	})));
+	const renderedFlaps = $derived(
+		flaps.map((flap) => ({
+			flap,
+			role: roleFor(flap.position, visualFlapIndex)
+		}))
+	);
+	const turnProgress = $derived(Math.min(1, Math.abs(rotation) / ACCEPTED_SWIPE_ROTATION_DEGREES));
 	const firstTransform = $derived(
 		`${axisContract.rotationFunction}(${axisContract.rotationSign * Math.max(0, rotation)}deg)`
 	);
@@ -275,6 +274,62 @@
 		return ((value % length) + length) % length;
 	}
 
+	function restAngleFor(role: FlapRole) {
+		if (!isVertical || flaps.length <= 3) return 0;
+		if (role === 'current-first') return -42;
+		if (role === 'current-second') return 42;
+		if (flaps.length >= 6 && role === 'previous-first') return -36;
+		if (flaps.length >= 6 && role === 'following-second') return 36;
+		return 0;
+	}
+
+	function smoothstep(value: number) {
+		const clamped = Math.max(0, Math.min(1, value));
+		return clamped * clamped * (3 - 2 * clamped);
+	}
+
+	function verticalAngleFor(role: FlapRole) {
+		const restAngle = restAngleFor(role);
+		const clearance = smoothstep(turnProgress / 0.65);
+		const pullAround = smoothstep(turnProgress);
+		const activeFirstRotation = axisContract.rotationSign * Math.max(0, rotation);
+		const activeSecondRotation = axisContract.rotationSign * Math.min(0, rotation);
+
+		if (rotation > 0) {
+			if (role === 'current-first') return restAngle + activeFirstRotation;
+			if (role === 'current-second' || role === 'following-second') {
+				return restAngle * (1 - clearance);
+			}
+			if (role === 'previous-first') return restAngle + (-42 - restAngle) * pullAround;
+		}
+
+		if (rotation < 0) {
+			if (role === 'current-second') return restAngle + activeSecondRotation;
+			if (role === 'current-first' || role === 'previous-first') {
+				return restAngle * (1 - clearance);
+			}
+			if (role === 'following-second') return restAngle + (42 - restAngle) * pullAround;
+		}
+
+		return restAngle;
+	}
+
+	function flapTransformFor(role: FlapRole) {
+		if (isVertical) return `rotateX(${verticalAngleFor(role)}deg)`;
+		if (role === 'current-first') return firstTransform;
+		if (role === 'current-second') return secondTransform;
+		return 'none';
+	}
+
+	function layerFor(role: FlapRole) {
+		if (role === 'buffered') return 0;
+		if (rotation > 0 && role === 'current-first') return 5;
+		if (rotation < 0 && role === 'current-second') return 5;
+		if (role.startsWith('current')) return 4;
+		if (role.startsWith('previous') || role.startsWith('following')) return 2;
+		return 1;
+	}
+
 	function startInertia() {
 		let lastFrameTime = performance.now();
 		inertiaTickCount = 0;
@@ -431,14 +486,21 @@
 			class:physical-flap--active-first={role === 'current-first'}
 			class:physical-flap--active-second={role === 'current-second'}
 			class:physical-flap--buffered={role === 'buffered'}
+			class:physical-flap--settling={motionState === 'idle' || motionState === 'settled'}
 			data-flap-id={flap.id}
 			data-flap-position={flap.position}
 			data-flap-role={role}
+			data-rest-angle={restAngleFor(role)}
+			style={`transform: ${flapTransformFor(role)}; z-index: ${layerFor(role)}`}
 		>
-			<span class="flip-face flip-face--front" style={`--page-surface: ${faceForRole(flap, role).background}`}
+			<span
+				class="flip-face flip-face--front"
+				style={`--page-surface: ${faceForRole(flap, role).background}`}
 				>{faceForRole(flap, role).label}</span
 			>
-			<span class="flip-face flip-face--back" style={`--page-surface: ${oppositeFaceForRole(flap, role).background}`}
+			<span
+				class="flip-face flip-face--back"
+				style={`--page-surface: ${oppositeFaceForRole(flap, role).background}`}
 				>{oppositeFaceForRole(flap, role).label}</span
 			>
 		</div>
@@ -480,6 +542,10 @@
 
 	.physical-flap--buffered {
 		visibility: hidden;
+	}
+
+	.physical-flap--settling {
+		transition: transform 180ms ease-out, z-index 0s linear 180ms;
 	}
 
 	.flip-deck--vertical .physical-flap {

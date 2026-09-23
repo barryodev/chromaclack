@@ -129,6 +129,7 @@ It must not introduce a second state machine.
 - A flap can only become prominent by following the same rolling path as the flap before it.
 - No flap may teleport from a buffered or rear position into the front position.
 - No flap may pass through another visible flap in the projected pose order.
+- Every visible flap participates in the turn with a continuous role-specific transform path; no side of the Clacker remains frozen while the opposite side moves.
 
 ### Inertia
 
