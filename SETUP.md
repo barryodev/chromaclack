@@ -54,7 +54,7 @@ it is transport-agnostic.
     │       └── routes/
     │           ├── +layout.ts       #   ssr = false, prerender = false
     │           ├── +layout.svelte
-    │           └── +page.svelte     #   text box + button + transport badge
+    │           └── +page.svelte     #   the clacker prototype
     │
     └── desktop/                     # @repo/desktop — Tauri v2 shell
         ├── package.json             #   wraps @tauri-apps/cli
@@ -358,12 +358,10 @@ handlers serialize exactly that shape:
 // response 4xx   { "error": "..." }
 ```
 
-### `apps/frontend/src/routes/+page.svelte`
-
-Svelte 5 runes; the component calls `greet(name)` and renders
-`result.message` beside a badge driven by `result.transport`
-(`Tauri IPC` / `Vercel Fetch`) and the backend's self-reported `runtime`. If the
-two ever disagree you have a routing bug, visible at a glance.
+The original smoke-test page called `greet(name)` and showed the result beside a
+transport badge, proving all three targets end to end. The page now hosts the
+clacker prototype and no longer calls `greet`, but the slice is kept as the
+reference wiring for future backend calls.
 
 ---
 
@@ -393,7 +391,6 @@ sudo apt-get install -y \
 ### Local verification
 
 ```bash
-cd /home/barryodev/dev/chromaclack
 source "$HOME/.cargo/env"
 pnpm install
 pnpm verify
@@ -404,12 +401,11 @@ This is the repo's full validation pass: format, lint, TypeScript checks,
 
 ### Local web stack (real deployment parity)
 
-The browser code expects a live `/api/greet` function. Plain `pnpm --filter
-@repo/frontend dev` only serves the Svelte SPA and returns 404 for `/api/greet`.
+Plain `pnpm --filter @repo/frontend dev` only serves the Svelte SPA and returns
+404 for `/api/greet`.
 For true local parity with the deployment model, run the Vercel runtime locally:
 
 ```bash
-cd /home/barryodev/dev/chromaclack
 source "$HOME/.cargo/env"
 npx vercel dev
 ```
@@ -425,14 +421,12 @@ into different terminals:
 
 ```bash
 # terminal 1
-cd /home/barryodev/dev/chromaclack
 source "$HOME/.cargo/env"
 pnpm --filter @repo/frontend dev
 ```
 
 ```bash
 # terminal 2
-cd /home/barryodev/dev/chromaclack
 source "$HOME/.cargo/env"
 pnpm --filter @repo/desktop tauri dev
 ```
@@ -449,7 +443,7 @@ One-time setup, via Android Studio's SDK Manager:
 2. Install a JDK 17 and set `JAVA_HOME` (e.g. `sudo apt install openjdk-17-jdk`).
 3. Add the mobile target(s) you need in `rust-toolchain.toml` (uncomment
    `aarch64-linux-android` for a real arm64 phone) and run `rustup target add
-   aarch64-linux-android`.
+aarch64-linux-android`.
 4. On the phone: Settings → About Phone → tap the build number 7 times to
    unlock Developer Options, then enable **USB debugging**.
 5. `pnpm --filter @repo/desktop android:init` once, to generate
@@ -497,36 +491,3 @@ additionally needs an `.icns`, which `tauri icon` produces.
 `.github/workflows/build-linux.yml` builds the native Ubuntu/Linux executable on
 every push/PR to `main` and uploads it as a build artifact. It installs the same
 system dependencies listed under Prerequisites, then runs `pnpm build:desktop`.
-
----
-
-## Verification status
-
-The repo has been verified locally in this environment after installing the Rust
-and Ubuntu build dependencies. The current proof command is:
-
-```bash
-cd /home/barryodev/dev/chromaclack
-source "$HOME/.cargo/env"
-pnpm install
-pnpm verify
-```
-
-This completed successfully with exit code `0`, which means the repository is in a
-healthy state for local development:
-
-- formatting passes
-- ESLint passes
-- TypeScript checks pass
-- `cargo clippy` passes
-- Rust tests pass
-- the project builds successfully
-
-The non-obvious learning from this project is that plain Vite web mode and the
-real Vercel/Rust web stack are not equivalent. For the browser path to hit the
-serverless function, the app must be run through Vercel local dev, while desktop
-mode remains a separate Tauri launch path.
-
-The npm versions are caret ranges rather than a pinned lockfile for the same
-reason; `pnpm install` will write `pnpm-lock.yaml` and `cargo` will write
-`Cargo.lock`, and both should be committed for reproducible builds.

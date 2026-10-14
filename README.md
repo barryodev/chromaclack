@@ -1,18 +1,20 @@
 # ChromaClack
 
-ChromaClack is a tactile color-theory toy built around a mechanical split-flap display. Swipe the clacker to explore color components, with the same Svelte interface running in a browser, desktop app, and Android app.
-
-The project is still in interaction prototyping. The current work is about making the gesture model feel immediate and physically coherent before the display grows into a larger recycled flap system.
+ChromaClack is a toy for exploring colour theory through a single tactile UI element. It has three interaction modes. Swiping up/down and left/right flips the clacker like a mechanical split-flap rolodex. Hold-and-rotate turns it like a dimmer switch. Each axis maps to a colour component (Hue/Saturation/Lightness or Red/Green/Blue), so you can mix values and watch the colour change. The same Svelte interface runs in a browser, as a desktop app, and on Android.
 
 ## Stack
 
-- SvelteKit and TypeScript for the shared frontend
+- SvelteKit and TypeScript for the shared frontend (static SPA)
 - Tauri v2 for desktop and mobile shells
-- Rust for shared backend logic and API handlers
+- Rust for the shared crate and the Vercel serverless API
 - pnpm, Turborepo, Cargo, and Vercel for the workspace and deployment paths
 
-## Where Things Stand
+## Status
 
-The web, native, Android, and deployment foundations are working. Vertical and horizontal split-flap motion, deterministic multi-page gesture outcomes, diagnostics, and tested half-slot helpers are in place. The next branch will tackle large page sets and fixed half-slot recycling.
+The cross-platform foundations work: one shared Rust function serves web, desktop, and Android. The flap interaction is being reset around a small, isolated CSS prototype that is verified by eye in the browser before it returns to the monorepo. The current gesture-model prototype stays in place until then.
 
-See [TODO.md](TODO.md) for the current roadmap and [SETUP.md](SETUP.md) for local development and deployment details.
+## Links
+
+- [ChromaClack: the good, the bad and the ugly](https://www.barryodev.io/posts/chroma-clack-the-good-the-bad-and-the-ugly) — retrospective on the project so far
+- [Linear project](https://linear.app/barryodev/project/chromaclack-2e8504a557ec/overview) — roadmap and issues
+- [SETUP.md](SETUP.md) — architecture, local development, and deployment
