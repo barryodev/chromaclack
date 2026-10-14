@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+		<title>Clacker prototype</title>
+		<link rel="stylesheet" href="clacker.css" />
+		<script src="clacker.js" defer></script>
+	</head>
+	<body>
+		<main>
+			<section class="workspace" aria-label="Movement modes">
+				<nav class="tabs" role="tablist" aria-label="Select movement mode">
+					<button type="button" role="tab" data-mode="vertical" aria-selected="true">Up / Down</button>
+					<button type="button" role="tab" data-mode="horizontal" aria-selected="false">
+						Left / Right
+					</button>
+					<button type="button" role="tab" data-mode="spin" aria-selected="false">Hold &amp; Spin</button>
+				</nav>
+
+				<div class="stage">
+					<!--
+						Three flaps, named by where they rest (see GLOSSARY.md). The flipping flap
+						comes last so it paints over the resting flaps when they share a plane.
+					-->
+					<button
+						type="button"
+						class="clacker"
+						data-mode="vertical"
+						data-axis="vertical"
+						aria-label="Swipe up or down"
+					>
+						<div class="flap flap--start" aria-hidden="true">
+							<div class="flap-side flap-side--front"></div>
+							<div class="flap-side flap-side--back"></div>
+						</div>
+						<div class="flap flap--end" aria-hidden="true">
+							<div class="flap-side flap-side--front"></div>
+							<div class="flap-side flap-side--back"></div>
+						</div>
+						<div class="flap flap--flipping" aria-hidden="true">
+							<div class="flap-side flap-side--front"></div>
+							<div class="flap-side flap-side--back"></div>
+						</div>
+					</button>
+				</div>
+			</section>
+		</main>
+
+		<aside class="debug" aria-label="Debug readout" hidden>
+			<dl>
+				<div><dt>Mode</dt><dd data-debug="mode"></dd></div>
+				<div><dt>Phase</dt><dd data-debug="phase"></dd></div>
+				<div><dt>Current page</dt><dd data-debug="current"></dd></div>
+				<div><dt>Shown page</dt><dd data-debug="shown"></dd></div>
+				<div><dt>Flip angle</dt><dd data-debug="angle"></dd></div>
+				<div><dt>Velocity</dt><dd data-debug="velocity"></dd></div>
+				<div><dt>Flips</dt><dd data-debug="flips"></dd></div>
+				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
+			</dl>
+		</aside>
+	</body>
+</html>
