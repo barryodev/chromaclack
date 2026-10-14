@@ -112,12 +112,16 @@ function releaseSwipe() {
 	pointer = null;
 	const speed = Math.abs(state.velocity);
 	const moving = speed >= MIN_RELEASE_SPEED;
-	const direction =
-		Math.abs(state.angle) >= FLIP_DEGREES
-			? Math.sign(state.angle)
-			: moving
-				? Math.sign(state.velocity)
-				: 0;
+	// Which way to flip, if at all: +1 forward, -1 backward, 0 none.
+	let direction = 0;
+	if (Math.abs(state.angle) >= FLIP_DEGREES) {
+		// The flap was dragged all the way over the hinge, so it flips the way it was dragged.
+		direction = Math.sign(state.angle);
+	} else if (moving) {
+		// The pointer was still moving at release, so the flap flips the way it was going.
+		direction = Math.sign(state.velocity);
+	}
+	// Otherwise the pointer stopped before the flap went over, so nothing flips.
 
 	if (direction === 0) {
 		settle(0);
