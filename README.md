@@ -18,3 +18,4 @@ The cross-platform foundations work: one shared Rust function serves web, deskto
 - [ChromaClack: the good, the bad and the ugly](https://www.barryodev.io/posts/chroma-clack-the-good-the-bad-and-the-ugly) — retrospective on the project so far
 - [Linear project](https://linear.app/barryodev/project/chromaclack-2e8504a557ec/overview) — roadmap and issues
 - [SETUP.md](SETUP.md) — architecture, local development, and deployment
+- [GLOSSARY.md](GLOSSARY.md) — names for the clacker's parts and interactions
