@@ -1,0 +1,254 @@
+:root {
+	--bg: #f6f7f9;
+	--fg: #16181d;
+	--muted: #5f6672;
+	--field: #ffffff;
+	--border: #d9dde3;
+	--accent: #1c1f26;
+	--on-accent: #ffffff;
+	--radius: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--bg: #101216;
+		--fg: #edf0f4;
+		--muted: #949cab;
+		--field: #191c22;
+		--border: #2a2f38;
+		--accent: #ff8a4c;
+		--on-accent: #1a1005;
+	}
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	min-height: 100%;
+}
+
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+
+main {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 100vh;
+	min-height: 100dvh;
+	padding: 2rem 1rem;
+	padding-top: max(2rem, env(safe-area-inset-top));
+	padding-bottom: max(2rem, env(safe-area-inset-bottom));
+}
+
+.workspace {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* Mode tabs */
+
+.tabs {
+	display: flex;
+	gap: 0.25rem;
+	padding: 0.25rem;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	background: var(--field);
+}
+
+.tabs button {
+	padding: 0.55rem 0.8rem;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 0.8rem;
+	cursor: pointer;
+}
+
+.tabs button[aria-selected='true'] {
+	background: var(--accent);
+	color: var(--on-accent);
+}
+
+.tabs button:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+}
+
+@media (max-width: 28rem) {
+	.tabs button {
+		padding-inline: 0.55rem;
+		font-size: 0.72rem;
+	}
+}
+
+.stage {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 3rem;
+}
+
+/* Clacker */
+
+.clacker {
+	position: relative;
+	width: 14rem;
+	height: 14rem;
+	padding: 0;
+	border: 0;
+	border-radius: var(--radius);
+	background: none;
+	cursor: pointer;
+	perspective: 28rem;
+	transform-style: preserve-3d;
+	touch-action: none;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+@media (max-width: 28rem) {
+	.clacker {
+		width: min(14rem, calc(100vw - 2rem));
+		height: min(14rem, calc(100vw - 2rem));
+	}
+}
+
+.clacker:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 4px;
+}
+
+/*
+	A flap rests in the start half at a flip angle of 0 and in the end half at 180.
+	JS sets --flip-angle as a plain number. The hinge is the flap's edge on the
+	clacker's centre line. The leading translateZ lifts the flipping flap a hair
+	towards the viewer, so it always paints over a resting flap in the same plane.
+*/
+.flap {
+	position: absolute;
+	transform-style: preserve-3d;
+	--lift: 0px;
+}
+
+.flap--flipping {
+	--lift: 1px;
+	will-change: transform;
+}
+
+/* Vertical axis: start half is the top, hinge runs horizontally. */
+.clacker[data-axis='vertical'] .flap {
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 50%;
+	transform-origin: center bottom;
+	transform: translateZ(var(--lift)) rotateX(calc(var(--flip-angle, 0) * -1deg));
+}
+
+/* Horizontal axis: start half is the right, hinge runs vertically. */
+.clacker[data-axis='horizontal'] .flap {
+	top: 0;
+	left: 50%;
+	width: 50%;
+	height: 100%;
+	transform-origin: left center;
+	transform: translateZ(var(--lift)) rotateY(calc(var(--flip-angle, 0) * -1deg));
+}
+
+.flap-side {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--border);
+	background: var(--page-colour, var(--field));
+	color: #111;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 1.25rem;
+	font-weight: 700;
+	backface-visibility: hidden;
+	-webkit-backface-visibility: hidden;
+}
+
+/*
+	The back is pre-flipped so it reads upright once the flap lies in the end half.
+	Each side rounds the clacker's outer corners for the half it's seen in.
+*/
+.clacker[data-axis='vertical'] .flap-side--front {
+	border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.clacker[data-axis='vertical'] .flap-side--back {
+	border-radius: 0 0 var(--radius) var(--radius);
+	transform: rotateX(180deg);
+}
+
+.clacker[data-axis='horizontal'] .flap-side--front {
+	border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.clacker[data-axis='horizontal'] .flap-side--back {
+	border-radius: var(--radius) 0 0 var(--radius);
+	transform: rotateY(180deg);
+}
+
+/* Spin: the whole clacker turns as one rigid unit. Dragging follows the pointer 1:1, and only the release snap eases. */
+.clacker[data-mode='spin'] {
+	transform: rotateZ(calc(var(--spin-angle, 0) * 1deg));
+}
+
+.clacker[data-mode='spin'].is-settling {
+	transition: transform 0.4s ease-out;
+}
+
+/* Debug readout (?debug) */
+
+.debug {
+	position: fixed;
+	right: 1rem;
+	bottom: 1rem;
+	z-index: 10;
+	width: min(18rem, calc(100vw - 2rem));
+	padding: 0.75rem;
+	border: 1px solid var(--border);
+	border-radius: 0.6rem;
+	background: var(--field);
+	color: var(--fg);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.72rem;
+}
+
+.debug dl {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem;
+	margin: 0;
+}
+
+.debug dt {
+	color: var(--muted);
+	font-size: 0.6rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.debug dd {
+	margin: 0.1rem 0 0;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}

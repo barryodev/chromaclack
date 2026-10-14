@@ -3,8 +3,10 @@ name: Build Linux Desktop
 on:
   push:
     branches: [main]
+    paths-ignore: ['prototype/**']
   pull_request:
     branches: [main]
+    paths-ignore: ['prototype/**']
 
 jobs:
   build-linux:
