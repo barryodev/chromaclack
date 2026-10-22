@@ -68,7 +68,7 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Hinge angle**: how far a flap has rotated about the hinge. 0° is resting in the start half and 180° is resting in the end half. Avoid using bare "rotation" for this, because it collides with spin.
 
-**Moving flap**: the flap that turns about the hinge during a swipe. The flaps resting beneath it are the **start flap** in the start half and the **end flap** in the end half.
+**Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
 **Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
 

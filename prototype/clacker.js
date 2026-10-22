@@ -5,8 +5,15 @@ const PAGES = [
 	{ label: '1', colour: '#581C87' },
 	{ label: '2', colour: '#C026D3' },
 	{ label: '3', colour: '#F43F5E' },
-	{ label: '4', colour: '#F97316' }
+	{ label: '4', colour: '#F97316' },
+	{ label: '5', colour: '#EAB308' },
+	{ label: '6', colour: '#22C55E' },
+	{ label: '7', colour: '#06B6D4' },
+	{ label: '8', colour: '#3B82F6' }
 ];
+
+// Rest tilt in degrees, one per tier from front (tier 0) to back. Tiers further back lean less.
+const REST_TILTS = [42, 36, 30];
 
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
@@ -28,19 +35,38 @@ const ARIA_LABELS = {
 
 const clacker = document.querySelector('.clacker');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
-const flaps = Object.fromEntries(
-	['start', 'end', 'moving'].map((name) => {
-		const element = clacker.querySelector(`.flap--${name}`);
-		return [
-			name,
-			{
-				element,
-				front: element.querySelector('.flap-side--front'),
-				back: element.querySelector('.flap-side--back')
-			}
-		];
-	})
-);
+
+/*
+	One resting flap per tier in each half, plus the moving flap. Lift pushes back
+	tiers a hair away from the viewer and keeps the moving flap on top of tier 0,
+	so flaps meeting along the hinge don't fight over which one paints.
+*/
+function createFlap(name, restTilt, lift) {
+	const element = document.createElement('div');
+	element.className = `flap flap--${name}`;
+	element.setAttribute('aria-hidden', 'true');
+	element.style.setProperty('--rest-tilt', restTilt);
+	element.style.setProperty('--lift', `${lift}px`);
+	const front = document.createElement('div');
+	front.className = 'flap-side flap-side--front';
+	const back = document.createElement('div');
+	back.className = 'flap-side flap-side--back';
+	element.append(front, back);
+	return { element, front, back };
+}
+
+const flaps = {
+	start: REST_TILTS.map((tilt, tier) => createFlap('start', tilt, -tier)),
+	end: REST_TILTS.map((tilt, tier) => createFlap('end', tilt, -tier)),
+	moving: createFlap('moving', REST_TILTS[0], 1)
+};
+// Back to front, so DOM order matches draw order.
+for (let tier = REST_TILTS.length - 1; tier >= 0; tier--) {
+	flaps.start[tier].element.dataset.tier = tier;
+	flaps.end[tier].element.dataset.tier = tier;
+	clacker.append(flaps.start[tier].element, flaps.end[tier].element);
+}
+clacker.append(flaps.moving.element);
 const debugParam = new URLSearchParams(location.search).get('debug');
 const debugPanel = debugParam !== null && debugParam !== 'false' ? document.querySelector('.debug') : null;
 const debugFields = debugPanel
@@ -290,27 +316,34 @@ function setFlap(flap, hingeAngle, front, back) {
 }
 
 /*
-	At rest, page N's start half is the front of the moving flap, and its end half
-	is the back of the end flap. In a forward tick the moving flap falls from the
-	start half to the end half. Its back carries N+1's end half, and the start flap
-	beneath it shows N+1's start half. In a backward tick it rises from the end half
-	back up. Its front carries N-1's start half, and the end flap beneath it shows
-	N-1's end half.
+	At rest, start tier k shows page N+k and end tier k shows page N-k. The moving
+	flap stands in for tier 0 of the half it starts in, so that tier's own flap is
+	hidden. In a forward tick the moving flap falls from the start half to the end
+	half. Its back carries N+1's end half, and start tier 1 beneath it shows N+1's
+	start half. In a backward tick it rises from the end half back up. Its front
+	carries N-1's start half, and end tier 1 beneath it shows N-1's end half.
+	The tiers hold their tilt during a tick, so they jump to their new pages when
+	the tick completes.
 */
 function renderFlaps() {
 	const shown = state.page + state.direction * state.completedTicks;
-	const current = pageAt(shown);
-	const next = pageAt(shown + 1);
-	const previous = pageAt(shown - 1);
+	const forward = state.angle >= 0;
 
-	if (state.angle >= 0) {
-		setFlap(flaps.start, 0, next, next);
-		setFlap(flaps.end, TICK_DEGREES, current, current);
-		setFlap(flaps.moving, state.angle, current, next);
+	flaps.start.forEach((flap, tier) => {
+		const page = pageAt(shown + tier);
+		setFlap(flap, 0, page, page);
+		flap.element.hidden = forward && tier === 0;
+	});
+	flaps.end.forEach((flap, tier) => {
+		const page = pageAt(shown - tier);
+		setFlap(flap, TICK_DEGREES, page, page);
+		flap.element.hidden = !forward && tier === 0;
+	});
+
+	if (forward) {
+		setFlap(flaps.moving, state.angle, pageAt(shown), pageAt(shown + 1));
 	} else {
-		setFlap(flaps.start, 0, current, current);
-		setFlap(flaps.end, TICK_DEGREES, previous, previous);
-		setFlap(flaps.moving, TICK_DEGREES + state.angle, previous, current);
+		setFlap(flaps.moving, TICK_DEGREES + state.angle, pageAt(shown - 1), pageAt(shown));
 	}
 }
 

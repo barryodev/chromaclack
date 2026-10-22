@@ -113,7 +113,6 @@ main {
 	border-radius: var(--radius);
 	background: none;
 	cursor: pointer;
-	--rest-tilt: 12; /* degrees */
 	perspective: 28rem;
 	transform-style: preserve-3d;
 	touch-action: none;
@@ -136,22 +135,22 @@ main {
 /*
 	A flap rests in the start half at a hinge angle of 0 and in the end half at 180.
 	JS sets --hinge-angle as a plain number. The hinge is the flap's edge on the
-	clacker's centre line. The leading translateZ lifts the moving flap a hair
-	towards the viewer, so it always paints over a resting flap in the same plane.
+	clacker's centre line. The leading translateZ is the flap's --lift, set by JS:
+	back tiers sit a hair further away and the moving flap a hair closer, so it
+	always paints over a resting flap in the same plane.
 
-	Rest tilt is applied only when drawing. A hinge angle of 0–180 is drawn from
+	Rest tilt is applied only when drawing. JS sets --rest-tilt on each flap from
+	its tier's entry in REST_TILTS. A hinge angle of 0–180 is drawn from
 	--rest-tilt to 180 − --rest-tilt, so resting flaps lean towards the viewer
-	like a book opened a little short of flat.
+	like a book opened a little short of flat, fanned out by tier.
 */
 .flap {
 	position: absolute;
 	transform-style: preserve-3d;
-	--lift: 0px;
-	--drawn-angle: calc(var(--rest-tilt) + var(--hinge-angle, 0) * (180 - 2 * var(--rest-tilt)) / 180);
+	--drawn-angle: calc(var(--rest-tilt, 0) + var(--hinge-angle, 0) * (180 - 2 * var(--rest-tilt, 0)) / 180);
 }
 
 .flap--moving {
-	--lift: 1px;
 	will-change: transform;
 }
 
@@ -162,7 +161,7 @@ main {
 	width: 100%;
 	height: 50%;
 	transform-origin: center bottom;
-	transform: translateZ(var(--lift)) rotateX(calc(var(--drawn-angle) * -1deg));
+	transform: translateZ(var(--lift, 0px)) rotateX(calc(var(--drawn-angle) * -1deg));
 }
 
 /* Horizontal axis: start half is the right, hinge runs vertically. */
@@ -172,7 +171,7 @@ main {
 	width: 50%;
 	height: 100%;
 	transform-origin: left center;
-	transform: translateZ(var(--lift)) rotateY(calc(var(--drawn-angle) * -1deg));
+	transform: translateZ(var(--lift, 0px)) rotateY(calc(var(--drawn-angle) * -1deg));
 }
 
 .flap-side {

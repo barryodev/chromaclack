@@ -20,8 +20,8 @@
 
 				<div class="stage">
 					<!--
-						Three flaps, named by where they rest (see GLOSSARY.md). The moving flap
-						comes last so it paints over the resting flaps when they share a plane.
+						clacker.js builds the flaps from REST_TILTS: one resting flap per tier in
+						each half, plus the moving flap (see GLOSSARY.md).
 					-->
 					<button
 						type="button"
@@ -29,20 +29,7 @@
 						data-mode="vertical"
 						data-axis="vertical"
 						aria-label="Swipe up or down"
-					>
-						<div class="flap flap--start" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-						<div class="flap flap--end" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-						<div class="flap flap--moving" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-					</button>
+					></button>
 				</div>
 			</section>
 		</main>
