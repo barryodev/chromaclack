@@ -187,7 +187,7 @@ function tickInertia(dt) {
 	}
 }
 
-// Commit `pageDelta` and return the clacker to rest. The flap resets to flat instantly.
+// Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
 function settle(pageDelta) {
 	state.page += pageDelta;
 	state.phase = 'idle';

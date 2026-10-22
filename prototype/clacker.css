@@ -113,6 +113,7 @@ main {
 	border-radius: var(--radius);
 	background: none;
 	cursor: pointer;
+	--rest-tilt: 12; /* degrees */
 	perspective: 28rem;
 	transform-style: preserve-3d;
 	touch-action: none;
@@ -137,11 +138,16 @@ main {
 	JS sets --flip-angle as a plain number. The hinge is the flap's edge on the
 	clacker's centre line. The leading translateZ lifts the flipping flap a hair
 	towards the viewer, so it always paints over a resting flap in the same plane.
+
+	Rest tilt is applied only when drawing. A flip angle of 0–180 is drawn from
+	--rest-tilt to 180 − --rest-tilt, so resting flaps lean towards the viewer
+	like a book opened a little short of flat.
 */
 .flap {
 	position: absolute;
 	transform-style: preserve-3d;
 	--lift: 0px;
+	--drawn-angle: calc(var(--rest-tilt) + var(--flip-angle, 0) * (180 - 2 * var(--rest-tilt)) / 180);
 }
 
 .flap--flipping {
@@ -156,7 +162,7 @@ main {
 	width: 100%;
 	height: 50%;
 	transform-origin: center bottom;
-	transform: translateZ(var(--lift)) rotateX(calc(var(--flip-angle, 0) * -1deg));
+	transform: translateZ(var(--lift)) rotateX(calc(var(--drawn-angle) * -1deg));
 }
 
 /* Horizontal axis: start half is the right, hinge runs vertically. */
@@ -166,7 +172,7 @@ main {
 	width: 50%;
 	height: 100%;
 	transform-origin: left center;
-	transform: translateZ(var(--lift)) rotateY(calc(var(--flip-angle, 0) * -1deg));
+	transform: translateZ(var(--lift)) rotateY(calc(var(--drawn-angle) * -1deg));
 }
 
 .flap-side {
