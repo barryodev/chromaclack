@@ -76,7 +76,9 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Fan**: all the resting tiers together, spread out at their decreasing rest tilts like a fanned stack of cards.
 
-**Recycle**: when a flap goes round the back of the drum, out of view, its sides can be given new half pages. This is how a fixed set of flaps shows an unlimited sequence of pages (DAI-44, DAI-47).
+**Offstage flap**: a flap in no tier, round the back of the drum and out of view. In a forward tick an offstage flap joins the fan behind the back start tier, and the back end tier's flap goes offstage. A backward tick does the reverse. A clacker keeps only a few offstage flaps however many pages it has, because pages are painted onto flaps as they come round.
+
+**Recycle**: when a flap goes offstage, its sides can be given new half pages. This is how a fixed set of flaps shows an unlimited sequence of pages (DAI-44, DAI-47).
 
 ## Swiping
 

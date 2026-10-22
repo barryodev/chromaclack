@@ -37,9 +37,10 @@ const clacker = document.querySelector('.clacker');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 
 /*
-	One resting flap per tier in each half, plus the moving flap. Lift pushes back
-	tiers a hair away from the viewer and keeps the moving flap on top of tier 0,
-	so flaps meeting along the hinge don't fight over which one paints.
+	One resting flap per tier in each half, one offstage flap per half behind the
+	back tier, plus the moving flap. Lift pushes flaps further back a hair away
+	from the viewer and keeps the moving flap on top of tier 0, so flaps meeting
+	along the hinge don't fight over which one paints.
 */
 function createFlap(name, restTilt, lift) {
 	const element = document.createElement('div');
@@ -58,9 +59,16 @@ function createFlap(name, restTilt, lift) {
 const flaps = {
 	start: REST_TILTS.map((tilt, tier) => createFlap('start', tilt, -tier)),
 	end: REST_TILTS.map((tilt, tier) => createFlap('end', tilt, -tier)),
+	offstage: {
+		start: createFlap('start', REST_TILTS.at(-1), -REST_TILTS.length),
+		end: createFlap('end', REST_TILTS.at(-1), -REST_TILTS.length)
+	},
 	moving: createFlap('moving', REST_TILTS[0], 1)
 };
 // Back to front, so DOM order matches draw order.
+flaps.offstage.start.element.dataset.offstage = '';
+flaps.offstage.end.element.dataset.offstage = '';
+clacker.append(flaps.offstage.start.element, flaps.offstage.end.element);
 for (let tier = REST_TILTS.length - 1; tier >= 0; tier--) {
 	flaps.start[tier].element.dataset.tier = tier;
 	flaps.end[tier].element.dataset.tier = tier;
@@ -102,6 +110,11 @@ function pageAt(index) {
 
 function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
+}
+
+// Tiers past the back hold the back tier's tilt, so flaps arriving or leaving there don't move.
+function tierTilt(tier) {
+	return REST_TILTS[clamp(tier, 0, REST_TILTS.length - 1)];
 }
 
 // Pointer position along the swipe axis, oriented so forward is positive.
@@ -322,23 +335,38 @@ function setFlap(flap, hingeAngle, front, back) {
 	half. Its back carries N+1's end half, and start tier 1 beneath it shows N+1's
 	start half. In a backward tick it rises from the end half back up. Its front
 	carries N-1's start half, and end tier 1 beneath it shows N-1's end half.
-	The tiers hold their tilt during a tick, so they jump to their new pages when
-	the tick completes.
+
+	As the tick progresses, each tier slides linearly one place towards its pose
+	for the next page. In a forward tick start tiers move forward and end tiers
+	move back, and a backward tick is the mirror image. When the tick completes
+	every flap already sits in the next page's rest pose, so nothing jumps.
+	Offstage flaps wait behind the back tier at its tilt, already showing their
+	pages. A back tier rising away uncovers one, and a back tier being covered
+	by the tier in front goes offstage.
 */
 function renderFlaps() {
 	const shown = state.page + state.direction * state.completedTicks;
 	const forward = state.angle >= 0;
+	const progress = Math.abs(state.angle) / TICK_DEGREES;
+	const slideTilt = (tier, towards) => tierTilt(tier) + (tierTilt(towards) - tierTilt(tier)) * progress;
 
 	flaps.start.forEach((flap, tier) => {
 		const page = pageAt(shown + tier);
 		setFlap(flap, 0, page, page);
+		flap.element.style.setProperty('--rest-tilt', slideTilt(tier, forward ? tier - 1 : tier + 1));
 		flap.element.hidden = forward && tier === 0;
 	});
 	flaps.end.forEach((flap, tier) => {
 		const page = pageAt(shown - tier);
 		setFlap(flap, TICK_DEGREES, page, page);
+		flap.element.style.setProperty('--rest-tilt', slideTilt(tier, forward ? tier + 1 : tier - 1));
 		flap.element.hidden = !forward && tier === 0;
 	});
+
+	const startOffstagePage = pageAt(shown + REST_TILTS.length);
+	const endOffstagePage = pageAt(shown - REST_TILTS.length);
+	setFlap(flaps.offstage.start, 0, startOffstagePage, startOffstagePage);
+	setFlap(flaps.offstage.end, TICK_DEGREES, endOffstagePage, endOffstagePage);
 
 	if (forward) {
 		setFlap(flaps.moving, state.angle, pageAt(shown), pageAt(shown + 1));

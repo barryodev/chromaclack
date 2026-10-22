@@ -139,10 +139,11 @@ main {
 	back tiers sit a hair further away and the moving flap a hair closer, so it
 	always paints over a resting flap in the same plane.
 
-	Rest tilt is applied only when drawing. JS sets --rest-tilt on each flap from
-	its tier's entry in REST_TILTS. A hinge angle of 0–180 is drawn from
-	--rest-tilt to 180 − --rest-tilt, so resting flaps lean towards the viewer
-	like a book opened a little short of flat, fanned out by tier.
+	Rest tilt is applied only when drawing. JS sets --rest-tilt on each resting
+	flap every frame from REST_TILTS, sliding it towards the neighbouring tier's
+	tilt as a tick progresses. A hinge angle of 0–180 is drawn from --rest-tilt
+	to 180 − --rest-tilt, so resting flaps lean towards the viewer like a book
+	opened a little short of flat, fanned out by tier.
 */
 .flap {
 	position: absolute;
