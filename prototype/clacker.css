@@ -134,12 +134,12 @@ main {
 }
 
 /*
-	A flap rests in the start half at a flip angle of 0 and in the end half at 180.
-	JS sets --flip-angle as a plain number. The hinge is the flap's edge on the
-	clacker's centre line. The leading translateZ lifts the flipping flap a hair
+	A flap rests in the start half at a hinge angle of 0 and in the end half at 180.
+	JS sets --hinge-angle as a plain number. The hinge is the flap's edge on the
+	clacker's centre line. The leading translateZ lifts the moving flap a hair
 	towards the viewer, so it always paints over a resting flap in the same plane.
 
-	Rest tilt is applied only when drawing. A flip angle of 0–180 is drawn from
+	Rest tilt is applied only when drawing. A hinge angle of 0–180 is drawn from
 	--rest-tilt to 180 − --rest-tilt, so resting flaps lean towards the viewer
 	like a book opened a little short of flat.
 */
@@ -147,10 +147,10 @@ main {
 	position: absolute;
 	transform-style: preserve-3d;
 	--lift: 0px;
-	--drawn-angle: calc(var(--rest-tilt) + var(--flip-angle, 0) * (180 - 2 * var(--rest-tilt)) / 180);
+	--drawn-angle: calc(var(--rest-tilt) + var(--hinge-angle, 0) * (180 - 2 * var(--rest-tilt)) / 180);
 }
 
-.flap--flipping {
+.flap--moving {
 	--lift: 1px;
 	will-change: transform;
 }
@@ -192,7 +192,7 @@ main {
 }
 
 /*
-	The back is pre-flipped so it reads upright once the flap lies in the end half.
+	The back is pre-rotated so it reads upright once the flap lies in the end half.
 	Each side rounds the clacker's outer corners for the half it's seen in.
 */
 .clacker[data-axis='vertical'] .flap-side--front {

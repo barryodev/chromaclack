@@ -9,13 +9,13 @@ const PAGES = [
 ];
 
 // Swipe tuning. Angles are in degrees and times in milliseconds.
-const FLIP_DEGREES = 180;
+const TICK_DEGREES = 180;
 const DEGREES_PER_PIXEL = 0.6;
 const MIN_RELEASE_SPEED = 0.01; // °/ms. Slower releases don't start inertia.
 const FRICTION_PER_SECOND = 3.5;
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
 const MAX_INERTIA_MS = 3000;
-const MAX_FLIPS_PER_SWIPE = 8;
+const MAX_TICKS_PER_SWIPE = 8;
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
@@ -29,7 +29,7 @@ const ARIA_LABELS = {
 const clacker = document.querySelector('.clacker');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 const flaps = Object.fromEntries(
-	['start', 'end', 'flipping'].map((name) => {
+	['start', 'end', 'moving'].map((name) => {
 		const element = clacker.querySelector(`.flap--${name}`);
 		return [
 			name,
@@ -48,10 +48,10 @@ const debugFields = debugPanel
 	: {};
 
 /*
-	Flip angle is signed so one number covers both directions: positive is a
-	forward flip (swipe down or left), negative is backward (swipe up or right).
+	Hinge angle is signed so one number covers both directions: positive is a
+	forward tick (swipe down or left), negative is backward (swipe up or right).
 	`page` only changes when a swipe settles. Until then the shown page is
-	page + direction × completedFlips.
+	page + direction × completedTicks.
 */
 const state = {
 	mode: 'vertical',
@@ -60,8 +60,8 @@ const state = {
 	angle: 0,
 	velocity: 0, // °/ms, forward positive
 	direction: 0, // +1 forward, -1 backward, 0 none
-	plannedFlips: 0,
-	completedFlips: 0,
+	plannedTicks: 0,
+	completedTicks: 0,
 	inertiaMs: 0,
 	spinAngle: 0,
 	spinSettling: false
@@ -87,9 +87,9 @@ function axisPosition(event) {
 
 function startSwipe(event) {
 	if (state.phase === 'inertia') {
-		// Pressing during inertia keeps the flips already completed and drops the rest.
+		// Pressing during inertia keeps the ticks already completed and drops the rest.
 		stopInertia();
-		settle(state.direction * state.completedFlips);
+		settle(state.direction * state.completedTicks);
 	}
 	const position = axisPosition(event);
 	pointer = { id: event.pointerId, start: position, last: position, lastTime: performance.now() };
@@ -102,7 +102,7 @@ function dragSwipe(event) {
 	const now = performance.now();
 	const position = axisPosition(event);
 	const elapsed = Math.max(now - pointer.lastTime, 1);
-	state.angle = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -FLIP_DEGREES, FLIP_DEGREES);
+	state.angle = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
 	state.velocity = ((position - pointer.last) * DEGREES_PER_PIXEL) / elapsed;
 	pointer.last = position;
 	pointer.lastTime = now;
@@ -112,35 +112,35 @@ function releaseSwipe() {
 	pointer = null;
 	const speed = Math.abs(state.velocity);
 	const moving = speed >= MIN_RELEASE_SPEED;
-	// Which way to flip, if at all: +1 forward, -1 backward, 0 none.
+	// Which way to tick, if at all: +1 forward, -1 backward, 0 none.
 	let direction = 0;
-	if (Math.abs(state.angle) >= FLIP_DEGREES) {
-		// The flap was dragged all the way over the hinge, so it flips the way it was dragged.
+	if (Math.abs(state.angle) >= TICK_DEGREES) {
+		// The flap was dragged all the way over the hinge, so it ticks over the way it was dragged.
 		direction = Math.sign(state.angle);
 	} else if (moving) {
-		// The pointer was still moving at release, so the flap flips the way it was going.
+		// The pointer was still moving at release, so the flap ticks over the way it was going.
 		direction = Math.sign(state.velocity);
 	}
-	// Otherwise the pointer stopped before the flap went over, so nothing flips.
+	// Otherwise the pointer stopped before the flap went over, so nothing ticks over.
 
 	if (direction === 0) {
 		settle(0);
 		return;
 	}
 
-	// Estimate how far inertia would carry the flap, as whole flips.
+	// Estimate how far inertia would carry the flap, as whole ticks.
 	const coastDegrees = (speed * INERTIA_TIME_SCALE * 1000) / FRICTION_PER_SECOND;
-	const flips = clamp(Math.ceil((Math.abs(state.angle) + coastDegrees) / FLIP_DEGREES), 1, MAX_FLIPS_PER_SWIPE);
+	const ticks = clamp(Math.ceil((Math.abs(state.angle) + coastDegrees) / TICK_DEGREES), 1, MAX_TICKS_PER_SWIPE);
 
 	if (!moving) {
-		settle(direction * flips);
+		settle(direction * ticks);
 		return;
 	}
 
 	state.phase = 'inertia';
 	state.direction = direction;
-	state.plannedFlips = flips;
-	state.completedFlips = 0;
+	state.plannedTicks = ticks;
+	state.completedTicks = 0;
 	state.inertiaMs = 0;
 	state.velocity = speed * direction;
 	startInertia();
@@ -167,23 +167,23 @@ function tickInertia(dt) {
 	const scaledDt = dt * INERTIA_TIME_SCALE;
 	const raw = state.angle + state.velocity * scaledDt;
 	const sign = state.velocity >= 0 ? 1 : -1;
-	// Each time the flap passes 180° one flip completes, and the next flap takes over from 0°.
+	// Each time the flap passes 180° one tick completes, and the next flap takes over from 0°.
 	const crossed = Math.min(
-		Math.floor(Math.abs(raw) / FLIP_DEGREES),
-		state.plannedFlips - state.completedFlips
+		Math.floor(Math.abs(raw) / TICK_DEGREES),
+		state.plannedTicks - state.completedTicks
 	);
-	state.angle = raw - crossed * sign * FLIP_DEGREES;
-	state.completedFlips += crossed;
+	state.angle = raw - crossed * sign * TICK_DEGREES;
+	state.completedTicks += crossed;
 	state.velocity *= Math.exp(-FRICTION_PER_SECOND * (scaledDt / 1000));
 	state.inertiaMs += dt;
 
 	if (
-		state.completedFlips >= state.plannedFlips ||
+		state.completedTicks >= state.plannedTicks ||
 		Math.abs(state.velocity) < MIN_RELEASE_SPEED ||
 		state.inertiaMs >= MAX_INERTIA_MS
 	) {
-		// Settling commits every planned flip, even ones inertia didn't finish.
-		settle(state.direction * state.plannedFlips);
+		// Settling commits every planned tick, even ones inertia didn't finish.
+		settle(state.direction * state.plannedTicks);
 	}
 }
 
@@ -194,8 +194,8 @@ function settle(pageDelta) {
 	state.angle = 0;
 	state.velocity = 0;
 	state.direction = 0;
-	state.plannedFlips = 0;
-	state.completedFlips = 0;
+	state.plannedTicks = 0;
+	state.completedTicks = 0;
 }
 
 // Spin
@@ -283,47 +283,47 @@ function paintSide(side, page) {
 	side.style.setProperty('--page-colour', page.colour);
 }
 
-function setFlap(flap, flipAngle, front, back) {
-	flap.element.style.setProperty('--flip-angle', flipAngle);
+function setFlap(flap, hingeAngle, front, back) {
+	flap.element.style.setProperty('--hinge-angle', hingeAngle);
 	paintSide(flap.front, front);
 	paintSide(flap.back, back);
 }
 
 /*
-	At rest, page N's start half is the front of the flipping flap, and its end half
-	is the back of the end flap. In a forward flip the flipping flap falls from the
+	At rest, page N's start half is the front of the moving flap, and its end half
+	is the back of the end flap. In a forward tick the moving flap falls from the
 	start half to the end half. Its back carries N+1's end half, and the start flap
-	beneath it shows N+1's start half. In a backward flip it rises from the end half
+	beneath it shows N+1's start half. In a backward tick it rises from the end half
 	back up. Its front carries N-1's start half, and the end flap beneath it shows
 	N-1's end half.
 */
 function renderFlaps() {
-	const shown = state.page + state.direction * state.completedFlips;
+	const shown = state.page + state.direction * state.completedTicks;
 	const current = pageAt(shown);
 	const next = pageAt(shown + 1);
 	const previous = pageAt(shown - 1);
 
 	if (state.angle >= 0) {
 		setFlap(flaps.start, 0, next, next);
-		setFlap(flaps.end, FLIP_DEGREES, current, current);
-		setFlap(flaps.flipping, state.angle, current, next);
+		setFlap(flaps.end, TICK_DEGREES, current, current);
+		setFlap(flaps.moving, state.angle, current, next);
 	} else {
 		setFlap(flaps.start, 0, current, current);
-		setFlap(flaps.end, FLIP_DEGREES, previous, previous);
-		setFlap(flaps.flipping, FLIP_DEGREES + state.angle, previous, current);
+		setFlap(flaps.end, TICK_DEGREES, previous, previous);
+		setFlap(flaps.moving, TICK_DEGREES + state.angle, previous, current);
 	}
 }
 
 function renderDebug() {
 	if (!debugPanel) return;
-	const shown = state.page + state.direction * state.completedFlips;
+	const shown = state.page + state.direction * state.completedTicks;
 	debugFields.mode.textContent = state.mode;
 	debugFields.phase.textContent = state.phase;
 	debugFields.current.textContent = pageAt(state.page).label;
 	debugFields.shown.textContent = pageAt(shown).label;
 	debugFields.angle.textContent = `${state.angle.toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
-	debugFields.flips.textContent = `${state.completedFlips} / ${state.plannedFlips}`;
+	debugFields.ticks.textContent = `${state.completedTicks} / ${state.plannedTicks}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
 }
 

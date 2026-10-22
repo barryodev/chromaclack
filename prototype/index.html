@@ -20,7 +20,7 @@
 
 				<div class="stage">
 					<!--
-						Three flaps, named by where they rest (see GLOSSARY.md). The flipping flap
+						Three flaps, named by where they rest (see GLOSSARY.md). The moving flap
 						comes last so it paints over the resting flaps when they share a plane.
 					-->
 					<button
@@ -38,7 +38,7 @@
 							<div class="flap-side flap-side--front"></div>
 							<div class="flap-side flap-side--back"></div>
 						</div>
-						<div class="flap flap--flipping" aria-hidden="true">
+						<div class="flap flap--moving" aria-hidden="true">
 							<div class="flap-side flap-side--front"></div>
 							<div class="flap-side flap-side--back"></div>
 						</div>
@@ -53,9 +53,9 @@
 				<div><dt>Phase</dt><dd data-debug="phase"></dd></div>
 				<div><dt>Current page</dt><dd data-debug="current"></dd></div>
 				<div><dt>Shown page</dt><dd data-debug="shown"></dd></div>
-				<div><dt>Flip angle</dt><dd data-debug="angle"></dd></div>
+				<div><dt>Hinge angle</dt><dd data-debug="angle"></dd></div>
 				<div><dt>Velocity</dt><dd data-debug="velocity"></dd></div>
-				<div><dt>Flips</dt><dd data-debug="flips"></dd></div>
+				<div><dt>Ticks</dt><dd data-debug="ticks"></dd></div>
 				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
 			</dl>
 		</aside>
