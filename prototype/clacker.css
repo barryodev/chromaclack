@@ -133,19 +133,20 @@ main {
 }
 
 /*
-	A flap rests in the start half at a flip angle of 0 and in the end half at 180.
-	JS sets --flip-angle as a plain number. The hinge is the flap's edge on the
-	clacker's centre line. The leading translateZ lifts the flipping flap a hair
-	towards the viewer, so it always paints over a resting flap in the same plane.
+	JS sets --drawn-angle on every flap each frame, in degrees as a plain number:
+	0 would lie flat in the start half and 180 flat in the end half. drawnAngle()
+	in clacker.js explains how it's worked out from the hinge angle and rest
+	tilt. The flap turns about its hinge, the edge on the clacker's centre line.
+	The leading translateZ is the flap's --lift, also set by JS: each tier sits a
+	hair further away than the one in front of it and the moving flap a hair
+	closer, so it always paints over a resting flap in the same plane.
 */
 .flap {
 	position: absolute;
 	transform-style: preserve-3d;
-	--lift: 0px;
 }
 
-.flap--flipping {
-	--lift: 1px;
+.flap--moving {
 	will-change: transform;
 }
 
@@ -156,7 +157,7 @@ main {
 	width: 100%;
 	height: 50%;
 	transform-origin: center bottom;
-	transform: translateZ(var(--lift)) rotateX(calc(var(--flip-angle, 0) * -1deg));
+	transform: translateZ(var(--lift, 0px)) rotateX(calc(var(--drawn-angle) * -1deg));
 }
 
 /* Horizontal axis: start half is the right, hinge runs vertically. */
@@ -166,7 +167,7 @@ main {
 	width: 50%;
 	height: 100%;
 	transform-origin: left center;
-	transform: translateZ(var(--lift)) rotateY(calc(var(--flip-angle, 0) * -1deg));
+	transform: translateZ(var(--lift, 0px)) rotateY(calc(var(--drawn-angle) * -1deg));
 }
 
 .flap-side {
@@ -186,7 +187,7 @@ main {
 }
 
 /*
-	The back is pre-flipped so it reads upright once the flap lies in the end half.
+	The back is pre-rotated so it reads upright once the flap lies in the end half.
 	Each side rounds the clacker's outer corners for the half it's seen in.
 */
 .clacker[data-axis='vertical'] .flap-side--front {

@@ -1,6 +1,6 @@
 # ChromaClack
 
-ChromaClack is a toy for exploring colour theory through a single tactile UI element. It has three interaction modes. Swiping up/down and left/right flips the clacker like a mechanical split-flap rolodex. Hold-and-rotate turns it like a dimmer switch. Each axis maps to a colour component (Hue/Saturation/Lightness or Red/Green/Blue), so you can mix values and watch the colour change. The same Svelte interface runs in a browser, as a desktop app, and on Android.
+ChromaClack is a toy for exploring colour theory through a single tactile UI element. It has three interaction modes. Swiping up/down and left/right ticks the clacker over like a mechanical split-flap rolodex. Hold-and-rotate turns it like a dimmer switch. Each axis maps to a colour component (Hue/Saturation/Lightness or Red/Green/Blue), so you can mix values and watch the colour change. The same Svelte interface runs in a browser, as a desktop app, and on Android.
 
 ## Stack
 

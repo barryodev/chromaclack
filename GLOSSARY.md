@@ -15,7 +15,7 @@ The clacker is modelled on a mechanical split-flap display, where thin cards on 
 
 **Hinge**: the centre line that splits the clacker in two. Flaps rotate about it.
 
-**Half**: one side of the hinge, either the **start half** or the **end half**. In a forward flip, the flap moves from the start half to the end half.
+**Half**: one side of the hinge, either the **start half** or the **end half**. In a forward tick, the flap moves from the start half to the end half.
 
 | Axis       | Start half | End half |
 | ---------- | ---------- | -------- |
@@ -36,9 +36,9 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 
 **Current page**: the page shown at rest, or the last page that was fully shown.
 
-**Target page**: the page the clacker will come to rest on once the current swipe's flips finish.
+**Target page**: the page the clacker will come to rest on once the current swipe's ticks finish.
 
-**Next / previous page**: the neighbours of the current page in the sequence. A **forward** flip shows the next page, and a **backward** flip shows the previous one.
+**Next / previous page**: the neighbours of the current page in the sequence. A **forward** tick shows the next page, and a **backward** tick shows the previous one.
 
 ## Flaps
 
@@ -49,7 +49,7 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 - the **front** shows the start half of page _N_, and
 - the **back** shows the end half of page _N + 1_.
 
-So at rest, page _N_ is made of two flaps. The start half shows the front of flap _N_. The end half shows the back of flap _N − 1_, the one that flipped most recently.
+So at rest, page _N_ is made of two flaps. The start half shows the front of flap _N_. The end half shows the back of flap _N − 1_, the one that ticked over most recently.
 
 ```
   page 3 at rest (vertical axis)
@@ -60,23 +60,31 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
   │ 3 (bottom) │  back of flap B    (B: front = top of 2,    back = bottom of 3)
   └────────────┘
 
-  Forward flip: flap C falls over the hinge into the bottom half and shows its
+  Forward tick: flap C falls over the hinge into the bottom half and shows its
   back (bottom of 4). Flap D's front (top of 4) is revealed behind it.
 ```
 
-**Flip**: one flap passing over the hinge from one half to the other. A flip moves the clacker one page forward or backward. One swipe can produce several flips.
+**Tick**: one flap passing over the hinge from one half to the other. A tick moves the clacker one page forward or backward. One swipe can produce several ticks. It was called a "flip" before, which looks too much like "flap".
 
-**Flip angle**: how far a flap has rotated about the hinge. 0° is resting in the start half and 180° is resting in the end half. Avoid using bare "rotation" for this, because it collides with spin.
+**Hinge angle**: how far a flap has rotated about the hinge. 0° is resting in the start half and 180° is resting in the end half. Avoid using bare "rotation" for this, because it collides with spin.
 
-**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43).
+**Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
-**Recycle**: when a flap goes round the back of the drum, out of view, its sides can be given new half pages. This is how a fixed set of flaps shows an unlimited sequence of pages (DAI-44, DAI-47).
+**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
+
+**Tier**: a pair of resting flaps, one in the start half and one in the end half, at the same depth. **Tier 0** is the pair closest to the user, **tier 1** sits behind it, and **tier 2** behind that. The clacker shows at most three tiers, because more would be visual clutter. Tiers further back hold smaller rest tilts. Tier 0 shows the current page. Behind it, the start half of tier _k_ shows the start half of page _N + k_, and the end half of tier _k_ shows the end half of page _N − k_.
+
+**Fan**: all the resting tiers together, spread out at their decreasing rest tilts like a fanned stack of cards.
+
+**Offstage flap**: a flap in no tier, round the back of the drum and out of view. In a forward tick an offstage flap joins the fan behind the back start tier, and the back end tier's flap goes offstage. A backward tick does the reverse. A clacker keeps only a few offstage flaps however many pages it has, because pages are painted onto flaps as they come round.
+
+**Recycle**: when a flap goes offstage, its sides can be given new half pages. This is how a fixed set of flaps shows an unlimited sequence of pages (DAI-44, DAI-47).
 
 ## Swiping
 
-**Swipe**: the user presses on the clacker and moves along an axis. A swipe flips flaps.
+**Swipe**: the user presses on the clacker and moves along an axis. A swipe ticks flaps over the hinge.
 
-| Swipe | Flip direction |
+| Swipe | Tick direction |
 | ----- | -------------- |
 | down  | forward        |
 | left  | forward        |
@@ -87,7 +95,7 @@ A swipe has these phases:
 
 - **Drag**: the pointer is down and moving, and the flap follows it.
 - **Release**: the pointer lifts.
-- **Inertia**: after release, flaps keep flipping and slow down under friction.
+- **Inertia**: after release, flaps keep ticking over and slow down under friction.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
 **Snap back**: if a swipe is released before any flap passes the hinge and without enough speed to carry it over, the flap returns to where it started and the page doesn't change.

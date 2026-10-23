@@ -20,8 +20,14 @@
 
 				<div class="stage">
 					<!--
-						Three flaps, named by where they rest (see GLOSSARY.md). The flipping flap
-						comes last so it paints over the resting flaps when they share a plane.
+						clacker.js builds the flaps inside this button (see the comment above
+						`flaps` there). To inspect or tweak them, select .clacker in DevTools.
+						Flaps are tagged data-tier or data-offstage.
+
+						Adjustable live in clacker.css: perspective, size, borders and radius.
+						Owned by clacker.js and overwritten on the next render: --drawn-angle
+						(from hinge angle and rest tilt), --lift and hidden. Change those
+						through the JS constants such as REST_TILTS.
 					-->
 					<button
 						type="button"
@@ -29,20 +35,7 @@
 						data-mode="vertical"
 						data-axis="vertical"
 						aria-label="Swipe up or down"
-					>
-						<div class="flap flap--start" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-						<div class="flap flap--end" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-						<div class="flap flap--flipping" aria-hidden="true">
-							<div class="flap-side flap-side--front"></div>
-							<div class="flap-side flap-side--back"></div>
-						</div>
-					</button>
+					></button>
 				</div>
 			</section>
 		</main>
@@ -53,9 +46,9 @@
 				<div><dt>Phase</dt><dd data-debug="phase"></dd></div>
 				<div><dt>Current page</dt><dd data-debug="current"></dd></div>
 				<div><dt>Shown page</dt><dd data-debug="shown"></dd></div>
-				<div><dt>Flip angle</dt><dd data-debug="angle"></dd></div>
+				<div><dt>Hinge angle</dt><dd data-debug="angle"></dd></div>
 				<div><dt>Velocity</dt><dd data-debug="velocity"></dd></div>
-				<div><dt>Flips</dt><dd data-debug="flips"></dd></div>
+				<div><dt>Ticks</dt><dd data-debug="ticks"></dd></div>
 				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
 			</dl>
 		</aside>
