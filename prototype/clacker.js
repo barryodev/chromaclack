@@ -27,6 +27,7 @@ const MAX_TICKS_PER_SWIPE = 8;
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
+const SPIN_SETTLE_MS = 400; // How long the release snap to a detent takes.
 
 const ARIA_LABELS = {
 	vertical: 'Swipe up or down',
@@ -448,7 +449,7 @@ function render() {
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
 	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
-	clacker.style.setProperty('--time-scale', timeScale());
+	clacker.style.setProperty('--spin-settle-duration', `${SPIN_SETTLE_MS / timeScale()}ms`);
 	clacker.classList.toggle('is-settling', state.spinSettling);
 	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === state.mode));
 	renderFlaps();

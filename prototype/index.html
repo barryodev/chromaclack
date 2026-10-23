@@ -26,8 +26,9 @@
 
 						Adjustable live in clacker.css: perspective, size, borders and radius.
 						Owned by clacker.js and overwritten on the next render: --drawn-angle
-						(from hinge angle and rest tilt), --lift and hidden. Change those
-						through the JS constants such as REST_TILTS.
+						(from hinge angle and rest tilt), --lift, --spin-settle-duration and
+						hidden. Change those through the JS constants such as REST_TILTS and
+						SPIN_SETTLE_MS.
 					-->
 					<button
 						type="button"
@@ -50,8 +51,8 @@
 				<div><dt>Velocity</dt><dd data-debug="velocity"></dd></div>
 				<div><dt>Ticks</dt><dd data-debug="ticks"></dd></div>
 				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
-				<div>
-					<dt>Slow-mo (S)</dt>
+				<div class="debug-wide">
+					<dt>Slow-mo (press S to toggle)</dt>
 					<dd>
 						<label class="debug-toggle">
 							<input type="checkbox" data-debug-control="slow-mo" />

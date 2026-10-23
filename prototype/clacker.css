@@ -214,8 +214,7 @@ main {
 }
 
 .clacker[data-mode='spin'].is-settling {
-	/* --time-scale is below 1 in ?debug slow-mo, which stretches the snap. */
-	transition: transform calc(0.4s / var(--time-scale, 1)) ease-out;
+	transition: transform var(--spin-settle-duration) ease-out;
 }
 
 /* Debug readout (?debug) */
@@ -253,6 +252,10 @@ main {
 	margin: 0.1rem 0 0;
 	font-weight: 700;
 	overflow-wrap: anywhere;
+}
+
+.debug-wide {
+	grid-column: 1 / -1;
 }
 
 .debug-toggle {
