@@ -214,7 +214,7 @@ main {
 }
 
 .clacker[data-mode='spin'].is-settling {
-	transition: transform 0.4s ease-out;
+	transition: transform var(--spin-settle-duration) ease-out;
 }
 
 /* Debug readout (?debug) */
@@ -252,4 +252,19 @@ main {
 	margin: 0.1rem 0 0;
 	font-weight: 700;
 	overflow-wrap: anywhere;
+}
+
+.debug-wide {
+	grid-column: 1 / -1;
+}
+
+.debug-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	cursor: pointer;
+}
+
+.debug-toggle input {
+	margin: 0;
 }
