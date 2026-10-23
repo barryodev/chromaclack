@@ -21,6 +21,7 @@ const DEGREES_PER_PIXEL = 0.6;
 const MIN_RELEASE_SPEED = 0.01; // °/ms. Slower releases don't start inertia.
 const FRICTION_PER_SECOND = 3.5;
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
+const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
 const MAX_INERTIA_MS = 3000;
 const MAX_TICKS_PER_SWIPE = 8;
 
@@ -113,6 +114,12 @@ const state = {
 
 let pointer = null;
 let inertiaFrame = null;
+let slowMo = false; // Only the ?debug panel can turn this on.
+
+// How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
+function timeScale() {
+	return slowMo ? SLOW_MO_FACTOR : 1;
+}
 
 function pageAt(index) {
 	return PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
@@ -227,7 +234,8 @@ function releaseSwipe() {
 function startInertia() {
 	let lastFrame = performance.now();
 	const step = (now) => {
-		const dt = now - lastFrame;
+		// Slow-mo scales the frame time, so MAX_INERTIA_MS also counts slowed time.
+		const dt = (now - lastFrame) * timeScale();
 		lastFrame = now;
 		tickInertia(dt);
 		render();
@@ -431,6 +439,8 @@ function renderDebug() {
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
 	debugFields.ticks.textContent = `${state.completedTicks} / ${state.plannedTicks}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
+	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';
+	slowMoToggle.checked = slowMo;
 }
 
 function render() {
@@ -438,11 +448,31 @@ function render() {
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
 	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
+	clacker.style.setProperty('--time-scale', timeScale());
 	clacker.classList.toggle('is-settling', state.spinSettling);
 	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === state.mode));
 	renderFlaps();
 	renderDebug();
 }
 
-if (debugPanel) debugPanel.hidden = false;
+/*
+	Slow-mo toggle: the checkbox in the debug panel, or the S key. Both are wired
+	up only with ?debug, so S does nothing on the normal page.
+*/
+const slowMoToggle = debugPanel?.querySelector('[data-debug-control="slow-mo"]');
+
+function setSlowMo(on) {
+	slowMo = on;
+	render();
+}
+
+if (debugPanel) {
+	debugPanel.hidden = false;
+	slowMoToggle.addEventListener('change', () => setSlowMo(slowMoToggle.checked));
+	document.addEventListener('keydown', (event) => {
+		if (event.key.toLowerCase() !== 's' || event.repeat) return;
+		if (event.ctrlKey || event.metaKey || event.altKey) return;
+		setSlowMo(!slowMo);
+	});
+}
 render();
