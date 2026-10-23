@@ -36,18 +36,13 @@ const ARIA_LABELS = {
 const clacker = document.querySelector('.clacker');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 
-/*
-	One resting flap per tier in each half, one offstage flap per half behind the
-	back tier, plus the moving flap. Lift pushes flaps further back a hair away
-	from the viewer and keeps the moving flap on top of tier 0, so flaps meeting
-	along the hinge don't fight over which one paints.
-*/
-function createFlap(name, restTilt, lift) {
+// Build one flap with a front and back side. `dataset` tags it so it's easy to find in DevTools.
+function createFlap(name, lift, dataset = {}) {
 	const element = document.createElement('div');
 	element.className = `flap flap--${name}`;
 	element.setAttribute('aria-hidden', 'true');
-	element.style.setProperty('--rest-tilt', restTilt);
 	element.style.setProperty('--lift', `${lift}px`);
+	Object.assign(element.dataset, dataset);
 	const front = document.createElement('div');
 	front.className = 'flap-side flap-side--front';
 	const back = document.createElement('div');
@@ -56,25 +51,40 @@ function createFlap(name, restTilt, lift) {
 	return { element, front, back };
 }
 
+/*
+	Each half gets one resting flap per tier in REST_TILTS and one offstage flap
+	behind its back tier, plus the moving flap shared by both halves. Lift pushes
+	each tier a hair further from the viewer than the one in front of it and
+	keeps the moving flap on top of tier 0, so flaps meeting along the hinge
+	don't fight over which one paints.
+
+	One offstage flap per half is enough. A tick only moves each half by one
+	tier, so at most one flap arrives or leaves at the back of each half. In a
+	multi-tick inertia, renderFlaps repaints every flap's pages from the shown
+	page at each tick boundary, so the same offstage flap is reused.
+
+	TODO(DAI-51): reconsider the start / end structure while implementing DAI-51.
+*/
 const flaps = {
-	start: REST_TILTS.map((tilt, tier) => createFlap('start', tilt, -tier)),
-	end: REST_TILTS.map((tilt, tier) => createFlap('end', tilt, -tier)),
+	start: REST_TILTS.map((_, tier) => createFlap('start', -tier, { tier })),
+	end: REST_TILTS.map((_, tier) => createFlap('end', -tier, { tier })),
 	offstage: {
-		start: createFlap('start', REST_TILTS.at(-1), -REST_TILTS.length),
-		end: createFlap('end', REST_TILTS.at(-1), -REST_TILTS.length)
+		start: createFlap('start', -REST_TILTS.length, { offstage: '' }),
+		end: createFlap('end', -REST_TILTS.length, { offstage: '' })
 	},
-	moving: createFlap('moving', REST_TILTS[0], 1)
+	moving: createFlap('moving', 1)
 };
+
 // Back to front, so DOM order matches draw order.
-flaps.offstage.start.element.dataset.offstage = '';
-flaps.offstage.end.element.dataset.offstage = '';
-clacker.append(flaps.offstage.start.element, flaps.offstage.end.element);
-for (let tier = REST_TILTS.length - 1; tier >= 0; tier--) {
-	flaps.start[tier].element.dataset.tier = tier;
-	flaps.end[tier].element.dataset.tier = tier;
-	clacker.append(flaps.start[tier].element, flaps.end[tier].element);
-}
-clacker.append(flaps.moving.element);
+const tiersBackToFront = REST_TILTS.map((_, tier) => tier).reverse();
+const flapsBackToFront = [
+	flaps.offstage.start,
+	flaps.offstage.end,
+	...tiersBackToFront.flatMap((tier) => [flaps.start[tier], flaps.end[tier]]),
+	flaps.moving
+];
+clacker.append(...flapsBackToFront.map((flap) => flap.element));
+
 const debugParam = new URLSearchParams(location.search).get('debug');
 const debugPanel = debugParam !== null && debugParam !== 'false' ? document.querySelector('.debug') : null;
 const debugFields = debugPanel
@@ -84,8 +94,8 @@ const debugFields = debugPanel
 /*
 	Hinge angle is signed so one number covers both directions: positive is a
 	forward tick (swipe down or left), negative is backward (swipe up or right).
-	`page` only changes when a swipe settles. Until then the shown page is
-	page + direction × completedTicks.
+	`page` only changes when a swipe settles. Until then shownPage() adds the
+	ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
@@ -96,7 +106,7 @@ const state = {
 	direction: 0, // +1 forward, -1 backward, 0 none
 	plannedTicks: 0,
 	completedTicks: 0,
-	inertiaMs: 0,
+	inertiaElapsedMs: 0,
 	spinAngle: 0,
 	spinSettling: false
 };
@@ -112,9 +122,36 @@ function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
 }
 
-// Tiers past the back hold the back tier's tilt, so flaps arriving or leaving there don't move.
+// The page on show right now, counting the ticks completed in the current swipe.
+function shownPage() {
+	return state.page + state.direction * state.completedTicks;
+}
+
+/*
+	Rest tilt for a tier, where tier 0 is the front and REST_TILTS.length - 1 the
+	back. Two indices outside that range come up while a tier slides towards
+	its neighbour during a tick, and both are clamped:
+
+	- REST_TILTS.length, one past the back, is the offstage position. The back
+	  tier slides towards it as it goes offstage, or comes from it as it's
+	  uncovered. It holds the back tier's tilt, so flaps arriving or leaving at
+	  the back don't move, and offstage flaps wait there.
+	- -1, one in front of tier 0, only comes up for the tier 0 flap hidden under
+	  the moving flap, so its value never shows.
+*/
 function tierTilt(tier) {
 	return REST_TILTS[clamp(tier, 0, REST_TILTS.length - 1)];
+}
+
+/*
+	The angle a flap is drawn at, in degrees. Rest tilt is applied only when
+	drawing, and the swipe maths stays in hinge-angle space. A hinge angle of
+	0–180 is drawn from restTilt to 180 − restTilt, so no flap is ever drawn
+	flat. Resting flaps lean towards the viewer like a book opened a little short
+	of flat, fanned out by tier.
+*/
+function drawnAngle(hingeAngle, restTilt) {
+	return restTilt + (hingeAngle * (TICK_DEGREES - 2 * restTilt)) / TICK_DEGREES;
 }
 
 // Pointer position along the swipe axis, oriented so forward is positive.
@@ -147,6 +184,8 @@ function dragSwipe(event) {
 	pointer.lastTime = now;
 }
 
+// TODO(DAI-51): this does too many jobs (direction, coast estimate, planned ticks, starting
+// inertia). DAI-51 rewrites it, so split it up then.
 function releaseSwipe() {
 	pointer = null;
 	const speed = Math.abs(state.velocity);
@@ -180,7 +219,7 @@ function releaseSwipe() {
 	state.direction = direction;
 	state.plannedTicks = ticks;
 	state.completedTicks = 0;
-	state.inertiaMs = 0;
+	state.inertiaElapsedMs = 0;
 	state.velocity = speed * direction;
 	startInertia();
 }
@@ -214,12 +253,12 @@ function tickInertia(dt) {
 	state.angle = raw - crossed * sign * TICK_DEGREES;
 	state.completedTicks += crossed;
 	state.velocity *= Math.exp(-FRICTION_PER_SECOND * (scaledDt / 1000));
-	state.inertiaMs += dt;
+	state.inertiaElapsedMs += dt;
 
 	if (
 		state.completedTicks >= state.plannedTicks ||
 		Math.abs(state.velocity) < MIN_RELEASE_SPEED ||
-		state.inertiaMs >= MAX_INERTIA_MS
+		state.inertiaElapsedMs >= MAX_INERTIA_MS
 	) {
 		// Settling commits every planned tick, even ones inertia didn't finish.
 		settle(state.direction * state.plannedTicks);
@@ -322,8 +361,13 @@ function paintSide(side, page) {
 	side.style.setProperty('--page-colour', page.colour);
 }
 
-function setFlap(flap, hingeAngle, front, back) {
-	flap.element.style.setProperty('--hinge-angle', hingeAngle);
+/*
+	Place a flap at its drawn angle and paint a page on each side. Only the
+	moving flap has different pages on its front and back. Every resting flap
+	shows one page on both sides.
+*/
+function setFlap(flap, hingeAngle, restTilt, front, back) {
+	flap.element.style.setProperty('--drawn-angle', drawnAngle(hingeAngle, restTilt));
 	paintSide(flap.front, front);
 	paintSide(flap.back, back);
 }
@@ -345,39 +389,40 @@ function setFlap(flap, hingeAngle, front, back) {
 	by the tier in front goes offstage.
 */
 function renderFlaps() {
-	const shown = state.page + state.direction * state.completedTicks;
+	const shown = shownPage();
 	const forward = state.angle >= 0;
 	const progress = Math.abs(state.angle) / TICK_DEGREES;
 	const slideTilt = (tier, towards) => tierTilt(tier) + (tierTilt(towards) - tierTilt(tier)) * progress;
 
 	flaps.start.forEach((flap, tier) => {
 		const page = pageAt(shown + tier);
-		setFlap(flap, 0, page, page);
-		flap.element.style.setProperty('--rest-tilt', slideTilt(tier, forward ? tier - 1 : tier + 1));
+		setFlap(flap, 0, slideTilt(tier, forward ? tier - 1 : tier + 1), page, page);
 		flap.element.hidden = forward && tier === 0;
 	});
 	flaps.end.forEach((flap, tier) => {
 		const page = pageAt(shown - tier);
-		setFlap(flap, TICK_DEGREES, page, page);
-		flap.element.style.setProperty('--rest-tilt', slideTilt(tier, forward ? tier + 1 : tier - 1));
+		setFlap(flap, TICK_DEGREES, slideTilt(tier, forward ? tier + 1 : tier - 1), page, page);
 		flap.element.hidden = !forward && tier === 0;
 	});
 
+	const offstageTilt = tierTilt(REST_TILTS.length);
 	const startOffstagePage = pageAt(shown + REST_TILTS.length);
 	const endOffstagePage = pageAt(shown - REST_TILTS.length);
-	setFlap(flaps.offstage.start, 0, startOffstagePage, startOffstagePage);
-	setFlap(flaps.offstage.end, TICK_DEGREES, endOffstagePage, endOffstagePage);
+	setFlap(flaps.offstage.start, 0, offstageTilt, startOffstagePage, startOffstagePage);
+	setFlap(flaps.offstage.end, TICK_DEGREES, offstageTilt, endOffstagePage, endOffstagePage);
 
+	// The moving flap keeps tier 0's tilt for the whole tick.
 	if (forward) {
-		setFlap(flaps.moving, state.angle, pageAt(shown), pageAt(shown + 1));
+		setFlap(flaps.moving, state.angle, REST_TILTS[0], pageAt(shown), pageAt(shown + 1));
 	} else {
-		setFlap(flaps.moving, TICK_DEGREES + state.angle, pageAt(shown - 1), pageAt(shown));
+		setFlap(flaps.moving, TICK_DEGREES + state.angle, REST_TILTS[0], pageAt(shown - 1), pageAt(shown));
 	}
 }
 
+// Fill the ?debug readout from state.
 function renderDebug() {
 	if (!debugPanel) return;
-	const shown = state.page + state.direction * state.completedTicks;
+	const shown = shownPage();
 	debugFields.mode.textContent = state.mode;
 	debugFields.phase.textContent = state.phase;
 	debugFields.current.textContent = pageAt(state.page).label;

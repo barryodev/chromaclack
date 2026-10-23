@@ -133,22 +133,17 @@ main {
 }
 
 /*
-	A flap rests in the start half at a hinge angle of 0 and in the end half at 180.
-	JS sets --hinge-angle as a plain number. The hinge is the flap's edge on the
-	clacker's centre line. The leading translateZ is the flap's --lift, set by JS:
-	back tiers sit a hair further away and the moving flap a hair closer, so it
-	always paints over a resting flap in the same plane.
-
-	Rest tilt is applied only when drawing. JS sets --rest-tilt on each resting
-	flap every frame from REST_TILTS, sliding it towards the neighbouring tier's
-	tilt as a tick progresses. A hinge angle of 0–180 is drawn from --rest-tilt
-	to 180 − --rest-tilt, so resting flaps lean towards the viewer like a book
-	opened a little short of flat, fanned out by tier.
+	JS sets --drawn-angle on every flap each frame, in degrees as a plain number:
+	0 would lie flat in the start half and 180 flat in the end half. drawnAngle()
+	in clacker.js explains how it's worked out from the hinge angle and rest
+	tilt. The flap turns about its hinge, the edge on the clacker's centre line.
+	The leading translateZ is the flap's --lift, also set by JS: each tier sits a
+	hair further away than the one in front of it and the moving flap a hair
+	closer, so it always paints over a resting flap in the same plane.
 */
 .flap {
 	position: absolute;
 	transform-style: preserve-3d;
-	--drawn-angle: calc(var(--rest-tilt, 0) + var(--hinge-angle, 0) * (180 - 2 * var(--rest-tilt, 0)) / 180);
 }
 
 .flap--moving {

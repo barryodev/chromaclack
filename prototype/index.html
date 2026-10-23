@@ -20,9 +20,14 @@
 
 				<div class="stage">
 					<!--
-						clacker.js builds the flaps from REST_TILTS: one resting flap per tier in
-						each half, one offstage flap per half, plus the moving flap (see
-						GLOSSARY.md).
+						clacker.js builds the flaps inside this button (see the comment above
+						`flaps` there). To inspect or tweak them, select .clacker in DevTools.
+						Flaps are tagged data-tier or data-offstage.
+
+						Adjustable live in clacker.css: perspective, size, borders and radius.
+						Owned by clacker.js and overwritten on the next render: --drawn-angle
+						(from hinge angle and rest tilt), --lift and hidden. Change those
+						through the JS constants such as REST_TILTS.
 					-->
 					<button
 						type="button"
