@@ -18,11 +18,14 @@ const REST_TILTS = [42, 36, 30];
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
 const DEGREES_PER_PIXEL = 0.6;
-const MIN_RELEASE_SPEED = 0.01; // °/ms. Slower releases don't start inertia.
 const FRICTION_PER_SECOND = 3.5;
+const STOPPING_SPEED = 0.02; // °/ms. Dry friction on top of FRICTION_PER_SECOND, so inertia stops in finite time.
+// Inertia fits its friction to end on a landing, clamped to this band around FRICTION_PER_SECOND.
+const MIN_FRICTION_FIT = 0.5;
+const MAX_FRICTION_FIT = 2;
+const TOPPLE_ACCELERATION = 0.003; // °/ms². A 90° topple takes about 250 ms.
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
-const MAX_INERTIA_MS = 3000;
 const MAX_TICKS_PER_SWIPE = 8;
 
 // Spin tuning.
@@ -64,8 +67,6 @@ function createFlap(name, lift, dataset = {}) {
 	tier, so at most one flap arrives or leaves at the back of each half. In a
 	multi-tick inertia, renderFlaps repaints every flap's pages from the shown
 	page at each tick boundary, so the same offstage flap is reused.
-
-	TODO(DAI-51): reconsider the start / end structure while implementing DAI-51.
 */
 const flaps = {
 	start: REST_TILTS.map((_, tier) => createFlap('start', -tier, { tier })),
@@ -94,21 +95,21 @@ const debugFields = debugPanel
 	: {};
 
 /*
-	Hinge angle is signed so one number covers both directions: positive is a
-	forward tick (swipe down or left), negative is backward (swipe up or right).
-	`page` only changes when a swipe settles. Until then shownPage() adds the
-	ticks completed so far.
+	Travel is how far the swipe has turned flaps over the hinge since it
+	started, in degrees. It's signed so one number covers both directions:
+	positive is forward (swipe down or left), negative is backward (swipe up or
+	right). It's unwrapped, so 360 is two forward ticks, and the hinge angle and
+	completed ticks are both worked out from it. `page` only changes when a
+	swipe settles. Until then shownPage() adds the ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
 	page: 0,
 	phase: 'idle', // idle | dragging | inertia
-	angle: 0,
+	travel: 0,
 	velocity: 0, // °/ms, forward positive
-	direction: 0, // +1 forward, -1 backward, 0 none
-	plannedTicks: 0,
-	completedTicks: 0,
-	inertiaElapsedMs: 0,
+	target: 0, // The travel inertia settles on, a whole number of ticks.
+	inertia: null, // { start, velocity, friction, coastEnd, elapsedMs, toppleStartMs }, see releaseSwipe.
 	spinAngle: 0,
 	spinSettling: false
 };
@@ -130,9 +131,19 @@ function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
 }
 
+// Whole ticks the current swipe has completed, signed like travel.
+function completedTicks() {
+	return Math.trunc(state.travel / TICK_DEGREES);
+}
+
+// Signed hinge angle of the moving flap within the tick in progress, from −180 to 180.
+function hingeAngle() {
+	return state.travel - completedTicks() * TICK_DEGREES;
+}
+
 // The page on show right now, counting the ticks completed in the current swipe.
 function shownPage() {
-	return state.page + state.direction * state.completedTicks;
+	return state.page + completedTicks();
 }
 
 /*
@@ -173,12 +184,12 @@ function startSwipe(event) {
 	if (state.phase === 'inertia') {
 		// Pressing during inertia keeps the ticks already completed and drops the rest.
 		stopInertia();
-		settle(state.direction * state.completedTicks);
+		settle(completedTicks());
 	}
 	const position = axisPosition(event);
 	pointer = { id: event.pointerId, start: position, last: position, lastTime: performance.now() };
 	state.phase = 'dragging';
-	state.angle = 0;
+	state.travel = 0;
 	state.velocity = 0;
 }
 
@@ -186,56 +197,109 @@ function dragSwipe(event) {
 	const now = performance.now();
 	const position = axisPosition(event);
 	const elapsed = Math.max(now - pointer.lastTime, 1);
-	state.angle = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
+	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
 	state.velocity = ((position - pointer.last) * DEGREES_PER_PIXEL) / elapsed;
 	pointer.last = position;
 	pointer.lastTime = now;
 }
 
-// TODO(DAI-51): this does too many jobs (direction, coast estimate, planned ticks, starting
-// inertia). DAI-51 rewrites it, so split it up then.
+// Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
+const SWIPE_LANDINGS = Array.from(
+	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
+	(_, i) => (i - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
+);
+
 function releaseSwipe() {
 	pointer = null;
-	const speed = Math.abs(state.velocity);
-	const moving = speed >= MIN_RELEASE_SPEED;
-	// Which way to tick, if at all: +1 forward, -1 backward, 0 none.
-	let direction = 0;
-	if (Math.abs(state.angle) >= TICK_DEGREES) {
-		// The flap was dragged all the way over the hinge, so it ticks over the way it was dragged.
-		direction = Math.sign(state.angle);
-	} else if (moving) {
-		// The pointer was still moving at release, so the flap ticks over the way it was going.
-		direction = Math.sign(state.velocity);
-	}
-	// Otherwise the pointer stopped before the flap went over, so nothing ticks over.
-
-	if (direction === 0) {
-		settle(0);
-		return;
-	}
-
-	// Estimate how far inertia would carry the flap, as whole ticks.
-	const coastDegrees = (speed * INERTIA_TIME_SCALE * 1000) / FRICTION_PER_SECOND;
-	const ticks = clamp(Math.ceil((Math.abs(state.angle) + coastDegrees) / TICK_DEGREES), 1, MAX_TICKS_PER_SWIPE);
-
-	if (!moving) {
-		settle(direction * ticks);
-		return;
-	}
-
+	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS);
 	state.phase = 'inertia';
-	state.direction = direction;
-	state.plannedTicks = ticks;
-	state.completedTicks = 0;
-	state.inertiaElapsedMs = 0;
-	state.velocity = speed * direction;
+	state.target = plan.target;
+	state.inertia = {
+		start: state.travel,
+		velocity: state.velocity,
+		friction: plan.friction,
+		coastEnd: plan.coastEnd,
+		elapsedMs: 0,
+		toppleStartMs: null // Set when the coast is over.
+	};
 	startInertia();
+}
+
+// Inertia
+
+/*
+	Inertia is a coast, then a topple if the coast doesn't end on the landing.
+
+	The coast slows the flap under two frictions, on its slowed clock. Viscous
+	friction slows it in proportion to its speed, like the old inertia. A small
+	dry friction, STOPPING_SPEED, adds a steady drag on top, so the flap comes
+	to a stop in finite time instead of slowing forever.
+
+	The topple starts from a standstill where the coast stopped. The flap speeds
+	up steadily towards the landing, forward or back, like a card tipping over
+	under gravity, and stops dead on it with a clack. It runs on the normal
+	clock.
+
+	stoppingTime, stoppingDistance and tickInertia all use the exact solution
+	of the coast, so they must change together. Working out the position from
+	elapsed time, rather than stepping it frame by frame, means inertia lands
+	exactly where it was planned.
+*/
+function stoppingTime(speed, friction) {
+	return Math.log1p(speed / STOPPING_SPEED) / friction;
+}
+
+function stoppingDistance(speed, friction) {
+	return (speed - STOPPING_SPEED * Math.log1p(speed / STOPPING_SPEED)) / friction;
+}
+
+/*
+	A landing is a position inertia can stop on: for a swipe, a travel that's a
+	whole number of ticks, and for spin, a detent.
+
+	Plan inertia from `position`, moving at `velocity`, so it ends exactly on one
+	of `landings`. It takes any list of landings so spin detents can reuse it
+	(DAI-45).
+
+	The target is the landing nearest the natural stop, where normal friction
+	would leave the flap. Each landing's pull ends halfway to its neighbours, which for
+	ticks 180° apart is the 90° tipping point. Friction is then fitted so the
+	coast covers exactly the distance to the target, and clamped to the
+	MIN_FRICTION_FIT–MAX_FRICTION_FIT band:
+
+	- Inside the band, the coast stops softly on the target.
+	- Below it, friction low enough to reach the target would look like the flap
+	  is floating. The coast stops short and a topple finishes forward.
+	- Above it, the coast reaches the target still moving and stops dead on it
+	  with a clack.
+	- When the target is behind the flap, or the flap isn't moving, the coast
+	  runs out under the band's highest friction and a topple carries the flap
+	  back.
+
+	It returns the target, the coast's friction and coastEnd, where the coast stops.
+*/
+function planInertia(position, velocity, landings) {
+	const speed = Math.abs(velocity);
+	const direction = Math.sign(velocity);
+	const normalFriction = FRICTION_PER_SECOND / 1000;
+	const naturalStop = position + direction * stoppingDistance(speed, normalFriction);
+	const target = landings.reduce((best, landing) =>
+		Math.abs(landing - naturalStop) < Math.abs(best - naturalStop) ? landing : best
+	);
+	const distance = (target - position) * direction;
+	// stoppingDistance is inversely proportional to friction, so this lands exactly on distance.
+	const fitted = distance > 0 ? stoppingDistance(speed, 1) / distance : Infinity;
+	const friction = clamp(fitted, MIN_FRICTION_FIT * normalFriction, MAX_FRICTION_FIT * normalFriction);
+	// With no more than the fitted friction the coast gets to the target, so it ends there.
+	const reachesTarget = distance > 0 && friction <= fitted;
+	const coastEnd = reachesTarget ? target : position + direction * stoppingDistance(speed, friction);
+	return { target, friction, coastEnd };
 }
 
 function startInertia() {
 	let lastFrame = performance.now();
 	const step = (now) => {
-		// Slow-mo scales the frame time, so MAX_INERTIA_MS also counts slowed time.
+		// Slow-mo scales the frame time, so inertia's clock runs slower too.
 		const dt = (now - lastFrame) * timeScale();
 		lastFrame = now;
 		tickInertia(dt);
@@ -250,39 +314,44 @@ function stopInertia() {
 	inertiaFrame = null;
 }
 
+// Move the flap to where inertia has carried it after `dt` more ms, and settle once it lands.
 function tickInertia(dt) {
-	const scaledDt = dt * INERTIA_TIME_SCALE;
-	const raw = state.angle + state.velocity * scaledDt;
-	const sign = state.velocity >= 0 ? 1 : -1;
-	// Each time the flap passes 180° one tick completes, and the next flap takes over from 0°.
-	const crossed = Math.min(
-		Math.floor(Math.abs(raw) / TICK_DEGREES),
-		state.plannedTicks - state.completedTicks
-	);
-	state.angle = raw - crossed * sign * TICK_DEGREES;
-	state.completedTicks += crossed;
-	state.velocity *= Math.exp(-FRICTION_PER_SECOND * (scaledDt / 1000));
-	state.inertiaElapsedMs += dt;
-
-	if (
-		state.completedTicks >= state.plannedTicks ||
-		Math.abs(state.velocity) < MIN_RELEASE_SPEED ||
-		state.inertiaElapsedMs >= MAX_INERTIA_MS
-	) {
-		// Settling commits every planned tick, even ones inertia didn't finish.
-		settle(state.direction * state.plannedTicks);
+	const inertia = state.inertia;
+	inertia.elapsedMs += dt;
+	if (inertia.toppleStartMs === null) {
+		const speed = Math.abs(inertia.velocity);
+		const direction = Math.sign(inertia.velocity);
+		const friction = inertia.friction;
+		const stopAt = stoppingTime(speed, friction);
+		const t = Math.min(inertia.elapsedMs * INERTIA_TIME_SCALE, stopAt);
+		const decay = Math.exp(-friction * t);
+		const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / friction - STOPPING_SPEED * t;
+		const coastDistance = Math.abs(inertia.coastEnd - inertia.start);
+		if (t < stopAt && coasted < coastDistance) {
+			state.velocity = direction * ((speed + STOPPING_SPEED) * decay - STOPPING_SPEED);
+			state.travel = inertia.start + direction * coasted;
+			return;
+		}
+		// The coast has stopped, or has reached the target and stops dead on it.
+		inertia.toppleStartMs = Math.min(inertia.elapsedMs, stopAt / INERTIA_TIME_SCALE);
 	}
+	const toppleMs = inertia.elapsedMs - inertia.toppleStartMs;
+	const gap = state.target - inertia.coastEnd;
+	const toppled = Math.min((TOPPLE_ACCELERATION * toppleMs ** 2) / 2, Math.abs(gap));
+	state.velocity = Math.sign(gap) * TOPPLE_ACCELERATION * toppleMs;
+	state.travel = inertia.coastEnd + Math.sign(gap) * toppled;
+	// The topple stops on the target, so settling there doesn't move the flap.
+	if (toppled >= Math.abs(gap)) settle(state.target / TICK_DEGREES);
 }
 
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
 function settle(pageDelta) {
 	state.page += pageDelta;
 	state.phase = 'idle';
-	state.angle = 0;
+	state.travel = 0;
 	state.velocity = 0;
-	state.direction = 0;
-	state.plannedTicks = 0;
-	state.completedTicks = 0;
+	state.target = 0;
+	state.inertia = null;
 }
 
 // Spin
@@ -399,8 +468,9 @@ function setFlap(flap, hingeAngle, restTilt, front, back) {
 */
 function renderFlaps() {
 	const shown = shownPage();
-	const forward = state.angle >= 0;
-	const progress = Math.abs(state.angle) / TICK_DEGREES;
+	const angle = hingeAngle();
+	const forward = angle >= 0;
+	const progress = Math.abs(angle) / TICK_DEGREES;
 	const slideTilt = (tier, towards) => tierTilt(tier) + (tierTilt(towards) - tierTilt(tier)) * progress;
 
 	flaps.start.forEach((flap, tier) => {
@@ -422,9 +492,9 @@ function renderFlaps() {
 
 	// The moving flap keeps tier 0's tilt for the whole tick.
 	if (forward) {
-		setFlap(flaps.moving, state.angle, REST_TILTS[0], pageAt(shown), pageAt(shown + 1));
+		setFlap(flaps.moving, angle, REST_TILTS[0], pageAt(shown), pageAt(shown + 1));
 	} else {
-		setFlap(flaps.moving, TICK_DEGREES + state.angle, REST_TILTS[0], pageAt(shown - 1), pageAt(shown));
+		setFlap(flaps.moving, TICK_DEGREES + angle, REST_TILTS[0], pageAt(shown - 1), pageAt(shown));
 	}
 }
 
@@ -436,9 +506,10 @@ function renderDebug() {
 	debugFields.phase.textContent = state.phase;
 	debugFields.current.textContent = pageAt(state.page).label;
 	debugFields.shown.textContent = pageAt(shown).label;
-	debugFields.angle.textContent = `${state.angle.toFixed(1)}°`;
+	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
+	debugFields.angle.textContent = `${hingeAngle().toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
-	debugFields.ticks.textContent = `${state.completedTicks} / ${state.plannedTicks}`;
+	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
 	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';
 	slowMoToggle.checked = slowMo;
