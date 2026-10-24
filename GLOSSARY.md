@@ -68,6 +68,8 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Hinge angle**: how far a flap has rotated about the hinge. 0° is resting in the start half and 180° is resting in the end half. Avoid using bare "rotation" for this, because it collides with spin.
 
+**Travel**: how far a swipe has turned flaps over the hinge since it started, counted across ticks. Each 180° is one tick, so 360° of forward travel is two forward ticks. Forward travel counts up and backward travel counts down. The hinge angle is the part of travel inside the tick in progress, and the ticks completed so far are the whole 180°s.
+
 **Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
 **Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
