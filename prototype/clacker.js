@@ -20,7 +20,7 @@ const TICK_DEGREES = 180;
 const DEGREES_PER_PIXEL = 0.6;
 const FRICTION_PER_SECOND = 3.5;
 const STOPPING_SPEED = 0.02; // °/ms. Dry friction on top of FRICTION_PER_SECOND, so inertia stops in finite time.
-// Inertia fits its friction to land on a rest, within this band around FRICTION_PER_SECOND.
+// Inertia fits its friction to end on a landing, within this band around FRICTION_PER_SECOND.
 const MIN_FRICTION_FIT = 0.5;
 const MAX_FRICTION_FIT = 2;
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
@@ -205,16 +205,16 @@ function dragSwipe(event) {
 }
 
 // Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
-const SWIPE_RESTS = Array.from(
+const SWIPE_LANDINGS = Array.from(
 	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
 	(_, i) => (i - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
 );
 
 function releaseSwipe() {
 	pointer = null;
-	const plan = planInertia(state.travel, state.velocity, SWIPE_RESTS);
+	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS);
 	if (plan.friction === null) {
-		// TODO(DAI-51): fall to the rest instead of snapping to it.
+		// TODO(DAI-51): fall to the landing instead of snapping to it.
 		settle(plan.target / TICK_DEGREES);
 		return;
 	}
@@ -227,15 +227,15 @@ function releaseSwipe() {
 // Inertia
 
 /*
-	Inertia slows the flap under two frictions on its slowed clock t, in ms.
-	Viscous friction k scales with speed, and a small dry friction u =
-	STOPPING_SPEED stops it in finite time instead of slowing forever:
+	Inertia slows the flap under two frictions, on its slowed clock. Viscous
+	friction slows it in proportion to its speed, like the old inertia. A small
+	dry friction, STOPPING_SPEED, adds a steady drag on top, so the flap comes
+	to a stop in finite time instead of slowing forever.
 
-	  dv/dt = −k (v + u), so v(t) = (v₀ + u) e^(−kt) − u
-
-	Speed reaches 0 at t = ln(1 + v₀/u) / k, after (v₀ − u ln(1 + v₀/u)) / k.
-	Both are closed form, so inertia is worked out from elapsed time and lands
-	exactly where planned, with no drift from frame to frame.
+	stoppingTime, stoppingDistance and tickInertia all use the exact solution
+	of that motion, so they must change together. Working out the position from
+	elapsed time, rather than stepping it frame by frame, means inertia lands
+	exactly where it was planned.
 */
 function stoppingTime(speed, friction) {
 	return Math.log1p(speed / STOPPING_SPEED) / friction;
@@ -246,23 +246,27 @@ function stoppingDistance(speed, friction) {
 }
 
 /*
-	Plan inertia from `position`, moving at `velocity`, so it ends exactly on one
-	of `rests`. It takes any list of rests so spin detents can reuse it (DAI-45).
+	A landing is a position inertia can stop on: for a swipe, a travel that's a
+	whole number of ticks, and for spin, a detent.
 
-	The target is the rest nearest the natural stop, where normal friction would
-	leave the flap. Each rest's pull ends halfway to its neighbours, which for
+	Plan inertia from `position`, moving at `velocity`, so it ends exactly on one
+	of `landings`. It takes any list of landings so spin detents can reuse it
+	(DAI-45).
+
+	The target is the landing nearest the natural stop, where normal friction
+	would leave the flap. Each landing's pull ends halfway to its neighbours, which for
 	ticks 180° apart is the 90° tipping point. Friction is then fitted so the
 	coast covers exactly the distance to the target. The fit is null when
 	friction can't get there: the target is behind the flap, or reaching it
 	would take friction outside the MIN_FRICTION_FIT–MAX_FRICTION_FIT band.
 */
-function planInertia(position, velocity, rests) {
+function planInertia(position, velocity, landings) {
 	const speed = Math.abs(velocity);
 	const direction = Math.sign(velocity);
 	const normalFriction = FRICTION_PER_SECOND / 1000;
 	const naturalStop = position + direction * stoppingDistance(speed, normalFriction);
-	const target = rests.reduce((best, rest) =>
-		Math.abs(rest - naturalStop) < Math.abs(best - naturalStop) ? rest : best
+	const target = landings.reduce((best, landing) =>
+		Math.abs(landing - naturalStop) < Math.abs(best - naturalStop) ? landing : best
 	);
 	const distance = (target - position) * direction;
 	if (distance <= 0) return { target, friction: null };
@@ -296,13 +300,14 @@ function tickInertia(dt) {
 	inertia.elapsedMs += dt;
 	const speed = Math.abs(inertia.velocity);
 	const direction = Math.sign(inertia.velocity);
-	const k = inertia.friction;
-	const u = STOPPING_SPEED;
-	const stopAt = stoppingTime(speed, k);
+	const friction = inertia.friction;
+	const stopAt = stoppingTime(speed, friction);
 	const t = Math.min(inertia.elapsedMs * INERTIA_TIME_SCALE, stopAt);
-	const decay = Math.exp(-k * t);
-	state.velocity = direction * ((speed + u) * decay - u);
-	state.travel = inertia.start + direction * (((speed + u) * (1 - decay)) / k - u * t);
+	const decay = Math.exp(-friction * t);
+	state.velocity = direction * ((speed + STOPPING_SPEED) * decay - STOPPING_SPEED);
+	state.travel =
+		inertia.start +
+		direction * (((speed + STOPPING_SPEED) * (1 - decay)) / friction - STOPPING_SPEED * t);
 	// The coast stops on the target, so settling there doesn't move the flap.
 	if (t >= stopAt) settle(state.target / TICK_DEGREES);
 }
