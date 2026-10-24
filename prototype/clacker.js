@@ -94,20 +94,20 @@ const debugFields = debugPanel
 	: {};
 
 /*
-	Hinge angle is signed so one number covers both directions: positive is a
-	forward tick (swipe down or left), negative is backward (swipe up or right).
-	`page` only changes when a swipe settles. Until then shownPage() adds the
-	ticks completed so far.
+	Travel is how far the swipe has turned flaps over the hinge since it
+	started, in degrees. It's signed so one number covers both directions:
+	positive is forward (swipe down or left), negative is backward (swipe up or
+	right). It's unwrapped, so 360 is two forward ticks, and the hinge angle and
+	completed ticks are both worked out from it. `page` only changes when a
+	swipe settles. Until then shownPage() adds the ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
 	page: 0,
 	phase: 'idle', // idle | dragging | inertia
-	angle: 0,
+	travel: 0,
 	velocity: 0, // °/ms, forward positive
-	direction: 0, // +1 forward, -1 backward, 0 none
-	plannedTicks: 0,
-	completedTicks: 0,
+	target: 0, // The travel inertia settles on, a whole number of ticks.
 	inertiaElapsedMs: 0,
 	spinAngle: 0,
 	spinSettling: false
@@ -130,9 +130,19 @@ function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
 }
 
+// Whole ticks the current swipe has completed, signed like travel.
+function completedTicks() {
+	return Math.trunc(state.travel / TICK_DEGREES);
+}
+
+// Signed hinge angle of the moving flap within the tick in progress, from −180 to 180.
+function hingeAngle() {
+	return state.travel - completedTicks() * TICK_DEGREES;
+}
+
 // The page on show right now, counting the ticks completed in the current swipe.
 function shownPage() {
-	return state.page + state.direction * state.completedTicks;
+	return state.page + completedTicks();
 }
 
 /*
@@ -173,12 +183,12 @@ function startSwipe(event) {
 	if (state.phase === 'inertia') {
 		// Pressing during inertia keeps the ticks already completed and drops the rest.
 		stopInertia();
-		settle(state.direction * state.completedTicks);
+		settle(completedTicks());
 	}
 	const position = axisPosition(event);
 	pointer = { id: event.pointerId, start: position, last: position, lastTime: performance.now() };
 	state.phase = 'dragging';
-	state.angle = 0;
+	state.travel = 0;
 	state.velocity = 0;
 }
 
@@ -186,7 +196,7 @@ function dragSwipe(event) {
 	const now = performance.now();
 	const position = axisPosition(event);
 	const elapsed = Math.max(now - pointer.lastTime, 1);
-	state.angle = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
+	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
 	state.velocity = ((position - pointer.last) * DEGREES_PER_PIXEL) / elapsed;
 	pointer.last = position;
 	pointer.lastTime = now;
@@ -200,9 +210,9 @@ function releaseSwipe() {
 	const moving = speed >= MIN_RELEASE_SPEED;
 	// Which way to tick, if at all: +1 forward, -1 backward, 0 none.
 	let direction = 0;
-	if (Math.abs(state.angle) >= TICK_DEGREES) {
+	if (Math.abs(state.travel) >= TICK_DEGREES) {
 		// The flap was dragged all the way over the hinge, so it ticks over the way it was dragged.
-		direction = Math.sign(state.angle);
+		direction = Math.sign(state.travel);
 	} else if (moving) {
 		// The pointer was still moving at release, so the flap ticks over the way it was going.
 		direction = Math.sign(state.velocity);
@@ -216,7 +226,7 @@ function releaseSwipe() {
 
 	// Estimate how far inertia would carry the flap, as whole ticks.
 	const coastDegrees = (speed * INERTIA_TIME_SCALE * 1000) / FRICTION_PER_SECOND;
-	const ticks = clamp(Math.ceil((Math.abs(state.angle) + coastDegrees) / TICK_DEGREES), 1, MAX_TICKS_PER_SWIPE);
+	const ticks = clamp(Math.ceil((Math.abs(state.travel) + coastDegrees) / TICK_DEGREES), 1, MAX_TICKS_PER_SWIPE);
 
 	if (!moving) {
 		settle(direction * ticks);
@@ -224,9 +234,7 @@ function releaseSwipe() {
 	}
 
 	state.phase = 'inertia';
-	state.direction = direction;
-	state.plannedTicks = ticks;
-	state.completedTicks = 0;
+	state.target = direction * ticks * TICK_DEGREES;
 	state.inertiaElapsedMs = 0;
 	state.velocity = speed * direction;
 	startInertia();
@@ -252,25 +260,18 @@ function stopInertia() {
 
 function tickInertia(dt) {
 	const scaledDt = dt * INERTIA_TIME_SCALE;
-	const raw = state.angle + state.velocity * scaledDt;
-	const sign = state.velocity >= 0 ? 1 : -1;
-	// Each time the flap passes 180° one tick completes, and the next flap takes over from 0°.
-	const crossed = Math.min(
-		Math.floor(Math.abs(raw) / TICK_DEGREES),
-		state.plannedTicks - state.completedTicks
-	);
-	state.angle = raw - crossed * sign * TICK_DEGREES;
-	state.completedTicks += crossed;
+	state.travel += state.velocity * scaledDt;
 	state.velocity *= Math.exp(-FRICTION_PER_SECOND * (scaledDt / 1000));
 	state.inertiaElapsedMs += dt;
 
+	const reachedTarget = (state.travel - state.target) * Math.sign(state.target) >= 0;
 	if (
-		state.completedTicks >= state.plannedTicks ||
+		reachedTarget ||
 		Math.abs(state.velocity) < MIN_RELEASE_SPEED ||
 		state.inertiaElapsedMs >= MAX_INERTIA_MS
 	) {
 		// Settling commits every planned tick, even ones inertia didn't finish.
-		settle(state.direction * state.plannedTicks);
+		settle(state.target / TICK_DEGREES);
 	}
 }
 
@@ -278,11 +279,9 @@ function tickInertia(dt) {
 function settle(pageDelta) {
 	state.page += pageDelta;
 	state.phase = 'idle';
-	state.angle = 0;
+	state.travel = 0;
 	state.velocity = 0;
-	state.direction = 0;
-	state.plannedTicks = 0;
-	state.completedTicks = 0;
+	state.target = 0;
 }
 
 // Spin
@@ -399,8 +398,9 @@ function setFlap(flap, hingeAngle, restTilt, front, back) {
 */
 function renderFlaps() {
 	const shown = shownPage();
-	const forward = state.angle >= 0;
-	const progress = Math.abs(state.angle) / TICK_DEGREES;
+	const angle = hingeAngle();
+	const forward = angle >= 0;
+	const progress = Math.abs(angle) / TICK_DEGREES;
 	const slideTilt = (tier, towards) => tierTilt(tier) + (tierTilt(towards) - tierTilt(tier)) * progress;
 
 	flaps.start.forEach((flap, tier) => {
@@ -422,9 +422,9 @@ function renderFlaps() {
 
 	// The moving flap keeps tier 0's tilt for the whole tick.
 	if (forward) {
-		setFlap(flaps.moving, state.angle, REST_TILTS[0], pageAt(shown), pageAt(shown + 1));
+		setFlap(flaps.moving, angle, REST_TILTS[0], pageAt(shown), pageAt(shown + 1));
 	} else {
-		setFlap(flaps.moving, TICK_DEGREES + state.angle, REST_TILTS[0], pageAt(shown - 1), pageAt(shown));
+		setFlap(flaps.moving, TICK_DEGREES + angle, REST_TILTS[0], pageAt(shown - 1), pageAt(shown));
 	}
 }
 
@@ -436,9 +436,10 @@ function renderDebug() {
 	debugFields.phase.textContent = state.phase;
 	debugFields.current.textContent = pageAt(state.page).label;
 	debugFields.shown.textContent = pageAt(shown).label;
-	debugFields.angle.textContent = `${state.angle.toFixed(1)}°`;
+	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
+	debugFields.angle.textContent = `${hingeAngle().toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
-	debugFields.ticks.textContent = `${state.completedTicks} / ${state.plannedTicks}`;
+	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
 	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';
 	slowMoToggle.checked = slowMo;
