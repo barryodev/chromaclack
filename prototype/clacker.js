@@ -18,11 +18,13 @@ const REST_TILTS = [42, 36, 30];
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
 const DEGREES_PER_PIXEL = 0.6;
-const MIN_RELEASE_SPEED = 0.01; // °/ms. Slower releases don't start inertia.
 const FRICTION_PER_SECOND = 3.5;
+const STOPPING_SPEED = 0.02; // °/ms. Dry friction on top of FRICTION_PER_SECOND, so inertia stops in finite time.
+// Inertia fits its friction to land on a rest, within this band around FRICTION_PER_SECOND.
+const MIN_FRICTION_FIT = 0.5;
+const MAX_FRICTION_FIT = 2;
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
-const MAX_INERTIA_MS = 3000;
 const MAX_TICKS_PER_SWIPE = 8;
 
 // Spin tuning.
@@ -108,7 +110,7 @@ const state = {
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
-	inertiaElapsedMs: 0,
+	inertia: null, // The coast in progress: { start, velocity, friction, elapsedMs }.
 	spinAngle: 0,
 	spinSettling: false
 };
@@ -202,48 +204,78 @@ function dragSwipe(event) {
 	pointer.lastTime = now;
 }
 
-// TODO(DAI-51): this does too many jobs (direction, coast estimate, planned ticks, starting
-// inertia). DAI-51 rewrites it, so split it up then.
+// Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
+const SWIPE_RESTS = Array.from(
+	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
+	(_, i) => (i - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
+);
+
 function releaseSwipe() {
 	pointer = null;
-	const speed = Math.abs(state.velocity);
-	const moving = speed >= MIN_RELEASE_SPEED;
-	// Which way to tick, if at all: +1 forward, -1 backward, 0 none.
-	let direction = 0;
-	if (Math.abs(state.travel) >= TICK_DEGREES) {
-		// The flap was dragged all the way over the hinge, so it ticks over the way it was dragged.
-		direction = Math.sign(state.travel);
-	} else if (moving) {
-		// The pointer was still moving at release, so the flap ticks over the way it was going.
-		direction = Math.sign(state.velocity);
-	}
-	// Otherwise the pointer stopped before the flap went over, so nothing ticks over.
-
-	if (direction === 0) {
-		settle(0);
+	const plan = planInertia(state.travel, state.velocity, SWIPE_RESTS);
+	if (plan.friction === null) {
+		// TODO(DAI-51): fall to the rest instead of snapping to it.
+		settle(plan.target / TICK_DEGREES);
 		return;
 	}
-
-	// Estimate how far inertia would carry the flap, as whole ticks.
-	const coastDegrees = (speed * INERTIA_TIME_SCALE * 1000) / FRICTION_PER_SECOND;
-	const ticks = clamp(Math.ceil((Math.abs(state.travel) + coastDegrees) / TICK_DEGREES), 1, MAX_TICKS_PER_SWIPE);
-
-	if (!moving) {
-		settle(direction * ticks);
-		return;
-	}
-
 	state.phase = 'inertia';
-	state.target = direction * ticks * TICK_DEGREES;
-	state.inertiaElapsedMs = 0;
-	state.velocity = speed * direction;
+	state.target = plan.target;
+	state.inertia = { start: state.travel, velocity: state.velocity, friction: plan.friction, elapsedMs: 0 };
 	startInertia();
+}
+
+// Inertia
+
+/*
+	Inertia slows the flap under two frictions on its slowed clock t, in ms.
+	Viscous friction k scales with speed, and a small dry friction u =
+	STOPPING_SPEED stops it in finite time instead of slowing forever:
+
+	  dv/dt = −k (v + u), so v(t) = (v₀ + u) e^(−kt) − u
+
+	Speed reaches 0 at t = ln(1 + v₀/u) / k, after (v₀ − u ln(1 + v₀/u)) / k.
+	Both are closed form, so inertia is worked out from elapsed time and lands
+	exactly where planned, with no drift from frame to frame.
+*/
+function stoppingTime(speed, friction) {
+	return Math.log1p(speed / STOPPING_SPEED) / friction;
+}
+
+function stoppingDistance(speed, friction) {
+	return (speed - STOPPING_SPEED * Math.log1p(speed / STOPPING_SPEED)) / friction;
+}
+
+/*
+	Plan inertia from `position`, moving at `velocity`, so it ends exactly on one
+	of `rests`. It takes any list of rests so spin detents can reuse it (DAI-45).
+
+	The target is the rest nearest the natural stop, where normal friction would
+	leave the flap. Each rest's pull ends halfway to its neighbours, which for
+	ticks 180° apart is the 90° tipping point. Friction is then fitted so the
+	coast covers exactly the distance to the target. The fit is null when
+	friction can't get there: the target is behind the flap, or reaching it
+	would take friction outside the MIN_FRICTION_FIT–MAX_FRICTION_FIT band.
+*/
+function planInertia(position, velocity, rests) {
+	const speed = Math.abs(velocity);
+	const direction = Math.sign(velocity);
+	const normalFriction = FRICTION_PER_SECOND / 1000;
+	const naturalStop = position + direction * stoppingDistance(speed, normalFriction);
+	const target = rests.reduce((best, rest) =>
+		Math.abs(rest - naturalStop) < Math.abs(best - naturalStop) ? rest : best
+	);
+	const distance = (target - position) * direction;
+	if (distance <= 0) return { target, friction: null };
+	// stoppingDistance is inversely proportional to friction, so this lands exactly on distance.
+	const friction = stoppingDistance(speed, 1) / distance;
+	const fit = friction / normalFriction;
+	return { target, friction: fit >= MIN_FRICTION_FIT && fit <= MAX_FRICTION_FIT ? friction : null };
 }
 
 function startInertia() {
 	let lastFrame = performance.now();
 	const step = (now) => {
-		// Slow-mo scales the frame time, so MAX_INERTIA_MS also counts slowed time.
+		// Slow-mo scales the frame time, so inertia's clock runs slower too.
 		const dt = (now - lastFrame) * timeScale();
 		lastFrame = now;
 		tickInertia(dt);
@@ -258,21 +290,21 @@ function stopInertia() {
 	inertiaFrame = null;
 }
 
+// Move the flap to where the coast has carried it after `dt` more ms, and settle once it stops.
 function tickInertia(dt) {
-	const scaledDt = dt * INERTIA_TIME_SCALE;
-	state.travel += state.velocity * scaledDt;
-	state.velocity *= Math.exp(-FRICTION_PER_SECOND * (scaledDt / 1000));
-	state.inertiaElapsedMs += dt;
-
-	const reachedTarget = (state.travel - state.target) * Math.sign(state.target) >= 0;
-	if (
-		reachedTarget ||
-		Math.abs(state.velocity) < MIN_RELEASE_SPEED ||
-		state.inertiaElapsedMs >= MAX_INERTIA_MS
-	) {
-		// Settling commits every planned tick, even ones inertia didn't finish.
-		settle(state.target / TICK_DEGREES);
-	}
+	const inertia = state.inertia;
+	inertia.elapsedMs += dt;
+	const speed = Math.abs(inertia.velocity);
+	const direction = Math.sign(inertia.velocity);
+	const k = inertia.friction;
+	const u = STOPPING_SPEED;
+	const stopAt = stoppingTime(speed, k);
+	const t = Math.min(inertia.elapsedMs * INERTIA_TIME_SCALE, stopAt);
+	const decay = Math.exp(-k * t);
+	state.velocity = direction * ((speed + u) * decay - u);
+	state.travel = inertia.start + direction * (((speed + u) * (1 - decay)) / k - u * t);
+	// The coast stops on the target, so settling there doesn't move the flap.
+	if (t >= stopAt) settle(state.target / TICK_DEGREES);
 }
 
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
@@ -282,6 +314,7 @@ function settle(pageDelta) {
 	state.travel = 0;
 	state.velocity = 0;
 	state.target = 0;
+	state.inertia = null;
 }
 
 // Spin
