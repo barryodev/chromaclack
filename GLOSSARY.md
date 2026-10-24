@@ -97,10 +97,20 @@ A swipe has these phases:
 
 - **Drag**: the pointer is down and moving, and the flap follows it.
 - **Release**: the pointer lifts.
-- **Inertia**: after release, flaps keep ticking over and slow down under friction.
+- **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
-**Snap back**: if a swipe is released before any flap passes the hinge and without enough speed to carry it over, the flap returns to where it started and the page doesn't change.
+**Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. For a spin it's a detent. It isn't called a "rest", because that word already means at rest and rest tilt.
+
+**Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
+
+**Coast**: the first part of inertia. The flap slows under friction and comes to a stop. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
+
+**Stopping speed**: a small, steady drag on top of friction, so the coast comes to a full stop in finite time instead of slowing forever.
+
+**Topple**: the second part of inertia, used when the coast stops short of its landing or on the wrong side of 90°. From a standstill, the flap speeds up steadily towards the landing, forward or backward, like a card tipping over under gravity, and stops dead on it with a clack. A swipe released with no speed is just a topple.
+
+**Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts to a stop, if it's moving, then topples back.
 
 ## Holding and spinning
 
