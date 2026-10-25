@@ -96,12 +96,13 @@ const debugFields = debugPanel
 
 /*
 	Travel is how far the swipe has turned flaps over the hinge since it
-	started, in degrees. It's signed so one number covers both directions:
-	positive is forward (swipe down or left), negative is backward (swipe up or
-	right). It's unwrapped, so 360 is two forward ticks, and the hinge angle and
-	completed ticks are both worked out from it. `page` only changes when a
-	swipe settles or is caught. Until then shownPage() adds the ticks
-	completed so far.
+	started, in degrees. A caught swipe starts at the hinge angle it was
+	caught at, and any other swipe at 0. It's signed so one number covers both
+	directions: positive is forward (swipe down or left), negative is backward
+	(swipe up or right). It's unwrapped, so 360 is two forward ticks, and the
+	hinge angle and completed ticks are both worked out from it. `page` only
+	changes when a swipe settles or is caught. Until then shownPage() adds the
+	ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
