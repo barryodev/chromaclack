@@ -109,7 +109,7 @@ const state = {
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
-	inertia: null, // { start, velocity, friction, coastEnd, elapsedMs, toppleStartMs }, see releaseSwipe.
+	inertia: null, // { start, velocity, friction, coastEnd, coastMs, elapsedMs }, see releaseSwipe.
 	spinAngle: 0,
 	spinSettling: false
 };
@@ -219,8 +219,8 @@ function releaseSwipe() {
 		velocity: state.velocity,
 		friction: plan.friction,
 		coastEnd: plan.coastEnd,
-		elapsedMs: 0,
-		toppleStartMs: null // Set when the coast is over.
+		coastMs: plan.coastMs,
+		elapsedMs: 0
 	};
 	startInertia();
 }
@@ -228,19 +228,14 @@ function releaseSwipe() {
 // Inertia
 
 /*
-	Inertia is a coast, then a topple if the coast doesn't end on the landing.
+	Inertia is a coast, then a topple if the coast doesn't end on its landing.
 
 	The coast slows the flap under two frictions, on its slowed clock. Viscous
 	friction slows it in proportion to its speed, like the old inertia. A small
 	dry friction, STOPPING_SPEED, adds a steady drag on top, so the flap comes
 	to a stop in finite time instead of slowing forever.
 
-	The topple starts from a standstill where the coast stopped. The flap speeds
-	up steadily towards the landing, forward or back, like a card tipping over
-	under gravity, and stops dead on it with a clack. It runs on the normal
-	clock.
-
-	stoppingTime, stoppingDistance and tickInertia all use the exact solution
+	stoppingTime, stoppingDistance and coastMotion all use the exact solution
 	of the coast, so they must change together. Working out the position from
 	elapsed time, rather than stepping it frame by frame, means inertia lands
 	exactly where it was planned.
@@ -253,39 +248,25 @@ function stoppingDistance(speed, friction) {
 	return (speed - STOPPING_SPEED * Math.log1p(speed / STOPPING_SPEED)) / friction;
 }
 
+function nearestLanding(position, landings) {
+	return landings.reduce((best, landing) =>
+		Math.abs(landing - position) < Math.abs(best - position) ? landing : best
+	);
+}
+
 /*
-	A landing is a position inertia can stop on: for a swipe, a travel that's a
-	whole number of ticks, and for spin, a detent.
-
-	Plan inertia from `position`, moving at `velocity`, so it ends exactly on one
-	of `landings`. It takes any list of landings so spin detents can reuse it
-	(DAI-45).
-
-	The target is the landing nearest the natural stop, where normal friction
-	would leave the flap. Each landing's pull ends halfway to its neighbours, which for
-	ticks 180° apart is the 90° tipping point. Friction is then fitted so the
-	coast covers exactly the distance to the target, and clamped to the
-	MIN_FRICTION_FIT–MAX_FRICTION_FIT band:
-
-	- Inside the band, the coast stops softly on the target.
-	- Below it, friction low enough to reach the target would look like the flap
-	  is floating. The coast stops short and a topple finishes forward.
-	- Above it, the coast reaches the target still moving and stops dead on it
-	  with a clack.
-	- When the target is behind the flap, or the flap isn't moving, the coast
-	  runs out under the band's highest friction and a topple carries the flap
-	  back.
-
-	It returns the target, the coast's friction and coastEnd, where the coast stops.
+	Plan inertia from `position`, moving at `velocity`, to end on one of
+	`landings`: positions inertia can stop on, whole-tick travels for a swipe
+	and detents for spin (DAI-45). It aims for the landing nearest the natural
+	stop and fits friction so the coast stops there, within the
+	MIN_FRICTION_FIT–MAX_FRICTION_FIT band. A topple closes any gap the
+	clamped coast leaves.
 */
 function planInertia(position, velocity, landings) {
 	const speed = Math.abs(velocity);
 	const direction = Math.sign(velocity);
 	const normalFriction = FRICTION_PER_SECOND / 1000;
-	const naturalStop = position + direction * stoppingDistance(speed, normalFriction);
-	const target = landings.reduce((best, landing) =>
-		Math.abs(landing - naturalStop) < Math.abs(best - naturalStop) ? landing : best
-	);
+	const target = nearestLanding(position + direction * stoppingDistance(speed, normalFriction), landings);
 	const distance = (target - position) * direction;
 	// stoppingDistance is inversely proportional to friction, so this lands exactly on distance.
 	const fitted = distance > 0 ? stoppingDistance(speed, 1) / distance : Infinity;
@@ -293,7 +274,8 @@ function planInertia(position, velocity, landings) {
 	// With no more than the fitted friction the coast gets to the target, so it ends there.
 	const reachesTarget = distance > 0 && friction <= fitted;
 	const coastEnd = reachesTarget ? target : position + direction * stoppingDistance(speed, friction);
-	return { target, friction, coastEnd };
+	const coastMs = stoppingTime(speed, friction) / INERTIA_TIME_SCALE;
+	return { target, friction, coastEnd, coastMs };
 }
 
 function startInertia() {
@@ -314,34 +296,51 @@ function stopInertia() {
 	inertiaFrame = null;
 }
 
-// Move the flap to where inertia has carried it after `dt` more ms, and settle once it lands.
+// Where the coast has carried the flap `ms` after release. It's over once it stops or reaches coastEnd.
+function coastMotion(inertia, ms) {
+	const speed = Math.abs(inertia.velocity);
+	const direction = Math.sign(inertia.velocity);
+	const t = Math.min(ms, inertia.coastMs) * INERTIA_TIME_SCALE;
+	const decay = Math.exp(-inertia.friction * t);
+	const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / inertia.friction - STOPPING_SPEED * t;
+	if (ms >= inertia.coastMs || coasted >= Math.abs(inertia.coastEnd - inertia.start)) {
+		return { travel: inertia.coastEnd, velocity: 0, over: true };
+	}
+	return {
+		travel: inertia.start + direction * coasted,
+		velocity: direction * ((speed + STOPPING_SPEED) * decay - STOPPING_SPEED),
+		over: false
+	};
+}
+
+// Where a topple from a standstill at `from` has carried the flap `ms` later, on the normal clock.
+function toppleMotion(from, to, ms) {
+	const gap = to - from;
+	const toppled = Math.min((TOPPLE_ACCELERATION * ms ** 2) / 2, Math.abs(gap));
+	return {
+		travel: from + Math.sign(gap) * toppled,
+		velocity: Math.sign(gap) * TOPPLE_ACCELERATION * ms,
+		landed: toppled >= Math.abs(gap)
+	};
+}
+
+/*
+	Move the flap to where inertia has carried it after `dt` more ms, and settle
+	once it lands. A topple only has a gap to close when the coast stopped
+	short, which takes its full coastMs. A coast cut off at its target leaves no
+	gap, so the topple lands at once.
+*/
 function tickInertia(dt) {
 	const inertia = state.inertia;
 	inertia.elapsedMs += dt;
-	if (inertia.toppleStartMs === null) {
-		const speed = Math.abs(inertia.velocity);
-		const direction = Math.sign(inertia.velocity);
-		const friction = inertia.friction;
-		const stopAt = stoppingTime(speed, friction);
-		const t = Math.min(inertia.elapsedMs * INERTIA_TIME_SCALE, stopAt);
-		const decay = Math.exp(-friction * t);
-		const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / friction - STOPPING_SPEED * t;
-		const coastDistance = Math.abs(inertia.coastEnd - inertia.start);
-		if (t < stopAt && coasted < coastDistance) {
-			state.velocity = direction * ((speed + STOPPING_SPEED) * decay - STOPPING_SPEED);
-			state.travel = inertia.start + direction * coasted;
-			return;
-		}
-		// The coast has stopped, or has reached the target and stops dead on it.
-		inertia.toppleStartMs = Math.min(inertia.elapsedMs, stopAt / INERTIA_TIME_SCALE);
-	}
-	const toppleMs = inertia.elapsedMs - inertia.toppleStartMs;
-	const gap = state.target - inertia.coastEnd;
-	const toppled = Math.min((TOPPLE_ACCELERATION * toppleMs ** 2) / 2, Math.abs(gap));
-	state.velocity = Math.sign(gap) * TOPPLE_ACCELERATION * toppleMs;
-	state.travel = inertia.coastEnd + Math.sign(gap) * toppled;
+	const coast = coastMotion(inertia, inertia.elapsedMs);
+	const motion = coast.over
+		? toppleMotion(inertia.coastEnd, state.target, Math.max(inertia.elapsedMs - inertia.coastMs, 0))
+		: coast;
+	state.travel = motion.travel;
+	state.velocity = motion.velocity;
 	// The topple stops on the target, so settling there doesn't move the flap.
-	if (toppled >= Math.abs(gap)) settle(state.target / TICK_DEGREES);
+	if (motion.landed) settle(state.target / TICK_DEGREES);
 }
 
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
