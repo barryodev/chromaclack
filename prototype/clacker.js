@@ -100,7 +100,8 @@ const debugFields = debugPanel
 	positive is forward (swipe down or left), negative is backward (swipe up or
 	right). It's unwrapped, so 360 is two forward ticks, and the hinge angle and
 	completed ticks are both worked out from it. `page` only changes when a
-	swipe settles. Until then shownPage() adds the ticks completed so far.
+	swipe settles or is caught. Until then shownPage() adds the ticks
+	completed so far.
 */
 const state = {
 	mode: 'vertical',
@@ -181,16 +182,23 @@ function axisPosition(event) {
 // Swipe
 
 function startSwipe(event) {
-	if (state.phase === 'inertia') {
-		// Pressing during inertia keeps the ticks already completed and drops the rest.
-		stopInertia();
-		settle(completedTicks());
-	}
+	if (state.phase === 'inertia') catchFlap();
 	const position = axisPosition(event);
-	pointer = { id: event.pointerId, start: position, last: position, lastTime: performance.now() };
+	// Offset the start so the drag carries on from the caught flap's travel. It's 0 when idle.
+	const start = position - state.travel / DEGREES_PER_PIXEL;
+	pointer = { id: event.pointerId, start, last: position, lastTime: performance.now() };
 	state.phase = 'dragging';
-	state.travel = 0;
 	state.velocity = 0;
+}
+
+// Keep the ticks inertia has completed and leave the flap at its hinge angle, so the shown pages don't change.
+function catchFlap() {
+	stopInertia();
+	const angle = hingeAngle();
+	state.page = shownPage();
+	state.travel = angle;
+	state.target = 0;
+	state.inertia = null;
 }
 
 function dragSwipe(event) {

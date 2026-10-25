@@ -112,6 +112,8 @@ A swipe has these phases:
 
 **Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts to a stop, if it's moving, then topples back.
 
+**Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump.
+
 ## Holding and spinning
 
 **Hold**: the user presses on the clacker and keeps the pointer still for a short time before moving. A hold starts a spin. The duration threshold is still to be decided (DAI-46).
