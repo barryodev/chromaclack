@@ -68,6 +68,8 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Hinge angle**: how far a flap has rotated about the hinge. 0° is resting in the start half and 180° is resting in the end half. Avoid using bare "rotation" for this, because it collides with spin.
 
+**Travel**: how far a swipe has turned flaps over the hinge since it started, counted across ticks. A caught swipe starts at the hinge angle it was caught at, and any other swipe at 0. Each 180° is one tick, so 360° of forward travel is two forward ticks. Forward travel counts up and backward travel counts down. The hinge angle is the part of travel inside the tick in progress, and the ticks completed so far are the whole 180°s.
+
 **Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
 **Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
@@ -95,10 +97,22 @@ A swipe has these phases:
 
 - **Drag**: the pointer is down and moving, and the flap follows it.
 - **Release**: the pointer lifts.
-- **Inertia**: after release, flaps keep ticking over and slow down under friction.
+- **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
-**Snap back**: if a swipe is released before any flap passes the hinge and without enough speed to carry it over, the flap returns to where it started and the page doesn't change.
+**Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. For a spin it's a detent. It isn't called a "rest", because that word already means at rest and rest tilt.
+
+**Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
+
+**Coast**: the first part of inertia. The flap slows under friction and comes to a stop. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
+
+**Stopping speed**: a small, steady drag on top of friction, so the coast comes to a full stop in finite time instead of slowing forever.
+
+**Topple**: the second part of inertia, used when the coast stops short of its landing or on the wrong side of 90°. From a standstill, the flap speeds up steadily towards the landing, forward or backward, like a card tipping over under gravity, and stops dead on it with a clack. A swipe released with no speed is just a topple.
+
+**Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts to a stop, if it's moving, then topples back.
+
+**Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump.
 
 ## Holding and spinning
 
