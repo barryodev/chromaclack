@@ -211,7 +211,9 @@ function dragSwipe(event) {
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSample(move);
 	const position = axisPosition(event);
-	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
+	// A drag can tick through pages by itself, as far as inertia could land.
+	const maxTravel = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
+	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -maxTravel, maxTravel);
 	state.velocity = windowVelocity(pointer.samples);
 }
 

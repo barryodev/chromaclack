@@ -95,7 +95,7 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 A swipe has these phases:
 
-- **Drag**: the pointer is down and moving, and the flap follows it.
+- **Drag**: the pointer is down and moving, and the flap follows it. A long enough drag ticks through pages by itself, without inertia.
 - **Release**: the pointer lifts.
 - **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
