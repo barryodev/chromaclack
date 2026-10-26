@@ -282,7 +282,8 @@ function releaseSwipe(event) {
 	rather than stepping it frame by frame, means inertia lands exactly where
 	it was planned.
 */
-function coastTerms(speed, frictionScale) {
+// The scaled frictions and the values the exact solution above needs, for a coast starting at `speed`.
+function coastFormulaInputs(speed, frictionScale) {
 	const airResistance = AIR_RESISTANCE * frictionScale;
 	const stoppingFriction = STOPPING_FRICTION * frictionScale;
 	// √(s/c), the speed where both frictions slow the flap equally.
@@ -296,12 +297,12 @@ function coastTerms(speed, frictionScale) {
 }
 
 function stoppingTime(speed, frictionScale) {
-	const { startPhase, phaseRate } = coastTerms(speed, frictionScale);
+	const { startPhase, phaseRate } = coastFormulaInputs(speed, frictionScale);
 	return startPhase / phaseRate;
 }
 
 function stoppingDistance(speed, frictionScale) {
-	const { airResistance, startPhase } = coastTerms(speed, frictionScale);
+	const { airResistance, startPhase } = coastFormulaInputs(speed, frictionScale);
 	return -Math.log(Math.cos(startPhase)) / airResistance;
 }
 
@@ -356,7 +357,7 @@ function stopInertia() {
 // Where the coast towards `to` has carried the flap `ms` after release. It lands once it stops or reaches `to`.
 function coastMotion(inertia, to, ms) {
 	const direction = Math.sign(inertia.velocity);
-	const { airResistance, balanceSpeed, startPhase, phaseRate } = coastTerms(
+	const { airResistance, balanceSpeed, startPhase, phaseRate } = coastFormulaInputs(
 		Math.abs(inertia.velocity),
 		inertia.frictionScale
 	);
