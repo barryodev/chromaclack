@@ -104,13 +104,13 @@ A swipe has these phases:
 
 **Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
 
-**Coast**: the first part of inertia. The flap slows under friction and comes to a stop. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
+**Coast**: inertia when friction can carry the flap to its landing. The flap slows under friction and comes to a stop. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
 
 **Stopping speed**: a small, steady drag on top of friction, so the coast comes to a full stop in finite time instead of slowing forever.
 
-**Topple**: the second part of inertia, used when the coast stops short of its landing or on the wrong side of 90°. From a standstill, the flap speeds up steadily towards the landing, forward or backward, like a card tipping over under gravity, and stops dead on it with a clack. A swipe released with no speed is just a topple.
+**Topple**: inertia when a coast can't reach the landing, because the flap is moving too slowly or away from it. The flap is pulled steadily towards the landing, forward or backward, like a card tipping over under gravity, and stops dead on it with a clack. It starts at the release speed. Moving towards the landing, it speeds up from there. Moving away, it slows, turns and falls back. A swipe released with no speed is just a topple.
 
-**Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts to a stop, if it's moving, then topples back.
+**Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts back, or topples back if it's moving too slowly or forward.
 
 **Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump.
 
