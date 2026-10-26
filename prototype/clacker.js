@@ -215,7 +215,7 @@ function dragSwipe(event) {
 // Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
 const SWIPE_LANDINGS = Array.from(
 	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
-	(_, i) => (i - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
+	(_, index) => (index - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
 );
 
 function releaseSwipe() {
@@ -292,9 +292,9 @@ function startInertia() {
 	let lastFrame = performance.now();
 	const step = (now) => {
 		// Slow-mo scales the frame time, so inertia's clock runs slower too.
-		const dt = (now - lastFrame) * timeScale();
+		const frameMs = (now - lastFrame) * timeScale();
 		lastFrame = now;
-		tickInertia(dt);
+		tickInertia(frameMs);
 		render();
 		inertiaFrame = state.phase === 'inertia' ? requestAnimationFrame(step) : null;
 	};
@@ -310,9 +310,9 @@ function stopInertia() {
 function coastMotion(inertia, to, ms) {
 	const speed = Math.abs(inertia.velocity);
 	const direction = Math.sign(inertia.velocity);
-	const t = Math.min(ms, inertia.durationMs) * INERTIA_TIME_SCALE;
-	const decay = Math.exp(-inertia.friction * t);
-	const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / inertia.friction - STOPPING_SPEED * t;
+	const slowedTime = Math.min(ms, inertia.durationMs) * INERTIA_TIME_SCALE;
+	const decay = Math.exp(-inertia.friction * slowedTime);
+	const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / inertia.friction - STOPPING_SPEED * slowedTime;
 	if (ms >= inertia.durationMs || coasted >= Math.abs(to - inertia.start)) {
 		return { travel: to, velocity: 0, landed: true };
 	}
@@ -338,16 +338,16 @@ function toppleTime(gap, velocity) {
 // Where the topple towards `to` has carried the flap `ms` after release.
 function toppleMotion(inertia, to, ms) {
 	const pull = Math.sign(to - inertia.start) * TOPPLE_ACCELERATION;
-	const t = Math.min(ms, inertia.durationMs);
-	const velocity = inertia.velocity + pull * t;
+	const time = Math.min(ms, inertia.durationMs);
+	const velocity = inertia.velocity + pull * time;
 	if (ms >= inertia.durationMs) return { travel: to, velocity, landed: true };
-	return { travel: inertia.start + inertia.velocity * t + (pull * t ** 2) / 2, velocity, landed: false };
+	return { travel: inertia.start + inertia.velocity * time + (pull * time ** 2) / 2, velocity, landed: false };
 }
 
-// Move the flap to where inertia has carried it after `dt` more ms, and settle once it lands.
-function tickInertia(dt) {
+// Move the flap to where inertia has carried it after `frameMs` more ms, and settle once it lands.
+function tickInertia(frameMs) {
 	const inertia = state.inertia;
-	inertia.elapsedMs += dt;
+	inertia.elapsedMs += frameMs;
 	const motion = inertia.coasts
 		? coastMotion(inertia, state.target, inertia.elapsedMs)
 		: toppleMotion(inertia, state.target, inertia.elapsedMs);
