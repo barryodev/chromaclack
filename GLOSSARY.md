@@ -106,9 +106,11 @@ A swipe has these phases:
 
 **Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
 
-**Coast**: inertia when friction can carry the flap to its landing. The flap slows under friction and comes to a stop. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
+**Coast**: inertia when friction can carry the flap to its landing. The flap starts at the release speed, slows under friction and comes to a stop. Friction is air resistance plus stopping friction. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
 
-**Stopping speed**: a small, steady drag on top of friction, so the coast comes to a full stop in finite time instead of slowing forever.
+**Air resistance**: the part of a coast's friction that grows with the square of the flap's speed. A hard flick sheds speed quickly, so its coast stays short. It isn't called "air drag", because drag is already a swipe phase.
+
+**Stopping friction**: a small, steady slowing on top of air resistance, so the coast comes to a full stop in finite time instead of slowing forever. It used to be called "stopping speed".
 
 **Topple**: inertia when a coast can't reach the landing, because the flap is moving too slowly or away from it. The flap is pulled steadily towards the landing, forward or backward, like a card tipping over under gravity, and stops dead on it with a clack. It starts at the release speed. Moving towards the landing, it speeds up from there. Moving away, it slows, turns and falls back. A swipe released with no speed is just a topple.
 

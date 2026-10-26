@@ -18,15 +18,15 @@ const REST_TILTS = [42, 36, 30];
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
 const DEGREES_PER_PIXEL = 0.6;
-const FRICTION_PER_SECOND = 3.5;
-const STOPPING_SPEED = 0.02; // °/ms. Dry friction on top of FRICTION_PER_SECOND, so inertia stops in finite time.
-// Inertia fits its friction to end on a landing, clamped to this band around FRICTION_PER_SECOND.
+// A 3.4 px/ms flick, a hard one on a phone, coasts about 9 ticks in about 1.9 s.
+const AIR_RESISTANCE = 0.00025; // Per degree. Slows the coast in proportion to its speed².
+const STOPPING_FRICTION = 0.0008; // °/ms². A steady slowing on top, so the coast stops in finite time.
+// Inertia fits its friction to end on a landing, scaling both frictions by a factor within this band.
 const MIN_FRICTION_FIT = 0.5;
 const MAX_FRICTION_FIT = 2;
 const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
-const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
-const MAX_TICKS_PER_SWIPE = 8;
+const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
 const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
 // Spin tuning.
@@ -112,7 +112,7 @@ const state = {
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
-	inertia: null, // { start, velocity, coasts, friction, durationMs, elapsedMs }, see releaseSwipe.
+	inertia: null, // { start, velocity, coasts, frictionScale, durationMs, elapsedMs }, see releaseSwipe.
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
 	spinSettling: false
@@ -248,7 +248,7 @@ function releaseSwipe(event) {
 		start: state.travel,
 		velocity: state.velocity,
 		coasts: plan.coasts,
-		friction: plan.friction,
+		frictionScale: plan.frictionScale,
 		durationMs: plan.durationMs,
 		elapsedMs: 0
 	};
@@ -261,22 +261,48 @@ function releaseSwipe(event) {
 	Inertia is a coast if friction can carry the flap to its landing, and a
 	topple if it can't.
 
-	The coast slows the flap under two frictions, on its slowed clock. Viscous
-	friction slows it in proportion to its speed, like the old inertia. A small
-	dry friction, STOPPING_SPEED, adds a steady drag on top, so the flap comes
-	to a stop in finite time instead of slowing forever.
+	The coast starts at the release speed and slows under two frictions. Air
+	resistance grows with speed², so a hard flick sheds speed fast and its
+	tail stays short. Stopping friction is a steady slowing on top, so the
+	flap stops in finite time instead of slowing forever.
 
-	stoppingTime, stoppingDistance and coastMotion all use the exact solution
-	of the coast, so they must change together. Working out the position from
-	elapsed time, rather than stepping it frame by frame, means inertia lands
-	exactly where it was planned.
+	With c = AIR_RESISTANCE and s = STOPPING_FRICTION, both multiplied by the
+	fitted friction scale, speed v follows dv/dt = −(c·v² + s). Its exact
+	solution, with θ₀ = atan(v₀·√(c/s)) and ω = √(c·s), is
+
+		v(t) = √(s/c) · tan(θ₀ − ω·t)
+		distance(t) = ln(cos(θ₀ − ω·t) / cos θ₀) / c
+
+	and the flap stops when θ₀ − ω·t reaches 0. Scaling both frictions by one
+	factor divides the stopping distance and time by it, which is how
+	planInertia fits a coast to its landing.
+
+	stoppingTime, stoppingDistance and coastMotion all use this solution, so
+	they must change together. Working out the position from elapsed time,
+	rather than stepping it frame by frame, means inertia lands exactly where
+	it was planned.
 */
-function stoppingTime(speed, friction) {
-	return Math.log1p(speed / STOPPING_SPEED) / friction;
+function coastTerms(speed, frictionScale) {
+	const airResistance = AIR_RESISTANCE * frictionScale;
+	const stoppingFriction = STOPPING_FRICTION * frictionScale;
+	// √(s/c), the speed where both frictions slow the flap equally.
+	const balanceSpeed = Math.sqrt(stoppingFriction / airResistance);
+	return {
+		airResistance,
+		balanceSpeed,
+		startPhase: Math.atan(speed / balanceSpeed),
+		phaseRate: Math.sqrt(airResistance * stoppingFriction)
+	};
 }
 
-function stoppingDistance(speed, friction) {
-	return (speed - STOPPING_SPEED * Math.log1p(speed / STOPPING_SPEED)) / friction;
+function stoppingTime(speed, frictionScale) {
+	const { startPhase, phaseRate } = coastTerms(speed, frictionScale);
+	return startPhase / phaseRate;
+}
+
+function stoppingDistance(speed, frictionScale) {
+	const { airResistance, startPhase } = coastTerms(speed, frictionScale);
+	return -Math.log(Math.cos(startPhase)) / airResistance;
 }
 
 function nearestLanding(position, landings) {
@@ -296,17 +322,17 @@ function nearestLanding(position, landings) {
 function planInertia(position, velocity, landings) {
 	const speed = Math.abs(velocity);
 	const direction = Math.sign(velocity);
-	const normalFriction = FRICTION_PER_SECOND / 1000;
-	const target = nearestLanding(position + direction * stoppingDistance(speed, normalFriction), landings);
+	const naturalDistance = stoppingDistance(speed, 1);
+	const target = nearestLanding(position + direction * naturalDistance, landings);
 	const distance = (target - position) * direction;
-	// stoppingDistance is inversely proportional to friction, so this lands exactly on distance.
-	const fitted = distance > 0 ? stoppingDistance(speed, 1) / distance : Infinity;
-	const friction = clamp(fitted, MIN_FRICTION_FIT * normalFriction, MAX_FRICTION_FIT * normalFriction);
+	// stoppingDistance is inversely proportional to the friction scale, so this lands exactly on distance.
+	const fitted = distance > 0 ? naturalDistance / distance : Infinity;
+	const frictionScale = clamp(fitted, MIN_FRICTION_FIT, MAX_FRICTION_FIT);
 	// With no more than the fitted friction the coast gets to the target, so it ends there.
-	if (distance > 0 && friction <= fitted) {
-		return { target, coasts: true, friction, durationMs: stoppingTime(speed, friction) / INERTIA_TIME_SCALE };
+	if (distance > 0 && frictionScale <= fitted) {
+		return { target, coasts: true, frictionScale, durationMs: stoppingTime(speed, frictionScale) };
 	}
-	return { target, coasts: false, friction: 0, durationMs: toppleTime(target - position, velocity) };
+	return { target, coasts: false, frictionScale: 0, durationMs: toppleTime(target - position, velocity) };
 }
 
 function startInertia() {
@@ -329,26 +355,28 @@ function stopInertia() {
 
 // Where the coast towards `to` has carried the flap `ms` after release. It lands once it stops or reaches `to`.
 function coastMotion(inertia, to, ms) {
-	const speed = Math.abs(inertia.velocity);
 	const direction = Math.sign(inertia.velocity);
-	const slowedTime = Math.min(ms, inertia.durationMs) * INERTIA_TIME_SCALE;
-	const decay = Math.exp(-inertia.friction * slowedTime);
-	const coasted = ((speed + STOPPING_SPEED) * (1 - decay)) / inertia.friction - STOPPING_SPEED * slowedTime;
+	const { airResistance, balanceSpeed, startPhase, phaseRate } = coastTerms(
+		Math.abs(inertia.velocity),
+		inertia.frictionScale
+	);
+	const phase = startPhase - phaseRate * Math.min(ms, inertia.durationMs);
+	const coasted = Math.log(Math.cos(phase) / Math.cos(startPhase)) / airResistance;
 	if (ms >= inertia.durationMs || coasted >= Math.abs(to - inertia.start)) {
 		return { travel: to, velocity: 0, landed: true };
 	}
 	return {
 		travel: inertia.start + direction * coasted,
-		velocity: direction * ((speed + STOPPING_SPEED) * decay - STOPPING_SPEED),
+		velocity: direction * balanceSpeed * Math.tan(phase),
 		landed: false
 	};
 }
 
 /*
-	A topple pulls the flap steadily towards its landing, like gravity, on the
-	normal clock. It starts at the release velocity, so a flap moving towards
-	its landing speeds up from there, and one moving away slows, turns and falls
-	back. toppleTime and toppleMotion must change together.
+	A topple pulls the flap steadily towards its landing, like gravity. It
+	starts at the release velocity, so a flap moving towards its landing speeds
+	up from there, and one moving away slows, turns and falls back. toppleTime
+	and toppleMotion must change together.
 */
 function toppleTime(gap, velocity) {
 	const speedTowards = velocity * Math.sign(gap);
