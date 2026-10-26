@@ -106,7 +106,7 @@ A swipe has these phases:
 
 **Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
 
-**Coast**: inertia when friction can carry the flap to its landing. The flap starts at the release speed, slows under friction and comes to a stop. Friction is air resistance plus stopping friction. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
+**Coast**: inertia when friction can carry the flap to its landing. The flap starts at the release speed, slows under friction and comes to a stop. Friction is air resistance plus stopping friction. Normal friction depends on the input: a mouse gets about 70% more than touch or pen, because a small mouse flick moves the pointer fast. It goes by the kind of pointer, not the device, so a touchscreen laptop gets the touch feel when touched. Friction is fitted for each swipe so the coast ends exactly on its landing, but only within a band around normal friction, so the flap never looks like it's floating or braking hard. A coast that can't stop in time stops dead on its landing with a clack.
 
 **Air resistance**: the part of a coast's friction that grows with the square of the flap's speed. A hard flick sheds speed quickly, so its coast stays short. It isn't called "air drag", because drag is already a swipe phase.
 

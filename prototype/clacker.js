@@ -21,7 +21,9 @@ const DEGREES_PER_PIXEL = 0.6;
 // A 3.4 px/ms flick, a hard one on a phone, coasts about 9 ticks in about 1.9 s.
 const AIR_RESISTANCE = 0.00025; // Per degree. Slows the coast in proportion to its speed².
 const STOPPING_FRICTION = 0.0008; // °/ms². A steady slowing on top, so the coast stops in finite time.
-// Inertia fits its friction to end on a landing, scaling both frictions by a factor within this band.
+// A small mouse flick moves the pointer fast, so mouse coasts get this much more friction than touch or pen.
+const MOUSE_FRICTION = 1.7;
+// Inertia fits its friction to end on a landing, within this band around the input's normal friction.
 const MIN_FRICTION_FIT = 0.5;
 const MAX_FRICTION_FIT = 2;
 const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
@@ -241,7 +243,8 @@ function releaseSwipe(event) {
 	state.velocity = windowVelocity(pointer.samples);
 	state.releaseSpeed = Math.abs(state.velocity) / DEGREES_PER_PIXEL;
 	pointer = null;
-	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS);
+	const normalFriction = event.pointerType === 'mouse' ? MOUSE_FRICTION : 1;
+	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS, normalFriction);
 	state.phase = 'inertia';
 	state.target = plan.target;
 	state.inertia = {
@@ -315,20 +318,21 @@ function nearestLanding(position, landings) {
 /*
 	Plan inertia from `position`, moving at `velocity`, to end on one of
 	`landings`: positions inertia can stop on, whole-tick travels for a swipe
-	and detents for spin (DAI-45). It aims for the landing nearest the natural
-	stop and fits friction so the coast stops there, within the
-	MIN_FRICTION_FIT–MAX_FRICTION_FIT band. If the clamped coast can't get
-	there, the flap topples there instead.
+	and detents for spin (DAI-45). `normalFriction` scales both frictions for
+	the input. It aims for the landing nearest the natural stop and fits
+	friction so the coast stops there, within the
+	MIN_FRICTION_FIT–MAX_FRICTION_FIT band around `normalFriction`. If the
+	clamped coast can't get there, the flap topples there instead.
 */
-function planInertia(position, velocity, landings) {
+function planInertia(position, velocity, landings, normalFriction) {
 	const speed = Math.abs(velocity);
 	const direction = Math.sign(velocity);
-	const naturalDistance = stoppingDistance(speed, 1);
+	const naturalDistance = stoppingDistance(speed, normalFriction);
 	const target = nearestLanding(position + direction * naturalDistance, landings);
 	const distance = (target - position) * direction;
 	// stoppingDistance is inversely proportional to the friction scale, so this lands exactly on distance.
-	const fitted = distance > 0 ? naturalDistance / distance : Infinity;
-	const frictionScale = clamp(fitted, MIN_FRICTION_FIT, MAX_FRICTION_FIT);
+	const fitted = distance > 0 ? (normalFriction * naturalDistance) / distance : Infinity;
+	const frictionScale = clamp(fitted, MIN_FRICTION_FIT * normalFriction, MAX_FRICTION_FIT * normalFriction);
 	// With no more than the fitted friction the coast gets to the target, so it ends there.
 	if (distance > 0 && frictionScale <= fitted) {
 		return { target, coasts: true, frictionScale, durationMs: stoppingTime(speed, frictionScale) };
