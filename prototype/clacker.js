@@ -27,6 +27,7 @@ const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill 
 const INERTIA_TIME_SCALE = 0.25; // Inertia runs on a slowed clock.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
 const MAX_TICKS_PER_SWIPE = 8;
+const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
@@ -112,6 +113,7 @@ const state = {
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
 	inertia: null, // { start, velocity, coasts, friction, durationMs, elapsedMs }, see releaseSwipe.
+	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
 	spinSettling: false
 };
@@ -187,7 +189,7 @@ function startSwipe(event) {
 	const position = axisPosition(event);
 	// Offset the start so the drag carries on from the caught flap's travel. It's 0 when idle.
 	const start = position - state.travel / DEGREES_PER_PIXEL;
-	pointer = { id: event.pointerId, start, last: position, lastTime: performance.now() };
+	pointer = { id: event.pointerId, start, samples: [{ position, time: event.timeStamp }] };
 	state.phase = 'dragging';
 	state.velocity = 0;
 }
@@ -203,13 +205,28 @@ function catchFlap() {
 }
 
 function dragSwipe(event) {
-	const now = performance.now();
+	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
+	const moves = event.getCoalescedEvents?.() ?? [];
+	for (const move of moves.length > 0 ? moves : [event]) addSample(move);
 	const position = axisPosition(event);
-	const elapsed = Math.max(now - pointer.lastTime, 1);
 	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -TICK_DEGREES, TICK_DEGREES);
-	state.velocity = ((position - pointer.last) * DEGREES_PER_PIXEL) / elapsed;
-	pointer.last = position;
-	pointer.lastTime = now;
+	state.velocity = windowVelocity(pointer.samples);
+}
+
+// Record where the pointer was and when, keeping one sample from just before the release window.
+function addSample(event) {
+	const samples = pointer.samples;
+	samples.push({ position: axisPosition(event), time: event.timeStamp });
+	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
+	while (samples.length > 2 && samples[1].time <= windowStart) samples.shift();
+}
+
+// Velocity in °/ms across the window, so one short last move can't stand in for the whole swipe.
+function windowVelocity(samples) {
+	const oldest = samples[0];
+	const newest = samples.at(-1);
+	const elapsedMs = newest.time - oldest.time;
+	return elapsedMs > 0 ? ((newest.position - oldest.position) * DEGREES_PER_PIXEL) / elapsedMs : 0;
 }
 
 // Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
@@ -218,7 +235,11 @@ const SWIPE_LANDINGS = Array.from(
 	(_, index) => (index - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
 );
 
-function releaseSwipe() {
+function releaseSwipe(event) {
+	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
+	if (event.type === 'pointerup') addSample(event);
+	state.velocity = windowVelocity(pointer.samples);
+	state.releaseSpeed = Math.abs(state.velocity) / DEGREES_PER_PIXEL;
 	pointer = null;
 	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS);
 	state.phase = 'inertia';
@@ -421,7 +442,7 @@ clacker.addEventListener('pointermove', (event) => {
 function endPointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) return;
 	if (state.mode === 'spin') releaseSpin(event.type === 'pointerup');
-	else releaseSwipe();
+	else releaseSwipe(event);
 	render();
 }
 
@@ -522,6 +543,7 @@ function renderDebug() {
 	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
 	debugFields.angle.textContent = `${hingeAngle().toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
+	debugFields.releaseSpeed.textContent = `${state.releaseSpeed.toFixed(2)} px/ms`;
 	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
 	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';

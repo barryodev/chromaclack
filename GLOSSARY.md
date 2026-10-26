@@ -100,6 +100,8 @@ A swipe has these phases:
 - **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
+**Release speed**: how fast the pointer was moving along the axis when it lifted, measured over its last 80 ms or so of movement rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
+
 **Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. For a spin it's a detent. It isn't called a "rest", because that word already means at rest and rest tilt.
 
 **Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
