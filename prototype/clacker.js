@@ -35,6 +35,12 @@ const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle 
 const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
 const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
+// Looseness tuning. Looseness runs from 0, where a tick moves evenly like a fast spin, to 1, where the
+// rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
+const TIGHT_SPEED = 1.5; // About 8 ticks a second. At or above it, looseness is 0.
+const LOOSE_SPEED = 0.45; // About 2.5 ticks a second. At or below it, looseness is 1.
+const LOOSENESS_STEEPNESS = 2; // Higher stays tight for longer as the flap slows, then loosens faster.
+
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
 const SPIN_SETTLE_MS = 400; // How long the release snap to a detent takes.
@@ -119,6 +125,7 @@ const state = {
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
 	inertia: null, // { start, velocity, coasts, frictionScale, durationMs, elapsedMs }, see releaseSwipe.
+	heldLooseness: null, // { page, forward, looseness } for the tick in progress, see tickLooseness.
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
 	spinSettling: false
@@ -139,6 +146,10 @@ function pageAt(index) {
 
 function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
+}
+
+function lerp(from, to, amount) {
+	return from + (to - from) * amount;
 }
 
 // Whole ticks the current swipe has completed, signed like travel.
@@ -421,6 +432,29 @@ function tickInertia(frameMs) {
 	if (motion.landed) settle(state.target / TICK_DEGREES);
 }
 
+// Looseness
+
+// A power curve, so the flap stays tight through most of a slowdown and loosens quickly near LOOSE_SPEED.
+function loosenessAt(speed) {
+	const slowedBy = clamp((TIGHT_SPEED - speed) / (TIGHT_SPEED - LOOSE_SPEED), 0, 1);
+	return slowedBy ** LOOSENESS_STEEPNESS;
+}
+
+/*
+	The looseness of the tick in progress. It's sampled from the flap's speed
+	as the tick starts and held until it ends, so a tick's shape never changes
+	partway through. A tick is known by the shown page and its direction.
+*/
+function tickLooseness() {
+	const page = shownPage();
+	const forward = hingeAngle() >= 0;
+	const held = state.heldLooseness;
+	if (held?.page !== page || held.forward !== forward) {
+		state.heldLooseness = { page, forward, looseness: loosenessAt(Math.abs(state.velocity)) };
+	}
+	return state.heldLooseness.looseness;
+}
+
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
 function settle(pageDelta) {
 	state.page += pageDelta;
@@ -429,6 +463,7 @@ function settle(pageDelta) {
 	state.velocity = 0;
 	state.target = 0;
 	state.inertia = null;
+	state.heldLooseness = null;
 }
 
 // Spin
@@ -527,6 +562,17 @@ function setFlap(flap, hingeAngle, restTilt, front, back) {
 	paintSide(flap.back, back);
 }
 
+// Fan easing at full looseness. Tiers in the half the moving flap leaves wait for it to clear, then flop
+// forward.
+function easeLeavingTier(progress) {
+	return progress ** 3;
+}
+
+// Smoothstep. Tiers in the half the moving flap lands in give way as it arrives.
+function easeLandingTier(progress) {
+	return progress * progress * (3 - 2 * progress);
+}
+
 /*
 	At rest, start tier k shows page N+k and end tier k shows page N-k. The moving
 	flap stands in for tier 0 of the half it starts in, so that tier's own flap is
@@ -535,29 +581,34 @@ function setFlap(flap, hingeAngle, restTilt, front, back) {
 	start half. In a backward tick it rises from the end half back up. Its front
 	carries N-1's start half, and end tier 1 beneath it shows N-1's end half.
 
-	As the tick progresses, each tier slides linearly one place towards its pose
-	for the next page. In a forward tick start tiers move forward and end tiers
-	move back, and a backward tick is the mirror image. When the tick completes
-	every flap already sits in the next page's rest pose, so nothing jumps.
-	Offstage flaps wait behind the back tier at its tilt, already showing their
-	pages. A back tier rising away uncovers one, and a back tier being covered
-	by the tier in front goes offstage.
+	As the tick progresses, each tier slides one place towards its pose for the
+	next page, linearly when tight and eased when loose. In a forward tick start
+	tiers move forward and end tiers move back, and a backward tick is the
+	mirror image. When the tick completes every flap already sits in the next
+	page's rest pose, so nothing jumps. Offstage flaps wait behind the back tier
+	at its tilt, already showing their pages. A back tier rising away uncovers
+	one, and a back tier being covered by the tier in front goes offstage.
 */
 function renderFlaps() {
 	const shown = shownPage();
 	const angle = hingeAngle();
 	const forward = angle >= 0;
 	const progress = Math.abs(angle) / TICK_DEGREES;
-	const slideTilt = (tier, towards) => tierTilt(tier) + (tierTilt(towards) - tierTilt(tier)) * progress;
+	const looseness = tickLooseness();
+	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
+	const landingSlide = lerp(progress, easeLandingTier(progress), looseness);
+	const startSlide = forward ? leavingSlide : landingSlide;
+	const endSlide = forward ? landingSlide : leavingSlide;
+	const slideTilt = (tier, towards, slide) => lerp(tierTilt(tier), tierTilt(towards), slide);
 
 	flaps.start.forEach((flap, tier) => {
 		const page = pageAt(shown + tier);
-		setFlap(flap, 0, slideTilt(tier, forward ? tier - 1 : tier + 1), page, page);
+		setFlap(flap, 0, slideTilt(tier, forward ? tier - 1 : tier + 1, startSlide), page, page);
 		flap.element.hidden = forward && tier === 0;
 	});
 	flaps.end.forEach((flap, tier) => {
 		const page = pageAt(shown - tier);
-		setFlap(flap, TICK_DEGREES, slideTilt(tier, forward ? tier + 1 : tier - 1), page, page);
+		setFlap(flap, TICK_DEGREES, slideTilt(tier, forward ? tier + 1 : tier - 1, endSlide), page, page);
 		flap.element.hidden = !forward && tier === 0;
 	});
 
@@ -586,6 +637,8 @@ function renderDebug() {
 	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
 	debugFields.angle.textContent = `${hingeAngle().toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
+	const nowLooseness = loosenessAt(Math.abs(state.velocity));
+	debugFields.looseness.textContent = `${tickLooseness().toFixed(2)} (now ${nowLooseness.toFixed(2)})`;
 	debugFields.releaseSpeed.textContent = `${state.releaseSpeed.toFixed(2)} px/ms`;
 	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
