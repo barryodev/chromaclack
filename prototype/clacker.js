@@ -154,6 +154,8 @@ function clamp(value, min, max) {
 	return Math.min(max, Math.max(min, value));
 }
 
+// Blend from `from` to `to`: amount 0 gives `from` and 1 gives `to`. Slides tiers between tilts, picks
+// per-flap values from the tuning bands, and blends each wobble in by looseness.
 function lerp(from, to, amount) {
 	return from + (to - from) * amount;
 }
@@ -479,7 +481,7 @@ function tickBounds() {
 }
 
 /*
-	The drum carries a moving flap up to the top of its tick. Once inertia
+	The clacker carries a moving flap up to the top of its tick. Once inertia
 	carries it past its tipping point, gravity takes over and it falls ahead
 	of travel onto the stack, where it waits for travel to finish the tick.
 	The pull scales with looseness, so a fast spin keeps today's even motion.
