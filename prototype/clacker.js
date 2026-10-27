@@ -19,7 +19,8 @@ const REST_TILTS = [42, 36, 30];
 const TICK_DEGREES = 180;
 // How far a drag turns the flap, and how fast a release sets it coasting. Kept apart so drag feel can change
 // without re-tuning the frictions below, which were tuned with the coast at 0.6.
-const DRAG_DEGREES_PER_PIXEL = 1;
+const DRAG_DEGREES_PER_PIXEL = 2; // A phone's width only fits a few ticks of finger drag at less.
+const MOUSE_DRAG_DEGREES_PER_PIXEL = 0.6; // A small hand movement drags a mouse a long way.
 const COAST_DEGREES_PER_PIXEL = 0.6;
 // A 3.4 px/ms flick, a hard one on a phone, coasts about 9 ticks in about 1.9 s.
 const AIR_RESISTANCE = 0.00025; // Per degree. Slows the coast in proportion to its speed².
@@ -192,9 +193,12 @@ function axisPosition(event) {
 function startSwipe(event) {
 	if (state.phase === 'inertia') catchFlap();
 	const position = axisPosition(event);
+	const degreesPerPixel =
+		event.pointerType === 'mouse' ? MOUSE_DRAG_DEGREES_PER_PIXEL : DRAG_DEGREES_PER_PIXEL;
 	// Offset the start so the drag carries on from the caught flap's travel. It's 0 when idle.
-	const start = position - state.travel / DRAG_DEGREES_PER_PIXEL;
-	pointer = { id: event.pointerId, start, samples: [{ position, time: event.timeStamp }] };
+	const start = position - state.travel / degreesPerPixel;
+	const samples = [{ position, time: event.timeStamp }];
+	pointer = { id: event.pointerId, start, degreesPerPixel, samples };
 	state.phase = 'dragging';
 	state.velocity = 0;
 }
@@ -216,8 +220,8 @@ function dragSwipe(event) {
 	const position = axisPosition(event);
 	// A drag can tick through pages by itself, as far as inertia could land.
 	const maxTravel = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
-	state.travel = clamp((position - pointer.start) * DRAG_DEGREES_PER_PIXEL, -maxTravel, maxTravel);
-	state.velocity = windowVelocity(pointer.samples) * DRAG_DEGREES_PER_PIXEL;
+	state.travel = clamp((position - pointer.start) * pointer.degreesPerPixel, -maxTravel, maxTravel);
+	state.velocity = windowVelocity(pointer.samples) * pointer.degreesPerPixel;
 }
 
 // Record where the pointer was and when, keeping one sample from just before the release window.
