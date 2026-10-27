@@ -37,9 +37,15 @@ const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's la
 
 // Looseness tuning. Looseness runs from 0, where a tick moves evenly like a fast spin, to 1, where the
 // rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
-const TIGHT_SPEED = 1.5; // About 8 ticks a second. At or above it, looseness is 0.
-const LOOSE_SPEED = 0.45; // About 2.5 ticks a second. At or below it, looseness is 1.
+const TIGHT_SPEED = 2; // About 11 ticks a second. At or above it, looseness is 0.
+const LOOSE_SPEED = 0.7; // About 4 ticks a second. At or below it, looseness is 1.
 const LOOSENESS_STEEPNESS = 2; // Higher stays tight for longer as the flap slows, then loosens faster.
+// In inertia a moving flap tips just past the top of its tick and falls onto the stack under gravity. Each
+// flap picks its tipping point and pull from these bands, so some balance longer and some drop harder.
+const MIN_TIP_PROGRESS = 0.5; // Of the way through the tick, so 0.5 is straight up.
+const MAX_TIP_PROGRESS = 0.6;
+const MIN_FALL_PULL = 0.006; // °/ms² at full looseness. From the top, 0.008 drops a flap in about 150 ms.
+const MAX_FALL_PULL = 0.012;
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
@@ -124,7 +130,7 @@ const state = {
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
-	inertia: null, // { start, velocity, coasts, frictionScale, durationMs, elapsedMs }, see releaseSwipe.
+	inertia: null, // { start, velocity, releaseLooseness, coasts, frictionScale, durationMs, elapsedMs, fall }
 	heldLooseness: null, // { page, forward, looseness } for the tick in progress, see tickLooseness.
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
@@ -214,10 +220,10 @@ function startSwipe(event) {
 	state.velocity = 0;
 }
 
-// Keep the ticks inertia has completed and leave the flap at its hinge angle, so the shown pages don't change.
+// Keep the completed ticks, and pick the flap up where it's drawn, which can be ahead of travel as it falls.
 function catchFlap() {
+	const angle = movingTravel() - completedTicks() * TICK_DEGREES;
 	stopInertia();
-	const angle = hingeAngle();
 	state.page = shownPage();
 	state.travel = angle;
 	state.target = 0;
@@ -271,6 +277,8 @@ function releaseSwipe(event) {
 	state.inertia = {
 		start: state.travel,
 		velocity: state.velocity,
+		releaseLooseness: loosenessAt(Math.abs(state.velocity)),
+		fall: null, // See updateFall.
 		coasts: plan.coasts,
 		frictionScale: plan.frictionScale,
 		durationMs: plan.durationMs,
@@ -430,6 +438,7 @@ function tickInertia(frameMs) {
 	state.velocity = motion.velocity;
 	// Both motions stop on the target, so settling there doesn't move the flap.
 	if (motion.landed) settle(state.target / TICK_DEGREES);
+	else updateFall(inertia);
 }
 
 // Looseness
@@ -453,6 +462,56 @@ function tickLooseness() {
 		state.heldLooseness = { page, forward, looseness: loosenessAt(Math.abs(state.velocity)) };
 	}
 	return state.heldLooseness.looseness;
+}
+
+// A repeatable 0–1 value for a flap, so it moves the same way each time. `salt` picks a value per effect.
+function flapRandom(flapIndex, salt) {
+	const wave = Math.sin(flapIndex * 12.9898 + salt * 78.233) * 43758.5453;
+	return wave - Math.floor(wave);
+}
+
+// Falling
+
+// The lowest and highest travel of the tick in progress.
+function tickBounds() {
+	const base = completedTicks() * TICK_DEGREES;
+	return hingeAngle() >= 0 ? [base, base + TICK_DEGREES] : [base - TICK_DEGREES, base];
+}
+
+/*
+	The drum carries a moving flap up to the top of its tick. Once inertia
+	carries it past its tipping point, gravity takes over and it falls ahead
+	of travel onto the stack, where it waits for travel to finish the tick.
+	The pull scales with looseness, so a fast spin keeps today's even motion.
+	Progress is measured from the end of the tick inertia is moving away
+	from, so a snap back tips over the top towards the start half.
+
+	`fall` is { low, to, direction, tippedMs, pull } for the tick in progress,
+	or null until the flap tips. It's dropped at each new tick.
+*/
+function updateFall(inertia) {
+	const [low, high] = tickBounds();
+	if (inertia.fall?.low === low) return;
+	inertia.fall = null;
+	const direction = state.target > state.travel ? 1 : -1;
+	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
+	const flapIndex = hingeAngle() >= 0 ? shownPage() : shownPage() - 1;
+	const tipProgress = lerp(MIN_TIP_PROGRESS, MAX_TIP_PROGRESS, flapRandom(flapIndex, 0));
+	if (covered < tipProgress * TICK_DEGREES) return;
+	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
+	const releasedHere = inertia.start > low && inertia.start < high;
+	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
+	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, flapRandom(flapIndex, 1)) * looseness;
+	inertia.fall = { low, to: direction > 0 ? high : low, direction, tippedMs: inertia.elapsedMs, pull };
+}
+
+// Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it tipped.
+function movingTravel() {
+	const fall = state.inertia?.fall;
+	if (!fall || fall.low !== tickBounds()[0]) return state.travel;
+	const fallMs = state.inertia.elapsedMs - fall.tippedMs;
+	const fallen = state.travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
+	return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
 }
 
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
@@ -591,8 +650,9 @@ function easeLandingTier(progress) {
 */
 function renderFlaps() {
 	const shown = shownPage();
-	const angle = hingeAngle();
-	const forward = angle >= 0;
+	const forward = hingeAngle() >= 0;
+	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
+	const angle = movingTravel() - completedTicks() * TICK_DEGREES;
 	const progress = Math.abs(angle) / TICK_DEGREES;
 	const looseness = tickLooseness();
 	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
