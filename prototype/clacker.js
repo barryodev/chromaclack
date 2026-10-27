@@ -17,7 +17,10 @@ const REST_TILTS = [42, 36, 30];
 
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
-const DEGREES_PER_PIXEL = 0.6;
+// How far a drag turns the flap, and how fast a release sets it coasting. Kept apart so drag feel can change
+// without re-tuning the frictions below, which were tuned with the coast at 0.6.
+const DRAG_DEGREES_PER_PIXEL = 1;
+const COAST_DEGREES_PER_PIXEL = 0.6;
 // A 3.4 px/ms flick, a hard one on a phone, coasts about 9 ticks in about 1.9 s.
 const AIR_RESISTANCE = 0.00025; // Per degree. Slows the coast in proportion to its speed².
 const STOPPING_FRICTION = 0.0008; // °/ms². A steady slowing on top, so the coast stops in finite time.
@@ -190,7 +193,7 @@ function startSwipe(event) {
 	if (state.phase === 'inertia') catchFlap();
 	const position = axisPosition(event);
 	// Offset the start so the drag carries on from the caught flap's travel. It's 0 when idle.
-	const start = position - state.travel / DEGREES_PER_PIXEL;
+	const start = position - state.travel / DRAG_DEGREES_PER_PIXEL;
 	pointer = { id: event.pointerId, start, samples: [{ position, time: event.timeStamp }] };
 	state.phase = 'dragging';
 	state.velocity = 0;
@@ -213,8 +216,8 @@ function dragSwipe(event) {
 	const position = axisPosition(event);
 	// A drag can tick through pages by itself, as far as inertia could land.
 	const maxTravel = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
-	state.travel = clamp((position - pointer.start) * DEGREES_PER_PIXEL, -maxTravel, maxTravel);
-	state.velocity = windowVelocity(pointer.samples);
+	state.travel = clamp((position - pointer.start) * DRAG_DEGREES_PER_PIXEL, -maxTravel, maxTravel);
+	state.velocity = windowVelocity(pointer.samples) * DRAG_DEGREES_PER_PIXEL;
 }
 
 // Record where the pointer was and when, keeping one sample from just before the release window.
@@ -225,12 +228,12 @@ function addSample(event) {
 	while (samples.length > 2 && samples[1].time <= windowStart) samples.shift();
 }
 
-// Velocity in °/ms across the window, so one short last move can't stand in for the whole swipe.
+// Pointer velocity in px/ms across the window, so one short last move can't stand in for the whole swipe.
 function windowVelocity(samples) {
 	const oldest = samples[0];
 	const newest = samples.at(-1);
 	const elapsedMs = newest.time - oldest.time;
-	return elapsedMs > 0 ? ((newest.position - oldest.position) * DEGREES_PER_PIXEL) / elapsedMs : 0;
+	return elapsedMs > 0 ? (newest.position - oldest.position) / elapsedMs : 0;
 }
 
 // Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
@@ -242,8 +245,9 @@ const SWIPE_LANDINGS = Array.from(
 function releaseSwipe(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSample(event);
-	state.velocity = windowVelocity(pointer.samples);
-	state.releaseSpeed = Math.abs(state.velocity) / DEGREES_PER_PIXEL;
+	const releaseVelocity = windowVelocity(pointer.samples);
+	state.velocity = releaseVelocity * COAST_DEGREES_PER_PIXEL;
+	state.releaseSpeed = Math.abs(releaseVelocity);
 	pointer = null;
 	const normalFriction = event.pointerType === 'mouse' ? MOUSE_FRICTION : 1;
 	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS, normalFriction);
