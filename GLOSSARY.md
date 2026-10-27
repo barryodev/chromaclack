@@ -118,6 +118,18 @@ A swipe has these phases:
 
 **Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump.
 
+## Rolodex motion
+
+As a swipe slows, the clacker starts to move like a real rolodex: flaps fall onto the stack and bounce. A fast spin keeps a steady, even tick, the way a heavy rolodex spinning fast does.
+
+**Looseness**: how much rolodex motion a tick shows, from 0 (tight) to 1 (loose). It comes from the flap's speed: tight above a set speed, loose below a lower one, and rising steeply as the flap nears the slower speed. Each tick takes its looseness as it starts and keeps it until it ends, so a tick's shape never changes partway through.
+
+**Fall**: in inertia, the clacker carries a moving flap up until it passes its **fall point**, just past the top of its tick. Then gravity takes over and the flap falls onto the stack, ahead of travel, and waits there for travel to finish the tick. The **pull** of gravity scales with looseness, so a fast spin doesn't fall at all. Each flap has its own fall point and pull, so some balance longer and some drop harder. It isn't called the "tipping point", because that's the 90° that decides whether a swipe finishes its tick.
+
+**Clack**: a falling flap landing on the stack in a half. Its strength comes from how fast the flap hits, times looseness, times the flap's own strength. Ticks dragged by hand don't clack, because a card pushed onto the stack by hand lands gently.
+
+**Bounce**: what a clack sets off, a short damped spring in the half the flap landed in. The clacked flap **rebounds** towards the hinge and settles back, and the flaps beneath it are **knocked back** towards flat, less the deeper they sit. Picking up a rebounding flap fades its rebound out. No flap is ever drawn past the one in front of it, so a flap moving onto a bouncing one pushes it along instead of passing through it.
+
 ## Holding and spinning
 
 **Hold**: the user presses on the clacker and keeps the pointer still for a short time before moving. A hold starts a spin. The duration threshold is still to be decided (DAI-46).
