@@ -55,14 +55,14 @@ const CLACK_KICK = 0.4; // Spring speed in °/ms per °/ms of impact speed, at f
 const MIN_CLACK_STRENGTH = 0.7; // Each flap clacks at its own strength from this band.
 const MAX_CLACK_STRENGTH = 1.3;
 const KNOCK_BACK = [0.5, 0.3, 0.15];
-const BOUNCE_HZ = 6;
+const BOUNCE_SWING_MS = 167; // One swing there and back, if nothing damped it.
 const BOUNCE_DAMPING = 0.35; // Damping ratio. Lower bounces for longer.
 const GRAB_FADE_MS = 60; // Picking a rebounding flap up fades its rebound out over about this long.
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
 // A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
-const SEAT_HZ = 3;
+const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped it.
 const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
 
 const ARIA_LABELS = {
@@ -586,15 +586,18 @@ function startBounces() {
 	bounceFrame = requestAnimationFrame(step);
 }
 
-// Move each bounce's spring on by `frameMs`, in short steps so it stays stable, and drop the ones at rest.
+// Move each bounce's spring on by `frameMs` and drop the ones at rest. It's the same damped spring a seat uses,
+// see stepSeat.
 function stepBounces(frameMs) {
-	const omega = (2 * Math.PI * BOUNCE_HZ) / 1000;
+	const omega = (2 * Math.PI) / BOUNCE_SWING_MS;
 	const steps = Math.ceil(frameMs / 4);
 	const stepMs = frameMs / steps;
 	for (const bounce of bounces) {
 		for (let index = 0; index < steps; index++) {
-			const pull = -omega * omega * bounce.swing - 2 * BOUNCE_DAMPING * omega * bounce.swingSpeed;
-			bounce.swingSpeed += pull * stepMs;
+			const springPull = -(omega ** 2) * bounce.swing;
+			const damping = 2 * BOUNCE_DAMPING * omega * bounce.swingSpeed;
+			const acceleration = springPull - damping;
+			bounce.swingSpeed += acceleration * stepMs;
 			bounce.swing += bounce.swingSpeed * stepMs;
 		}
 		if (bounce.grabbed) bounce.rebound = Math.max(0, bounce.rebound - frameMs / GRAB_FADE_MS);
@@ -672,6 +675,7 @@ function releaseSpin() {
 	startSpinMotion();
 }
 
+// Run the spin's own frame loop until the seat comes to rest. Slow-mo scales its clock, as it does for inertia.
 function startSpinMotion() {
 	let lastFrame = performance.now();
 	const step = (now) => {
@@ -684,20 +688,36 @@ function startSpinMotion() {
 	spinFrame = requestAnimationFrame(step);
 }
 
+// Stop the spin's frame loop, leaving the clacker where it's drawn. A press uses this to stop a seat dead.
 function stopSpinMotion() {
 	if (spinFrame !== null) cancelAnimationFrame(spinFrame);
 	spinFrame = null;
 }
 
-// Move the seat's spring on by `frameMs`, in short steps so it stays stable, and land on the detent at rest.
+/*
+	Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
+
+	The seat is a damped spring. The spring pulls the clacker back towards the
+	detent in proportion to how far off it is, and damping slows it in
+	proportion to its speed:
+
+		acceleration = −ω²·offset − 2ζ·ω·velocity
+
+	ω (omega) is how fast the spring swings, a full turn of 2π per
+	SEAT_SWING_MS, and ζ is SEAT_DAMPING. With ζ below 1 the clacker overshoots
+	the detent and swings back, a little less each time. It's moved on in 4 ms
+	steps, so it stays stable however long a frame takes.
+*/
 function stepSeat(frameMs) {
-	const omega = (2 * Math.PI * SEAT_HZ) / 1000;
+	const omega = (2 * Math.PI) / SEAT_SWING_MS;
 	const steps = Math.ceil(frameMs / 4);
 	const stepMs = frameMs / steps;
 	for (let index = 0; index < steps; index++) {
 		const offset = state.spinAngle - state.spinDetent;
-		const pull = -omega * omega * offset - 2 * SEAT_DAMPING * omega * state.spinVelocity;
-		state.spinVelocity += pull * stepMs;
+		const springPull = -(omega ** 2) * offset;
+		const damping = 2 * SEAT_DAMPING * omega * state.spinVelocity;
+		const acceleration = springPull - damping;
+		state.spinVelocity += acceleration * stepMs;
 		state.spinAngle += state.spinVelocity * stepMs;
 	}
 	const atRest = Math.abs(state.spinAngle - state.spinDetent) < 0.05 && Math.abs(state.spinVelocity) < 0.002;
@@ -724,6 +744,7 @@ clacker.addEventListener('pointermove', (event) => {
 	render();
 });
 
+// A pointer lifting or being cancelled releases the drag, and a spin or a swipe handles its own release.
 function endPointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) return;
 	if (state.mode === 'spin') releaseSpin();
