@@ -14,6 +14,8 @@ const PAGES = [
 
 // Rest tilt in degrees, one per tier from front (tier 0) to back. Tiers further back lean less.
 const REST_TILTS = [42, 36, 30];
+// The spin tab lies flat, so a spin looks like turning a record.
+const FLAT_TILTS = REST_TILTS.map(() => 0);
 
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
@@ -31,11 +33,11 @@ const MOUSE_FRICTION = 1.7;
 const MIN_FRICTION_FIT = 0.5;
 const MAX_FRICTION_FIT = 2;
 const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
-const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
+const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
 const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
 const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
-// Looseness tuning. Looseness runs from 0, where a tick moves evenly like a fast spin, to 1, where the
+// Looseness tuning. Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the
 // rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
 const TIGHT_SPEED = 2; // About 11 ticks a second. At or above it, looseness is 0.
 const LOOSE_SPEED = 0.7; // About 4 ticks a second. At or below it, looseness is 1.
@@ -53,18 +55,24 @@ const CLACK_KICK = 0.4; // Spring speed in °/ms per °/ms of impact speed, at f
 const MIN_CLACK_STRENGTH = 0.7; // Each flap clacks at its own strength from this band.
 const MAX_CLACK_STRENGTH = 1.3;
 const KNOCK_BACK = [0.5, 0.3, 0.15];
-const BOUNCE_HZ = 6;
+const BOUNCE_SWING_MS = 167; // One swing there and back, if nothing damped it.
 const BOUNCE_DAMPING = 0.35; // Damping ratio. Lower bounces for longer.
 const GRAB_FADE_MS = 60; // Picking a rebounding flap up fades its rebound out over about this long.
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
-const SPIN_SETTLE_MS = 400; // How long the release snap to a detent takes.
+// A 3.4 px/ms flick along the rim, a hard one on a phone, spins down about 3½ turns in about 2.3 s.
+const SPIN_SPEED_FRICTION = 0.001; // Per ms. Slows the spin-down in proportion to its speed.
+const SPIN_STOPPING_FRICTION = 0.0002; // °/ms². A steady slowing on top, so the spin-down stops in time.
+const SEAT_SPEED = 0.15; // °/ms. Below this the spin-down hands over to the seat.
+// A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
+const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped it.
+const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
 
 const ARIA_LABELS = {
 	vertical: 'Swipe up or down',
 	horizontal: 'Swipe left or right',
-	spin: 'Hold and rotate'
+	spin: 'Spin'
 };
 
 const clacker = document.querySelector('.clacker');
@@ -136,7 +144,7 @@ const debugFields = debugPanel
 const state = {
 	mode: 'vertical',
 	page: 0,
-	phase: 'idle', // idle | dragging | inertia
+	phase: 'idle', // idle | dragging | inertia, and spin-down | seating on the spin tab
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
@@ -144,16 +152,52 @@ const state = {
 	heldLooseness: null, // { page, forward, looseness } for the tick in progress, see tickLooseness.
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
-	spinSettling: false
+	spinVelocity: 0, // °/ms, clockwise positive
+	spinDown: null, // { start, velocity, elapsedMs, handoverMs }
+	spinDetent: 0 // The detent the seat pulls towards.
 };
 
 let pointer = null;
-let inertiaFrame = null;
+let inertiaLoop = null;
+let spinLoop = null;
 let slowMo = false; // Only the ?debug panel can turn this on.
 
 // How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
 function timeScale() {
 	return slowMo ? SLOW_MO_FACTOR : 1;
+}
+
+/*
+	Run `onFrame(frameMs)` once per frame, just before the browser paints, for
+	as long as it returns true. frameMs is the time since the last frame,
+	scaled by timeScale(), so slow-mo slows everything the clacker drives
+	itself. Inertia, bounces and spin each run on one of these.
+
+	requestAnimationFrame(step) asks the browser to call step once, for the
+	next frame. While onFrame says it's still moving, step asks for the frame
+	after. That isn't recursion: each step returns before the next frame
+	comes. What moves lives in state, and step only keeps the time of the
+	last frame.
+
+	Returns the loop: `running` says whether it's still going, and stop()
+	cancels the next frame.
+*/
+function startFrameLoop(onFrame) {
+	const loop = { running: true, stop: null };
+	let lastFrame = performance.now();
+	let frameRequest = null;
+	const step = (now) => {
+		const frameMs = (now - lastFrame) * timeScale();
+		lastFrame = now;
+		loop.running = onFrame(frameMs);
+		if (loop.running) frameRequest = requestAnimationFrame(step);
+	};
+	loop.stop = () => {
+		cancelAnimationFrame(frameRequest);
+		loop.running = false;
+	};
+	frameRequest = requestAnimationFrame(step);
+	return loop;
 }
 
 function pageAt(index) {
@@ -198,7 +242,11 @@ function shownPage() {
 	  the moving flap, so its value never shows.
 */
 function tierTilt(tier) {
-	return REST_TILTS[clamp(tier, 0, REST_TILTS.length - 1)];
+	return tiltsForMode()[clamp(tier, 0, REST_TILTS.length - 1)];
+}
+
+function tiltsForMode() {
+	return state.mode === 'spin' ? FLAT_TILTS : REST_TILTS;
 }
 
 /*
@@ -260,7 +308,11 @@ function addSample(event) {
 	const samples = pointer.samples;
 	samples.push({ position: axisPosition(event), time: event.timeStamp });
 	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
-	while (samples.length > 2 && samples[1].time <= windowStart) samples.shift();
+	const isBeforeWindow = (sample) => sample.time <= windowStart;
+	// Keep the newest sample from before the window, so the speed is measured across all of it.
+	while (samples.length > 2 && isBeforeWindow(samples[1])) {
+		samples.shift();
+	}
 }
 
 // Pointer velocity in px/ms across the window, so one short last move can't stand in for the whole swipe.
@@ -360,9 +412,8 @@ function nearestLanding(position, landings) {
 
 /*
 	Plan inertia from `position`, moving at `velocity`, to end on one of
-	`landings`: positions inertia can stop on, whole-tick travels for a swipe
-	and detents for spin (DAI-45). `normalFriction` scales both frictions for
-	the input. It aims for the landing nearest the natural stop and fits
+	`landings`: positions inertia can stop on, the whole-tick travels.
+	`normalFriction` scales both frictions for the input. It aims for the landing nearest the natural stop and fits
 	friction so the coast stops there, within the
 	MIN_FRICTION_FIT–MAX_FRICTION_FIT band around `normalFriction`. If the
 	clamped coast can't get there, the flap topples there instead.
@@ -384,21 +435,15 @@ function planInertia(position, velocity, landings, normalFriction) {
 }
 
 function startInertia() {
-	let lastFrame = performance.now();
-	const step = (now) => {
-		// Slow-mo scales the frame time, so inertia's clock runs slower too.
-		const frameMs = (now - lastFrame) * timeScale();
-		lastFrame = now;
+	inertiaLoop = startFrameLoop((frameMs) => {
 		tickInertia(frameMs);
 		render();
-		inertiaFrame = state.phase === 'inertia' ? requestAnimationFrame(step) : null;
-	};
-	inertiaFrame = requestAnimationFrame(step);
+		return state.phase === 'inertia';
+	});
 }
 
 function stopInertia() {
-	if (inertiaFrame !== null) cancelAnimationFrame(inertiaFrame);
-	inertiaFrame = null;
+	inertiaLoop?.stop();
 }
 
 // Where the coast towards `to` has carried the flap `ms` after release. It lands once it stops or reaches `to`.
@@ -497,7 +542,7 @@ function tickBounds() {
 	The clacker carries a moving flap up to the top of its tick. Once inertia
 	carries it past its fall point, gravity takes over and it falls ahead
 	of travel onto the stack, where it waits for travel to finish the tick.
-	The pull scales with looseness, so a fast spin keeps today's even motion.
+	The pull scales with looseness, so a fast swipe keeps an even motion.
 	Progress is measured from the end of the tick inertia is moving away
 	from, so a snap back falls back over the top towards the start half.
 
@@ -543,7 +588,7 @@ function movingTravel() {
 	Bounces run on their own frame loop, so they carry on after settle.
 */
 const bounces = []; // { half, clackedIndex, swing, swingSpeed, rebound, grabbed }
-let bounceFrame = null;
+let bounceLoop = null;
 
 // Clack once the falling flap reaches the stack, or once travel gets there first or inertia lands.
 function checkClack(inertia, landed) {
@@ -562,29 +607,29 @@ function checkClack(inertia, landed) {
 	startBounces();
 }
 
+// One loop moves every bounce, so a clack while bounces are moving just joins it.
 function startBounces() {
-	if (bounceFrame !== null) return;
-	let lastFrame = performance.now();
-	const step = (now) => {
-		const frameMs = (now - lastFrame) * timeScale();
-		lastFrame = now;
+	if (bounceLoop?.running) return;
+	bounceLoop = startFrameLoop((frameMs) => {
 		stepBounces(frameMs);
 		// Inertia renders every frame itself.
 		if (state.phase !== 'inertia') render();
-		bounceFrame = bounces.length > 0 ? requestAnimationFrame(step) : null;
-	};
-	bounceFrame = requestAnimationFrame(step);
+		return bounces.length > 0;
+	});
 }
 
-// Move each bounce's spring on by `frameMs`, in short steps so it stays stable, and drop the ones at rest.
+// Move each bounce's spring on by `frameMs` and drop the ones at rest. It's the same damped spring a seat uses,
+// see stepSeat.
 function stepBounces(frameMs) {
-	const omega = (2 * Math.PI * BOUNCE_HZ) / 1000;
+	const omega = (2 * Math.PI) / BOUNCE_SWING_MS;
 	const steps = Math.ceil(frameMs / 4);
 	const stepMs = frameMs / steps;
 	for (const bounce of bounces) {
 		for (let index = 0; index < steps; index++) {
-			const pull = -omega * omega * bounce.swing - 2 * BOUNCE_DAMPING * omega * bounce.swingSpeed;
-			bounce.swingSpeed += pull * stepMs;
+			const springPull = -(omega ** 2) * bounce.swing;
+			const damping = 2 * BOUNCE_DAMPING * omega * bounce.swingSpeed;
+			const acceleration = springPull - damping;
+			bounce.swingSpeed += acceleration * stepMs;
 			bounce.swing += bounce.swingSpeed * stepMs;
 		}
 		if (bounce.grabbed) bounce.rebound = Math.max(0, bounce.rebound - frameMs / GRAB_FADE_MS);
@@ -632,32 +677,204 @@ function pointerAngle(event) {
 	return (Math.atan2(event.clientY - pointer.centreY, event.clientX - pointer.centreX) * 180) / Math.PI;
 }
 
+// Start a spin drag where the pointer pressed. A press during a spin-down or seat is a catch, so the clacker
+// stops where it's drawn.
 function startSpin(event) {
+	stopSpinMotion();
+	state.spinVelocity = 0;
+	state.spinDown = null;
 	const rect = clacker.getBoundingClientRect();
 	pointer = {
 		id: event.pointerId,
 		centreX: rect.left + rect.width / 2,
-		centreY: rect.top + rect.height / 2
+		centreY: rect.top + rect.height / 2,
+		// The layout width, since a turned clacker's bounding box is wider than the clacker.
+		rimRadius: clacker.offsetWidth / 2,
+		samples: []
 	};
 	pointer.lastAngle = pointerAngle(event);
+	addSpinSample(event);
 	state.phase = 'dragging';
-	state.spinSettling = false;
 }
 
+// Turn the clacker 1:1 with the pointer's angle round the centre, and sample the pointer for the release speed.
 function dragSpin(event) {
+	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
+	const moves = event.getCoalescedEvents?.() ?? [];
+	for (const move of moves.length > 0 ? moves : [event]) addSpinSample(move);
 	const angle = pointerAngle(event);
-	// Shortest-path delta, so crossing the ±180° line doesn't jump a full turn.
-	const delta = ((((angle - pointer.lastAngle + 180) % 360) + 360) % 360) - 180;
+	// Shortest way round, so crossing the ±180° line doesn't jump a full turn.
+	let delta = angle - pointer.lastAngle;
+	if (delta > 180) delta -= 360;
+	if (delta < -180) delta += 360;
 	state.spinAngle += delta;
 	pointer.lastAngle = angle;
 }
 
-function releaseSpin(snap) {
+// Record where the pointer was and when, keeping one sample from just before the release window.
+function addSpinSample(event) {
+	const samples = pointer.samples;
+	samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp });
+	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
+	const isBeforeWindow = (sample) => sample.time <= windowStart;
+	// Keep the newest sample from before the window, so the speed is measured across all of it.
+	while (samples.length > 2 && isBeforeWindow(samples[1])) {
+		samples.shift();
+	}
+}
+
+/*
+	The pointer's speed along the rim in px/ms, clockwise positive, across the
+	release window. Each move between samples counts only its part going round
+	the centre, so a flick straight out from the centre doesn't spin. Adding up
+	the moves, rather than measuring straight from the oldest sample to the
+	newest, keeps a fast flick curving round the rim from being cut short.
+*/
+function rimSpeed() {
+	const samples = pointer.samples;
+	const elapsedMs = samples.at(-1).time - samples[0].time;
+	if (elapsedMs <= 0) return 0;
+	let distance = 0;
+	for (let index = 1; index < samples.length; index++) {
+		distance += rimDistance(samples[index - 1], samples[index]);
+	}
+	return distance / elapsedMs;
+}
+
+// How far the pointer went round the centre between two samples, in px, clockwise positive.
+function rimDistance(from, to) {
+	const radiusX = (from.x + to.x) / 2 - pointer.centreX;
+	const radiusY = (from.y + to.y) / 2 - pointer.centreY;
+	const radius = Math.hypot(radiusX, radiusY);
+	if (radius === 0) return 0;
+	// The cross product of radius and move. Screen y points down, so positive is clockwise.
+	return (radiusX * (to.y - from.y) - radiusY * (to.x - from.x)) / radius;
+}
+
+/*
+	The spin keeps the pointer's speed along the rim, turned into a spin at the
+	rim radius, so a flick near the centre doesn't spin wildly. A fast release
+	spins down and a slow one seats straight away. A cancel does the same, so
+	the clacker never stops between detents.
+*/
+function releaseSpin(event) {
+	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
+	if (event.type === 'pointerup') addSpinSample(event);
+	const releaseRimSpeed = rimSpeed();
+	state.releaseSpeed = Math.abs(releaseRimSpeed);
+	state.spinVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
 	pointer = null;
+	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
+	else startSeat();
+	startSpinMotion();
+}
+
+/*
+	A spin-down slows under spin friction. With k = SPIN_SPEED_FRICTION and
+	s = SPIN_STOPPING_FRICTION, speed v follows dv/dt = −(k·v + s). Its exact
+	solution, with b = s/k, the speed where both frictions slow the spin equally, is
+
+		v(t) = (v₀ + b) · e^(−k·t) − b
+		distance(t) = ((v₀ + b) · (1 − e^(−k·t)) − s·t) / k
+
+	spinDownSpeed, spinDownDistance and spinDownTime all use it, so they must
+	change together. Working out the angle from elapsed time, rather than
+	stepping it frame by frame, keeps it the same at any frame rate.
+*/
+const SPIN_BALANCE_SPEED = SPIN_STOPPING_FRICTION / SPIN_SPEED_FRICTION;
+
+function spinDownSpeed(speed, ms) {
+	return (speed + SPIN_BALANCE_SPEED) * Math.exp(-SPIN_SPEED_FRICTION * ms) - SPIN_BALANCE_SPEED;
+}
+
+function spinDownDistance(speed, ms) {
+	const slowed = (speed + SPIN_BALANCE_SPEED) * (1 - Math.exp(-SPIN_SPEED_FRICTION * ms));
+	return (slowed - SPIN_STOPPING_FRICTION * ms) / SPIN_SPEED_FRICTION;
+}
+
+// How long a spin-down takes to slow from `fromSpeed` to `toSpeed`.
+function spinDownTime(fromSpeed, toSpeed) {
+	return Math.log((fromSpeed + SPIN_BALANCE_SPEED) / (toSpeed + SPIN_BALANCE_SPEED)) / SPIN_SPEED_FRICTION;
+}
+
+function startSpinDown() {
+	const speed = Math.abs(state.spinVelocity);
+	state.phase = 'spin-down';
+	state.spinDown = {
+		start: state.spinAngle,
+		velocity: state.spinVelocity,
+		elapsedMs: 0,
+		handoverMs: spinDownTime(speed, SEAT_SPEED)
+	};
+}
+
+// Turn the clacker to where the spin-down has carried it after `frameMs` more ms, and seat it once it's slow.
+function stepSpinDown(frameMs) {
+	const spinDown = state.spinDown;
+	spinDown.elapsedMs = Math.min(spinDown.elapsedMs + frameMs, spinDown.handoverMs);
+	const direction = Math.sign(spinDown.velocity);
+	const speed = Math.abs(spinDown.velocity);
+	state.spinAngle = spinDown.start + direction * spinDownDistance(speed, spinDown.elapsedMs);
+	state.spinVelocity = direction * spinDownSpeed(speed, spinDown.elapsedMs);
+	if (spinDown.elapsedMs === spinDown.handoverMs) startSeat();
+}
+
+// Seat into the detent nearest where the spin-down would stop from here, carrying on at the spin's velocity.
+function startSeat() {
+	const speed = Math.abs(state.spinVelocity);
+	const stopDistance = spinDownDistance(speed, spinDownTime(speed, 0));
+	const naturalStop = state.spinAngle + Math.sign(state.spinVelocity) * stopDistance;
+	state.phase = 'seating';
+	state.spinDown = null;
+	state.spinDetent = Math.round(naturalStop / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
+}
+
+// Turn the clacker through its spin-down and seat until it comes to rest.
+function startSpinMotion() {
+	spinLoop = startFrameLoop((frameMs) => {
+		if (state.phase === 'spin-down') stepSpinDown(frameMs);
+		else stepSeat(frameMs);
+		render();
+		return state.phase === 'spin-down' || state.phase === 'seating';
+	});
+}
+
+// Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
+function stopSpinMotion() {
+	spinLoop?.stop();
+}
+
+/*
+	Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
+
+	The seat is a damped spring. The spring pulls the clacker back towards the
+	detent in proportion to how far off it is, and damping slows it in
+	proportion to its speed:
+
+		acceleration = −ω²·offset − 2ζ·ω·velocity
+
+	ω (omega) is how fast the spring swings, a full turn of 2π per
+	SEAT_SWING_MS, and ζ is SEAT_DAMPING. With ζ below 1 the clacker overshoots
+	the detent and swings back, a little less each time. It's moved on in 4 ms
+	steps, so it stays stable however long a frame takes.
+*/
+function stepSeat(frameMs) {
+	const omega = (2 * Math.PI) / SEAT_SWING_MS;
+	const steps = Math.ceil(frameMs / 4);
+	const stepMs = frameMs / steps;
+	for (let index = 0; index < steps; index++) {
+		const offset = state.spinAngle - state.spinDetent;
+		const springPull = -(omega ** 2) * offset;
+		const damping = 2 * SEAT_DAMPING * omega * state.spinVelocity;
+		const acceleration = springPull - damping;
+		state.spinVelocity += acceleration * stepMs;
+		state.spinAngle += state.spinVelocity * stepMs;
+	}
+	const atRest = Math.abs(state.spinAngle - state.spinDetent) < 0.05 && Math.abs(state.spinVelocity) < 0.002;
+	if (!atRest) return;
+	state.spinAngle = state.spinDetent;
+	state.spinVelocity = 0;
 	state.phase = 'idle';
-	if (!snap) return;
-	state.spinAngle = Math.round(state.spinAngle / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
-	state.spinSettling = true;
 }
 
 // Pointer wiring
@@ -677,9 +894,10 @@ clacker.addEventListener('pointermove', (event) => {
 	render();
 });
 
+// A pointer lifting or being cancelled releases the drag, and a spin or a swipe handles its own release.
 function endPointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) return;
-	if (state.mode === 'spin') releaseSpin(event.type === 'pointerup');
+	if (state.mode === 'spin') releaseSpin(event);
 	else releaseSwipe(event);
 	render();
 }
@@ -694,12 +912,15 @@ for (const tab of tabs) {
 		const mode = tab.dataset.mode;
 		if (mode === state.mode) return;
 		stopInertia();
+		stopSpinMotion();
 		if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
 		pointer = null;
 		settle(0);
 		bounces.length = 0;
 		state.page = 0;
-		state.spinSettling = false;
+		state.spinAngle = 0;
+		state.spinVelocity = 0;
+		state.spinDown = null;
 		state.mode = mode;
 		render();
 	});
@@ -765,9 +986,12 @@ function renderFlaps() {
 
 	// The moving flap keeps tier 0's tilt for the whole tick.
 	const movingIndex = forward ? shown : shown - 1;
-	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, REST_TILTS[0]);
+	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
 	const movingHalf = movingPlain < TICK_DEGREES / 2 ? 'start' : 'end';
 	const movingDrawn = movingPlain + bounceOffset(movingHalf, movingIndex);
+	// Nothing ticks on the spin tab, so the moving flap lies level with end tier 0. Lifted, perspective draws it
+	// a fraction bigger than the flap beside it.
+	flaps.moving.element.style.setProperty('--lift', `${state.mode === 'spin' ? 0 : 1}px`);
 	setFlap(flaps.moving, movingDrawn, pageAt(movingIndex), pageAt(movingIndex + 1));
 
 	// Each half from the hinge out: no flap is drawn past the one in front of it, so a bouncing flap gets
@@ -814,6 +1038,7 @@ function renderDebug() {
 	debugFields.releaseSpeed.textContent = `${state.releaseSpeed.toFixed(2)} px/ms`;
 	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
+	debugFields.spinVelocity.textContent = `${state.spinVelocity.toFixed(4)} °/ms`;
 	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';
 	slowMoToggle.checked = slowMo;
 }
@@ -823,8 +1048,6 @@ function render() {
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
 	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
-	clacker.style.setProperty('--spin-settle-duration', `${SPIN_SETTLE_MS / timeScale()}ms`);
-	clacker.classList.toggle('is-settling', state.spinSettling);
 	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === state.mode));
 	renderFlaps();
 	renderDebug();

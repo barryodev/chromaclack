@@ -72,7 +72,7 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
-**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
+**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°. On the spin tab every rest tilt is 0°, so the clacker lies flat like a record (DAI-45).
 
 **Tier**: a pair of resting flaps, one in the start half and one in the end half, at the same depth. **Tier 0** is the pair closest to the user, **tier 1** sits behind it, and **tier 2** behind that. The clacker shows at most three tiers, because more would be visual clutter. Tiers further back hold smaller rest tilts. Tier 0 shows the current page. Behind it, the start half of tier _k_ shows the start half of page _N + k_, and the end half of tier _k_ shows the end half of page _N − k_.
 
@@ -102,7 +102,7 @@ A swipe has these phases:
 
 **Release speed**: how fast the pointer was moving along the axis when it lifted, measured over its last 80 ms or so of movement rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
 
-**Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. For a spin it's a detent. It isn't called a "rest", because that word already means at rest and rest tilt.
+**Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. It isn't called a "rest", because that word already means at rest and rest tilt.
 
 **Natural stop**: where the coast would leave the flap under normal friction. Inertia ends on the landing nearest the natural stop, so 90° into a tick is the tipping point. If the natural stop is past 90°, the flap finishes the tick. If it's short of 90°, the flap goes back to the tick's start.
 
@@ -116,29 +116,33 @@ A swipe has these phases:
 
 **Snap back**: when a swipe ends where it started and the page doesn't change, because its natural stop is short of 90° into the first tick. The flap coasts back, or topples back if it's moving too slowly or forward.
 
-**Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump.
+**Catch**: pressing on the clacker during inertia. The ticks inertia has already completed are kept, and a new drag picks the flap up at its current hinge angle, so it doesn't jump. On the spin tab, a catch during a spin-down or seat stops the clacker dead, and the drag carries on 1:1 from there.
 
 ## Rolodex motion
 
-As a swipe slows, the clacker starts to move like a real rolodex: flaps fall onto the stack and bounce. A fast spin keeps a steady, even tick, the way a heavy rolodex spinning fast does.
+As a swipe slows, the clacker starts to move like a real rolodex: flaps fall onto the stack and bounce. A fast swipe keeps a steady, even tick, the way a heavy rolodex turning fast does.
 
 **Looseness**: how much rolodex motion a tick shows, from 0 (tight) to 1 (loose). It comes from the flap's speed: tight above a set speed, loose below a lower one, and rising steeply as the flap nears the slower speed. Each tick takes its looseness as it starts and keeps it until it ends, so a tick's shape never changes partway through.
 
-**Fall**: in inertia, the clacker carries a moving flap up until it passes its **fall point**, just past the top of its tick. Then gravity takes over and the flap falls onto the stack, ahead of travel, and waits there for travel to finish the tick. The **pull** of gravity scales with looseness, so a fast spin doesn't fall at all. Each flap has its own fall point and pull, so some balance longer and some drop harder. It isn't called the "tipping point", because that's the 90° that decides whether a swipe finishes its tick.
+**Fall**: in inertia, the clacker carries a moving flap up until it passes its **fall point**, just past the top of its tick. Then gravity takes over and the flap falls onto the stack, ahead of travel, and waits there for travel to finish the tick. The **pull** of gravity scales with looseness, so a fast swipe doesn't fall at all. Each flap has its own fall point and pull, so some balance longer and some drop harder. It isn't called the "tipping point", because that's the 90° that decides whether a swipe finishes its tick.
 
 **Clack**: a falling flap landing on the stack in a half. Its strength comes from how fast the flap hits, times looseness, times the flap's own strength. Ticks dragged by hand don't clack, because a card pushed onto the stack by hand lands gently.
 
 **Bounce**: what a clack sets off, a short damped spring in the half the flap landed in. The clacked flap **rebounds** towards the hinge and settles back, and the flaps beneath it are **knocked back** towards flat, less the deeper they sit. Picking up a rebounding flap fades its rebound out. No flap is ever drawn past the one in front of it, so a flap moving onto a bouncing one pushes it along instead of passing through it.
 
-## Holding and spinning
+## Spinning
 
-**Hold**: the user presses on the clacker and keeps the pointer still for a short time before moving. A hold starts a spin. The duration threshold is still to be decided (DAI-46).
+**Spin**: the user presses on the clacker and moves the pointer around its centre, like turning a dimmer knob or a turntable. The whole clacker rotates as one rigid unit in the plane of the screen (`rotateZ`), and no flaps move. A spin starts on press. The drag follows the pointer 1:1, and the release speed decides what happens next: a flick spins on, and a slow release just seats.
 
-**Spin**: after a hold, the user moves the pointer around the clacker's centre, like turning a dimmer knob or a turntable. The whole clacker rotates as one rigid unit in the plane of the screen (`rotateZ`), and no flaps move.
+**Spin angle**: how far the clacker has been spun. Clockwise counts up and counterclockwise counts down.
 
-**Spin angle**: how far the clacker has been spun.
+**Spin release speed**: how fast the pointer was moving along the rim when it lifted, clockwise or counterclockwise, measured over the same window as a swipe's release speed. Only the part of the movement going round the centre counts, so a flick straight out from the centre doesn't spin. It's turned into a spin at the rim, half the clacker's width from the centre, so a flick close to the centre doesn't spin wildly.
 
-**Detent**: an angle the spin snaps to on release, like the clicks on a dimmer.
+**Spin-down**: after a fast release, the clacker keeps turning at the spin release speed and slows under **spin friction**, like a turntable once its motor stops. One part of spin friction grows with speed, so a hard flick sheds speed fast, and a steady part on top stops it in finite time. Once it's slow, it hands over to the seat. It isn't called a coast, because a coast is fitted to end on a landing and a spin-down isn't.
+
+**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer.
+
+**Seat**: at the end of a spin-down, or after a slow release, a spring pulls the clacker into the detent nearest where the spin-down would have stopped. It overshoots a little and bounces back before coming to rest. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
 
 ## Colour
 

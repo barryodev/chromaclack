@@ -15,7 +15,7 @@
 					<button type="button" role="tab" data-mode="horizontal" aria-selected="false">
 						Left / Right
 					</button>
-					<button type="button" role="tab" data-mode="spin" aria-selected="false">Hold &amp; Spin</button>
+					<button type="button" role="tab" data-mode="spin" aria-selected="false">Spin</button>
 				</nav>
 
 				<div class="stage">
@@ -26,9 +26,8 @@
 
 						Adjustable live in clacker.css: perspective, size, borders and radius.
 						Owned by clacker.js and overwritten on the next render: --drawn-angle
-						(from hinge angle and rest tilt), --lift, --spin-settle-duration and
-						hidden. Change those through the JS constants such as REST_TILTS and
-						SPIN_SETTLE_MS.
+						(from hinge angle and rest tilt), --lift, --spin-angle and hidden.
+						Change those through the JS constants such as REST_TILTS and SEAT_SWING_MS.
 					-->
 					<button
 						type="button"
@@ -54,6 +53,7 @@
 				<div><dt>Release speed</dt><dd data-debug="releaseSpeed"></dd></div>
 				<div><dt>Ticks</dt><dd data-debug="ticks"></dd></div>
 				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
+				<div><dt>Spin velocity</dt><dd data-debug="spinVelocity"></dd></div>
 				<div class="debug-wide">
 					<dt>Slow-mo (press S to toggle)</dt>
 					<dd>
