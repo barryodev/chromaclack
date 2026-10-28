@@ -158,13 +158,46 @@ const state = {
 };
 
 let pointer = null;
-let inertiaFrame = null;
-let spinFrame = null;
+let inertiaLoop = null;
+let spinLoop = null;
 let slowMo = false; // Only the ?debug panel can turn this on.
 
 // How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
 function timeScale() {
 	return slowMo ? SLOW_MO_FACTOR : 1;
+}
+
+/*
+	Run `onFrame(frameMs)` once per frame, just before the browser paints, for
+	as long as it returns true. frameMs is the time since the last frame,
+	scaled by timeScale(), so slow-mo slows everything the clacker drives
+	itself. Inertia, bounces and spin each run on one of these.
+
+	requestAnimationFrame(step) asks the browser to call step once, for the
+	next frame. While onFrame says it's still moving, step asks for the frame
+	after. That isn't recursion: each step returns before the next frame
+	comes. What moves lives in state, and step only keeps the time of the
+	last frame.
+
+	Returns the loop: `running` says whether it's still going, and stop()
+	cancels the next frame.
+*/
+function startFrameLoop(onFrame) {
+	const loop = { running: true, stop: null };
+	let lastFrame = performance.now();
+	let frameRequest = null;
+	const step = (now) => {
+		const frameMs = (now - lastFrame) * timeScale();
+		lastFrame = now;
+		loop.running = onFrame(frameMs);
+		if (loop.running) frameRequest = requestAnimationFrame(step);
+	};
+	loop.stop = () => {
+		cancelAnimationFrame(frameRequest);
+		loop.running = false;
+	};
+	frameRequest = requestAnimationFrame(step);
+	return loop;
 }
 
 function pageAt(index) {
@@ -275,7 +308,11 @@ function addSample(event) {
 	const samples = pointer.samples;
 	samples.push({ position: axisPosition(event), time: event.timeStamp });
 	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
-	while (samples.length > 2 && samples[1].time <= windowStart) samples.shift();
+	const isBeforeWindow = (sample) => sample.time <= windowStart;
+	// Keep the newest sample from before the window, so the speed is measured across all of it.
+	while (samples.length > 2 && isBeforeWindow(samples[1])) {
+		samples.shift();
+	}
 }
 
 // Pointer velocity in px/ms across the window, so one short last move can't stand in for the whole swipe.
@@ -398,21 +435,15 @@ function planInertia(position, velocity, landings, normalFriction) {
 }
 
 function startInertia() {
-	let lastFrame = performance.now();
-	const step = (now) => {
-		// Slow-mo scales the frame time, so inertia's clock runs slower too.
-		const frameMs = (now - lastFrame) * timeScale();
-		lastFrame = now;
+	inertiaLoop = startFrameLoop((frameMs) => {
 		tickInertia(frameMs);
 		render();
-		inertiaFrame = state.phase === 'inertia' ? requestAnimationFrame(step) : null;
-	};
-	inertiaFrame = requestAnimationFrame(step);
+		return state.phase === 'inertia';
+	});
 }
 
 function stopInertia() {
-	if (inertiaFrame !== null) cancelAnimationFrame(inertiaFrame);
-	inertiaFrame = null;
+	inertiaLoop?.stop();
 }
 
 // Where the coast towards `to` has carried the flap `ms` after release. It lands once it stops or reaches `to`.
@@ -557,7 +588,7 @@ function movingTravel() {
 	Bounces run on their own frame loop, so they carry on after settle.
 */
 const bounces = []; // { half, clackedIndex, swing, swingSpeed, rebound, grabbed }
-let bounceFrame = null;
+let bounceLoop = null;
 
 // Clack once the falling flap reaches the stack, or once travel gets there first or inertia lands.
 function checkClack(inertia, landed) {
@@ -576,18 +607,15 @@ function checkClack(inertia, landed) {
 	startBounces();
 }
 
+// One loop moves every bounce, so a clack while bounces are moving just joins it.
 function startBounces() {
-	if (bounceFrame !== null) return;
-	let lastFrame = performance.now();
-	const step = (now) => {
-		const frameMs = (now - lastFrame) * timeScale();
-		lastFrame = now;
+	if (bounceLoop?.running) return;
+	bounceLoop = startFrameLoop((frameMs) => {
 		stepBounces(frameMs);
 		// Inertia renders every frame itself.
 		if (state.phase !== 'inertia') render();
-		bounceFrame = bounces.length > 0 ? requestAnimationFrame(step) : null;
-	};
-	bounceFrame = requestAnimationFrame(step);
+		return bounces.length > 0;
+	});
 }
 
 // Move each bounce's spring on by `frameMs` and drop the ones at rest. It's the same damped spring a seat uses,
@@ -649,8 +677,9 @@ function pointerAngle(event) {
 	return (Math.atan2(event.clientY - pointer.centreY, event.clientX - pointer.centreX) * 180) / Math.PI;
 }
 
+// Start a spin drag where the pointer pressed. A press during a spin-down or seat is a catch, so the clacker
+// stops where it's drawn.
 function startSpin(event) {
-	// A catch stops a spin-down or seat dead, and the drag carries on from there.
 	stopSpinMotion();
 	state.spinVelocity = 0;
 	state.spinDown = null;
@@ -668,13 +697,16 @@ function startSpin(event) {
 	state.phase = 'dragging';
 }
 
+// Turn the clacker 1:1 with the pointer's angle round the centre, and sample the pointer for the release speed.
 function dragSpin(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSpinSample(move);
 	const angle = pointerAngle(event);
-	// Shortest-path delta, so crossing the ±180° line doesn't jump a full turn.
-	const delta = ((((angle - pointer.lastAngle + 180) % 360) + 360) % 360) - 180;
+	// Shortest way round, so crossing the ±180° line doesn't jump a full turn.
+	let delta = angle - pointer.lastAngle;
+	if (delta > 180) delta -= 360;
+	if (delta < -180) delta += 360;
 	state.spinAngle += delta;
 	pointer.lastAngle = angle;
 }
@@ -684,7 +716,11 @@ function addSpinSample(event) {
 	const samples = pointer.samples;
 	samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp });
 	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
-	while (samples.length > 2 && samples[1].time <= windowStart) samples.shift();
+	const isBeforeWindow = (sample) => sample.time <= windowStart;
+	// Keep the newest sample from before the window, so the speed is measured across all of it.
+	while (samples.length > 2 && isBeforeWindow(samples[1])) {
+		samples.shift();
+	}
 }
 
 /*
@@ -793,25 +829,19 @@ function startSeat() {
 	state.spinDetent = Math.round(naturalStop / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
 }
 
-// Run the spin's own frame loop until the seat comes to rest. Slow-mo scales its clock, as it does for inertia.
+// Turn the clacker through its spin-down and seat until it comes to rest.
 function startSpinMotion() {
-	let lastFrame = performance.now();
-	const step = (now) => {
-		const frameMs = (now - lastFrame) * timeScale();
-		lastFrame = now;
+	spinLoop = startFrameLoop((frameMs) => {
 		if (state.phase === 'spin-down') stepSpinDown(frameMs);
 		else stepSeat(frameMs);
 		render();
-		const moving = state.phase === 'spin-down' || state.phase === 'seating';
-		spinFrame = moving ? requestAnimationFrame(step) : null;
-	};
-	spinFrame = requestAnimationFrame(step);
+		return state.phase === 'spin-down' || state.phase === 'seating';
+	});
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
 function stopSpinMotion() {
-	if (spinFrame !== null) cancelAnimationFrame(spinFrame);
-	spinFrame = null;
+	spinLoop?.stop();
 }
 
 /*
