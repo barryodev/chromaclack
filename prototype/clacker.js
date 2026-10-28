@@ -14,6 +14,8 @@ const PAGES = [
 
 // Rest tilt in degrees, one per tier from front (tier 0) to back. Tiers further back lean less.
 const REST_TILTS = [42, 36, 30];
+// The spin tab lies flat, so a spin looks like turning a record.
+const FLAT_TILTS = REST_TILTS.map(() => 0);
 
 // Swipe tuning. Angles are in degrees and times in milliseconds.
 const TICK_DEGREES = 180;
@@ -198,7 +200,11 @@ function shownPage() {
 	  the moving flap, so its value never shows.
 */
 function tierTilt(tier) {
-	return REST_TILTS[clamp(tier, 0, REST_TILTS.length - 1)];
+	return tiltsForMode()[clamp(tier, 0, REST_TILTS.length - 1)];
+}
+
+function tiltsForMode() {
+	return state.mode === 'spin' ? FLAT_TILTS : REST_TILTS;
 }
 
 /*
@@ -765,9 +771,12 @@ function renderFlaps() {
 
 	// The moving flap keeps tier 0's tilt for the whole tick.
 	const movingIndex = forward ? shown : shown - 1;
-	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, REST_TILTS[0]);
+	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
 	const movingHalf = movingPlain < TICK_DEGREES / 2 ? 'start' : 'end';
 	const movingDrawn = movingPlain + bounceOffset(movingHalf, movingIndex);
+	// Nothing ticks on the spin tab, so the moving flap lies level with end tier 0. Lifted, perspective draws it
+	// a fraction bigger than the flap beside it.
+	flaps.moving.element.style.setProperty('--lift', `${state.mode === 'spin' ? 0 : 1}px`);
 	setFlap(flaps.moving, movingDrawn, pageAt(movingIndex), pageAt(movingIndex + 1));
 
 	// Each half from the hinge out: no flap is drawn past the one in front of it, so a bouncing flap gets

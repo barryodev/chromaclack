@@ -72,7 +72,7 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Moving flap**: the flap that turns about the hinge during a swipe. It stands in for tier 0 of the half it starts in. The other flaps rest in the tiers, named by half and tier, such as **start tier 1** or **end tier 0**.
 
-**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°.
+**Rest tilt**: a small angle that flaps hold at rest instead of lying flat against the clacker (DAI-43). The tilt is applied when the flaps are drawn, and the hinge angle still runs 0–180°. On the spin tab every rest tilt is 0°, so the clacker lies flat like a record (DAI-45).
 
 **Tier**: a pair of resting flaps, one in the start half and one in the end half, at the same depth. **Tier 0** is the pair closest to the user, **tier 1** sits behind it, and **tier 2** behind that. The clacker shows at most three tiers, because more would be visual clutter. Tiers further back hold smaller rest tilts. Tier 0 shows the current page. Behind it, the start half of tier _k_ shows the start half of page _N + k_, and the end half of tier _k_ shows the end half of page _N − k_.
 
