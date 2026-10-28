@@ -138,7 +138,9 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Spin angle**: how far the clacker has been spun.
 
-**Detent**: an angle the spin snaps to on release, like the clicks on a dimmer.
+**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer.
+
+**Seat**: on release, a spring pulls the clacker into the nearest detent. It overshoots a little and bounces back before coming to rest. A press during a seat stops the clacker dead. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
 
 ## Colour
 

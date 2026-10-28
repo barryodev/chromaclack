@@ -33,7 +33,7 @@ const MOUSE_FRICTION = 1.7;
 const MIN_FRICTION_FIT = 0.5;
 const MAX_FRICTION_FIT = 2;
 const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
-const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the spin settle by this much.
+const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
 const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
 const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
@@ -61,7 +61,9 @@ const GRAB_FADE_MS = 60; // Picking a rebounding flap up fades its rebound out o
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
-const SPIN_SETTLE_MS = 400; // How long the release snap to a detent takes.
+// A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
+const SEAT_HZ = 3;
+const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
 
 const ARIA_LABELS = {
 	vertical: 'Swipe up or down',
@@ -138,7 +140,7 @@ const debugFields = debugPanel
 const state = {
 	mode: 'vertical',
 	page: 0,
-	phase: 'idle', // idle | dragging | inertia
+	phase: 'idle', // idle | dragging | inertia, and seating on the spin tab
 	travel: 0,
 	velocity: 0, // °/ms, forward positive
 	target: 0, // The travel inertia settles on, a whole number of ticks.
@@ -146,11 +148,13 @@ const state = {
 	heldLooseness: null, // { page, forward, looseness } for the tick in progress, see tickLooseness.
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
-	spinSettling: false
+	spinVelocity: 0, // °/ms, clockwise positive
+	spinDetent: 0 // The detent the seat pulls towards.
 };
 
 let pointer = null;
 let inertiaFrame = null;
+let spinFrame = null;
 let slowMo = false; // Only the ?debug panel can turn this on.
 
 // How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
@@ -639,6 +643,9 @@ function pointerAngle(event) {
 }
 
 function startSpin(event) {
+	// A press stops a seat dead, and the drag carries on from there.
+	stopSpinMotion();
+	state.spinVelocity = 0;
 	const rect = clacker.getBoundingClientRect();
 	pointer = {
 		id: event.pointerId,
@@ -647,7 +654,6 @@ function startSpin(event) {
 	};
 	pointer.lastAngle = pointerAngle(event);
 	state.phase = 'dragging';
-	state.spinSettling = false;
 }
 
 function dragSpin(event) {
@@ -658,12 +664,47 @@ function dragSpin(event) {
 	pointer.lastAngle = angle;
 }
 
-function releaseSpin(snap) {
+// A cancel seats too, so the clacker never stops between detents.
+function releaseSpin() {
 	pointer = null;
+	state.phase = 'seating';
+	state.spinDetent = Math.round(state.spinAngle / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
+	startSpinMotion();
+}
+
+function startSpinMotion() {
+	let lastFrame = performance.now();
+	const step = (now) => {
+		const frameMs = (now - lastFrame) * timeScale();
+		lastFrame = now;
+		stepSeat(frameMs);
+		render();
+		spinFrame = state.phase === 'seating' ? requestAnimationFrame(step) : null;
+	};
+	spinFrame = requestAnimationFrame(step);
+}
+
+function stopSpinMotion() {
+	if (spinFrame !== null) cancelAnimationFrame(spinFrame);
+	spinFrame = null;
+}
+
+// Move the seat's spring on by `frameMs`, in short steps so it stays stable, and land on the detent at rest.
+function stepSeat(frameMs) {
+	const omega = (2 * Math.PI * SEAT_HZ) / 1000;
+	const steps = Math.ceil(frameMs / 4);
+	const stepMs = frameMs / steps;
+	for (let index = 0; index < steps; index++) {
+		const offset = state.spinAngle - state.spinDetent;
+		const pull = -omega * omega * offset - 2 * SEAT_DAMPING * omega * state.spinVelocity;
+		state.spinVelocity += pull * stepMs;
+		state.spinAngle += state.spinVelocity * stepMs;
+	}
+	const atRest = Math.abs(state.spinAngle - state.spinDetent) < 0.05 && Math.abs(state.spinVelocity) < 0.002;
+	if (!atRest) return;
+	state.spinAngle = state.spinDetent;
+	state.spinVelocity = 0;
 	state.phase = 'idle';
-	if (!snap) return;
-	state.spinAngle = Math.round(state.spinAngle / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
-	state.spinSettling = true;
 }
 
 // Pointer wiring
@@ -685,7 +726,7 @@ clacker.addEventListener('pointermove', (event) => {
 
 function endPointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) return;
-	if (state.mode === 'spin') releaseSpin(event.type === 'pointerup');
+	if (state.mode === 'spin') releaseSpin();
 	else releaseSwipe(event);
 	render();
 }
@@ -700,12 +741,14 @@ for (const tab of tabs) {
 		const mode = tab.dataset.mode;
 		if (mode === state.mode) return;
 		stopInertia();
+		stopSpinMotion();
 		if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
 		pointer = null;
 		settle(0);
 		bounces.length = 0;
 		state.page = 0;
-		state.spinSettling = false;
+		state.spinAngle = 0;
+		state.spinVelocity = 0;
 		state.mode = mode;
 		render();
 	});
@@ -832,8 +875,6 @@ function render() {
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
 	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
-	clacker.style.setProperty('--spin-settle-duration', `${SPIN_SETTLE_MS / timeScale()}ms`);
-	clacker.classList.toggle('is-settling', state.spinSettling);
 	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === state.mode));
 	renderFlaps();
 	renderDebug();

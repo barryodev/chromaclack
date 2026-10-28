@@ -208,13 +208,9 @@ main {
 	transform: rotateY(180deg);
 }
 
-/* Spin: the whole clacker turns as one rigid unit. Dragging follows the pointer 1:1, and only the release snap eases. */
+/* Spin: the whole clacker turns as one rigid unit. JS sets --spin-angle each frame, as it's dragged and as it seats. */
 .clacker[data-mode='spin'] {
 	transform: rotateZ(calc(var(--spin-angle, 0) * 1deg));
-}
-
-.clacker[data-mode='spin'].is-settling {
-	transition: transform var(--spin-settle-duration) ease-out;
 }
 
 /* Debug readout (?debug) */
