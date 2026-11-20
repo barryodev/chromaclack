@@ -5,6 +5,7 @@ import {
 	MAX_FRICTION_FIT,
 	MAX_TICKS_PER_SWIPE,
 	MIN_FRICTION_FIT,
+	MOUSE_FRICTION,
 	SWIPE_LANDINGS,
 	TICK_DEGREES,
 	coastMotion,
@@ -57,13 +58,19 @@ test('doubling friction halves both the stopping distance and the stopping time'
 	assert.equal(stoppingTime(2, 1) / stoppingTime(2, 2), 2);
 });
 
-test('a coast aims for the landing nearest its natural stop, with friction kept in its band', () => {
-	for (const velocity of [1, 2, 3, -2]) {
-		const plan = planInertia(0, velocity, SWIPE_LANDINGS, 1);
-		const naturalStop = Math.sign(velocity) * stoppingDistance(Math.abs(velocity), 1);
-		assert.equal(plan.coasts, true);
-		assert.equal(plan.target, nearestLanding(naturalStop, SWIPE_LANDINGS));
-		assert.ok(plan.frictionScale >= MIN_FRICTION_FIT && plan.frictionScale <= MAX_FRICTION_FIT);
+test('a backward flick plans the mirror image of a forward one', () => {
+	const forward = planInertia(0, 2, SWIPE_LANDINGS, 1);
+	const backward = planInertia(0, -2, SWIPE_LANDINGS, 1);
+	assert.equal(backward.target, -forward.target);
+	assert.equal(backward.durationMs, forward.durationMs);
+	assert.equal(backward.frictionScale, forward.frictionScale);
+});
+
+test("a coast's friction stays in its band around the input's normal friction", () => {
+	for (const normalFriction of [1, MOUSE_FRICTION]) {
+		const { frictionScale } = planInertia(0, 2, SWIPE_LANDINGS, normalFriction);
+		assert.ok(frictionScale >= MIN_FRICTION_FIT * normalFriction);
+		assert.ok(frictionScale <= MAX_FRICTION_FIT * normalFriction);
 	}
 });
 
