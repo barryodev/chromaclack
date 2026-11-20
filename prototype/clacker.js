@@ -1,4 +1,5 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
+import { addToReleaseWindow, windowVelocity } from './sampling.js';
 
 // Pages are a circular sequence. Each page's two half pages share a colour and label.
 const PAGES = [
@@ -35,7 +36,6 @@ const MAX_FRICTION_FIT = 2;
 const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
 const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
-const RELEASE_WINDOW_MS = 80; // Release speed is measured over the pointer's last moves in this window.
 
 // Looseness tuning. Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the
 // rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
@@ -293,24 +293,9 @@ function dragSwipe(event) {
 	state.velocity = windowVelocity(pointer.samples) * pointer.degreesPerPixel;
 }
 
-// Record where the pointer was and when, keeping one sample from just before the release window.
 function addSample(event) {
-	const samples = pointer.samples;
-	samples.push({ position: axisPosition(event), time: event.timeStamp });
-	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
-	const isBeforeWindow = (sample) => sample.time <= windowStart;
-	// Keep the newest sample from before the window, so the speed is measured across all of it.
-	while (samples.length > 2 && isBeforeWindow(samples[1])) {
-		samples.shift();
-	}
-}
-
-// Pointer velocity in px/ms across the window, so one short last move can't stand in for the whole swipe.
-function windowVelocity(samples) {
-	const oldest = samples[0];
-	const newest = samples.at(-1);
-	const elapsedMs = newest.time - oldest.time;
-	return elapsedMs > 0 ? (newest.position - oldest.position) / elapsedMs : 0;
+	const sample = { position: axisPosition(event), time: event.timeStamp };
+	pointer.samples = addToReleaseWindow(pointer.samples, sample);
 }
 
 // Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
@@ -693,16 +678,9 @@ function dragSpin(event) {
 	pointer.lastAngle = angle;
 }
 
-// Record where the pointer was and when, keeping one sample from just before the release window.
 function addSpinSample(event) {
-	const samples = pointer.samples;
-	samples.push({ x: event.clientX, y: event.clientY, time: event.timeStamp });
-	const windowStart = event.timeStamp - RELEASE_WINDOW_MS;
-	const isBeforeWindow = (sample) => sample.time <= windowStart;
-	// Keep the newest sample from before the window, so the speed is measured across all of it.
-	while (samples.length > 2 && isBeforeWindow(samples[1])) {
-		samples.shift();
-	}
+	const sample = { x: event.clientX, y: event.clientY, time: event.timeStamp };
+	pointer.samples = addToReleaseWindow(pointer.samples, sample);
 }
 
 /*

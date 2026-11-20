@@ -104,7 +104,9 @@ A swipe has these phases:
 - **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
-**Release speed**: how fast the pointer was moving along the axis when it lifted, measured over its last 80 ms or so of movement rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
+**Release speed**: how fast the pointer was moving along the axis when it lifted, measured over the release window rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
+
+**Release window**: the pointer's last 80 ms or so of movement, which release speed is measured over. While the pointer is down, it's **sampled**: each **sample** records where it was and when. Only the samples in the window are kept, plus the newest one from just before it, so the speed covers the whole window.
 
 **Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. It isn't called a "rest", because that word already means at rest and rest tilt.
 
