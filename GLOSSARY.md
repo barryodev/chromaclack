@@ -28,7 +28,7 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 
 ## Pages
 
-**Page**: one complete value the clacker can show, such as a colour with its label. At rest the clacker shows exactly one page. Pages form a circular sequence: after the last page comes the first again.
+**Page**: one complete value the clacker can show, such as a colour. At rest the clacker shows exactly one page. Pages form a sequence that is either **circular**, where after the last page comes the first again, or **finite**, where it runs out at two limits.
 
 **Half page**: the start-half or end-half portion of a page. A page is never drawn as one object. Its two half pages are printed on sides of two different flaps.
 
@@ -39,6 +39,10 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 **Target page**: the page the clacker will come to rest on once the current swipe's ticks finish.
 
 **Next / previous page**: the neighbours of the current page in the sequence. A **forward** tick shows the next page, and a **backward** tick shows the previous one.
+
+**Limit**: the first page or the last page of a finite sequence, past which there are no more pages. On the spin tab, the lowest and highest detents are limits too. The word names where the value runs out, not the motion there. It isn't called an "end", because that's a half, or a "stop", because that's the natural stop.
+
+**Board**: the fixed piece a limit's outer half page is printed on, like the stand at the back of a desk flip calendar. At the last page, its start half is on the board, and at the first page, its end half. The board never moves, so at a limit there's no flap left to tick over. Near a limit the fan thins on that side, because there are no pages past the limit to fill its tiers. It isn't called a "stand", because that looks like "stack" and "start", or a "backboard", because "back" is already a flap side.
 
 ## Flaps
 
