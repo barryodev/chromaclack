@@ -1,4 +1,22 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
+import {
+	BOUNCE_DAMPING,
+	BOUNCE_SWING_MS,
+	CLACK_KICK,
+	GRAB_FADE_MS,
+	MAX_CLACK_STRENGTH,
+	MAX_FALL_POINT,
+	MAX_FALL_PULL,
+	MIN_CLACK_STRENGTH,
+	MIN_FALL_POINT,
+	MIN_FALL_PULL,
+	bounceOffset,
+	easeLandingTier,
+	easeLeavingTier,
+	flapRandom,
+	loosenessAt,
+	movingTravel
+} from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
 	COAST_DEGREES_PER_PIXEL,
@@ -35,28 +53,6 @@ const REST_TILTS = [42, 36, 30];
 const FLAT_TILTS = REST_TILTS.map(() => 0);
 
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
-
-// Looseness tuning. Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the
-// rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
-const TIGHT_SPEED = 2; // About 11 ticks a second. At or above it, looseness is 0.
-const LOOSE_SPEED = 0.7; // About 4 ticks a second. At or below it, looseness is 1.
-const LOOSENESS_STEEPNESS = 2; // Higher stays tight for longer as the flap slows, then loosens faster.
-// In inertia a moving flap falls onto the stack under gravity once it passes its fall point, just past the
-// top of its tick. Each flap picks its fall point and pull from these bands, so some balance longer and
-// some drop harder.
-const MIN_FALL_POINT = 0.5; // Of the way through the tick, so 0.5 is straight up.
-const MAX_FALL_POINT = 0.6;
-const MIN_FALL_PULL = 0.006; // °/ms² at full looseness. From the top, 0.008 drops a flap in about 150 ms.
-const MAX_FALL_PULL = 0.012;
-// A falling flap clacks onto the stack. The clacked flap rebounds towards the hinge on a spring, and the
-// flaps beneath it are knocked back by these shares of the rebound, from the one just beneath it down.
-const CLACK_KICK = 0.4; // Spring speed in °/ms per °/ms of impact speed, at full looseness.
-const MIN_CLACK_STRENGTH = 0.7; // Each flap clacks at its own strength from this band.
-const MAX_CLACK_STRENGTH = 1.3;
-const KNOCK_BACK = [0.5, 0.3, 0.15];
-const BOUNCE_SWING_MS = 167; // One swing there and back, if nothing damped it.
-const BOUNCE_DAMPING = 0.35; // Damping ratio. Lower bounces for longer.
-const GRAB_FADE_MS = 60; // Picking a rebounding flap up fades its rebound out over about this long.
 
 // Spin tuning.
 const SPIN_DETENT_DEGREES = 90;
@@ -252,7 +248,7 @@ function startSwipe(event) {
 
 // Keep the completed ticks, and pick the flap up where it's drawn, which can be ahead of travel as it falls.
 function catchFlap() {
-	const angle = movingTravel() - completedTicks(state.travel) * TICK_DEGREES;
+	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
 	stopInertia();
 	state.page = shownPage();
 	state.travel = angle;
@@ -331,12 +327,6 @@ function tickInertia(frameMs) {
 
 // Looseness
 
-// A power curve, so the flap stays tight through most of a slowdown and loosens quickly near LOOSE_SPEED.
-function loosenessAt(speed) {
-	const slowedBy = clamp((TIGHT_SPEED - speed) / (TIGHT_SPEED - LOOSE_SPEED), 0, 1);
-	return slowedBy ** LOOSENESS_STEEPNESS;
-}
-
 /*
 	The looseness of the tick in progress. It's sampled from the flap's speed
 	as the tick starts and held until it ends, so a tick's shape never changes
@@ -350,12 +340,6 @@ function tickLooseness() {
 		state.heldLooseness = { page, forward, looseness: loosenessAt(Math.abs(state.velocity)) };
 	}
 	return state.heldLooseness.looseness;
-}
-
-// A repeatable 0–1 value for a flap, so it moves the same way each time. `salt` picks a value per effect.
-function flapRandom(flapIndex, salt) {
-	const wave = Math.sin(flapIndex * 12.9898 + salt * 78.233) * 43758.5453;
-	return wave - Math.floor(wave);
 }
 
 // Falling
@@ -390,15 +374,6 @@ function updateFall(inertia) {
 	inertia.fall = { low, to, direction, fallStartMs, pull, flapIndex, looseness, clacked: false };
 }
 
-// Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it started falling.
-function movingTravel() {
-	const fall = state.inertia?.fall;
-	if (!fall || fall.low !== tickBounds(state.travel)[0]) return state.travel;
-	const fallMs = state.inertia.elapsedMs - fall.fallStartMs;
-	const fallen = state.travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
-	return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
-}
-
 // Clack, knock-back and rebound
 
 /*
@@ -418,7 +393,7 @@ function checkClack(inertia, landed) {
 	if (!fall || fall.clacked) return;
 	const fallMs = inertia.elapsedMs - fall.fallStartMs;
 	const travelThere = (state.travel - fall.to) * fall.direction >= 0;
-	if (!landed && !travelThere && movingTravel() !== fall.to) return;
+	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) return;
 	fall.clacked = true;
 	const impactSpeed = Math.abs(state.velocity) + fall.pull * fallMs;
 	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, flapRandom(fall.flapIndex, 2));
@@ -457,21 +432,6 @@ function stepBounces(frameMs) {
 // The finger takes over these flaps, so their rebounds fade out. The knock-backs beneath carry on.
 function grabBounces(flapIndices) {
 	for (const bounce of bounces) if (flapIndices.includes(bounce.clackedIndex)) bounce.grabbed = true;
-}
-
-// How far bounces move a flap in `half` off its drawn angle, in degrees.
-function bounceOffset(half, flapIndex) {
-	const awayFromHinge = half === 'end' ? 1 : -1;
-	let offset = 0;
-	for (const bounce of bounces) {
-		if (bounce.half !== half) continue;
-		// Flaps beneath the clacked one sit further from the hinge, so lower indices in the end half.
-		const depth = (bounce.clackedIndex - flapIndex) * awayFromHinge;
-		if (depth < 0) continue;
-		const share = depth === 0 ? -bounce.rebound : KNOCK_BACK[Math.min(depth, KNOCK_BACK.length) - 1];
-		offset += share * bounce.offset * awayFromHinge;
-	}
-	return offset;
 }
 
 // Commit `pageDelta` and return the clacker to rest. The flap resets to the start half instantly.
@@ -730,17 +690,6 @@ function setFlap(flap, drawn, front, back) {
 	paintSide(flap.back, back);
 }
 
-// Fan easing at full looseness. Tiers in the half the moving flap leaves wait for it to clear, then flop
-// forward.
-function easeLeavingTier(progress) {
-	return progress ** 3;
-}
-
-// Smoothstep. Tiers in the half the moving flap lands in give way as it arrives.
-function easeLandingTier(progress) {
-	return progress * progress * (3 - 2 * progress);
-}
-
 /*
 	At rest, start tier k shows page N+k and end tier k shows page N-k. The moving
 	flap stands in for tier 0 of the half it starts in, so that tier's own flap is
@@ -761,7 +710,7 @@ function renderFlaps() {
 	const shown = shownPage();
 	const forward = hingeAngle(state.travel) >= 0;
 	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
-	const angle = movingTravel() - completedTicks(state.travel) * TICK_DEGREES;
+	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
 	const progress = Math.abs(angle) / TICK_DEGREES;
 	const looseness = tickLooseness();
 	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
@@ -774,7 +723,7 @@ function renderFlaps() {
 	const movingIndex = forward ? shown : shown - 1;
 	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
 	const movingHalf = movingPlain < TICK_DEGREES / 2 ? 'start' : 'end';
-	const movingDrawn = movingPlain + bounceOffset(movingHalf, movingIndex);
+	const movingDrawn = movingPlain + bounceOffset(bounces, movingHalf, movingIndex);
 	// Nothing ticks on the spin tab, so the moving flap lies level with end tier 0. Lifted, perspective draws it
 	// a fraction bigger than the flap beside it.
 	flaps.moving.element.style.setProperty('--lift', `${state.mode === 'spin' ? 0 : 1}px`);
@@ -784,7 +733,8 @@ function renderFlaps() {
 	// pushed along instead of passed through.
 	let frontmost = movingDrawn;
 	const placeStart = (flap, tilt, flapIndex) => {
-		const drawn = Math.min(drawnAngle(0, tilt) + bounceOffset('start', flapIndex), frontmost);
+		const bounced = drawnAngle(0, tilt) + bounceOffset(bounces, 'start', flapIndex);
+		const drawn = Math.min(bounced, frontmost);
 		if (!flap.element.hidden) frontmost = drawn;
 		setFlap(flap, drawn, pageAt(flapIndex), pageAt(flapIndex));
 	};
@@ -796,7 +746,8 @@ function renderFlaps() {
 
 	frontmost = movingDrawn;
 	const placeEnd = (flap, tilt, flapIndex) => {
-		const drawn = Math.max(drawnAngle(TICK_DEGREES, tilt) + bounceOffset('end', flapIndex), frontmost);
+		const bounced = drawnAngle(TICK_DEGREES, tilt) + bounceOffset(bounces, 'end', flapIndex);
+		const drawn = Math.max(bounced, frontmost);
 		if (!flap.element.hidden) frontmost = drawn;
 		// An end-half flap shows the page after it, the one whose end half it is.
 		setFlap(flap, drawn, pageAt(flapIndex + 1), pageAt(flapIndex + 1));
