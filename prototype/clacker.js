@@ -1,5 +1,21 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
+import {
+	COAST_DEGREES_PER_PIXEL,
+	DRAG_DEGREES_PER_PIXEL,
+	MAX_TICKS_PER_SWIPE,
+	MOUSE_DRAG_DEGREES_PER_PIXEL,
+	MOUSE_FRICTION,
+	SWIPE_LANDINGS,
+	TICK_DEGREES,
+	coastMotion,
+	completedTicks,
+	drawnAngle,
+	hingeAngle,
+	planInertia,
+	tickBounds,
+	toppleMotion
+} from './swipe.js';
 
 // Pages are a circular sequence. Each page's two half pages share a colour and label.
 const PAGES = [
@@ -18,24 +34,7 @@ const REST_TILTS = [42, 36, 30];
 // The spin tab lies flat, so a spin looks like turning a record.
 const FLAT_TILTS = REST_TILTS.map(() => 0);
 
-// Swipe tuning. Angles are in degrees and times in milliseconds.
-const TICK_DEGREES = 180;
-// How far a drag turns the flap, and how fast a release sets it coasting. Kept apart so drag feel can change
-// without re-tuning the frictions below, which were tuned with the coast at 0.6.
-const DRAG_DEGREES_PER_PIXEL = 2; // A phone's width only fits a few ticks of finger drag at less.
-const MOUSE_DRAG_DEGREES_PER_PIXEL = 0.6; // A small hand movement drags a mouse a long way.
-const COAST_DEGREES_PER_PIXEL = 0.6;
-// A 3.4 px/ms flick, a hard one on a phone, coasts about 9 ticks in about 1.9 s.
-const AIR_RESISTANCE = 0.00025; // Per degree. Slows the coast in proportion to its speed².
-const STOPPING_FRICTION = 0.0008; // °/ms². A steady slowing on top, so the coast stops in finite time.
-// A small mouse flick moves the pointer fast, so mouse coasts get this much more friction than touch or pen.
-const MOUSE_FRICTION = 1.7;
-// Inertia fits its friction to end on a landing, within this band around the input's normal friction.
-const MIN_FRICTION_FIT = 0.5;
-const MAX_FRICTION_FIT = 2;
-const TOPPLE_ACCELERATION = 0.0013; // °/ms². A 90° topple from a standstill takes about 370 ms.
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
-const MAX_TICKS_PER_SWIPE = 30; // A safety net only. Friction keeps real flicks well short of it.
 
 // Looseness tuning. Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the
 // rolodex wobbles are at full strength. Speeds are flap speeds in °/ms, so they suit mouse and touch alike.
@@ -204,19 +203,9 @@ function pageAt(index) {
 	return PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
 }
 
-// Whole ticks the current swipe has completed, signed like travel.
-function completedTicks() {
-	return Math.trunc(state.travel / TICK_DEGREES);
-}
-
-// Signed hinge angle of the moving flap within the tick in progress, from −180 to 180.
-function hingeAngle() {
-	return state.travel - completedTicks() * TICK_DEGREES;
-}
-
 // The page on show right now, counting the ticks completed in the current swipe.
 function shownPage() {
-	return state.page + completedTicks();
+	return state.page + completedTicks(state.travel);
 }
 
 /*
@@ -237,17 +226,6 @@ function tierTilt(tier) {
 
 function tiltsForMode() {
 	return state.mode === 'spin' ? FLAT_TILTS : REST_TILTS;
-}
-
-/*
-	The angle a flap is drawn at, in degrees. Rest tilt is applied only when
-	drawing, and the swipe maths stays in hinge-angle space. A hinge angle of
-	0–180 is drawn from restTilt to 180 − restTilt, so no flap is ever drawn
-	flat. Resting flaps lean towards the viewer like a book opened a little short
-	of flat, fanned out by tier.
-*/
-function drawnAngle(hingeAngle, restTilt) {
-	return restTilt + (hingeAngle * (TICK_DEGREES - 2 * restTilt)) / TICK_DEGREES;
 }
 
 // Pointer position along the swipe axis, oriented so forward is positive.
@@ -274,7 +252,7 @@ function startSwipe(event) {
 
 // Keep the completed ticks, and pick the flap up where it's drawn, which can be ahead of travel as it falls.
 function catchFlap() {
-	const angle = movingTravel() - completedTicks() * TICK_DEGREES;
+	const angle = movingTravel() - completedTicks(state.travel) * TICK_DEGREES;
 	stopInertia();
 	state.page = shownPage();
 	state.travel = angle;
@@ -297,12 +275,6 @@ function addSample(event) {
 	const sample = { position: axisPosition(event), time: event.timeStamp };
 	pointer.samples = addToReleaseWindow(pointer.samples, sample);
 }
-
-// Every travel a swipe can settle on: the start, and each whole tick either way up to MAX_TICKS_PER_SWIPE.
-const SWIPE_LANDINGS = Array.from(
-	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
-	(_, index) => (index - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
-);
 
 function releaseSwipe(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
@@ -330,85 +302,6 @@ function releaseSwipe(event) {
 
 // Inertia
 
-/*
-	Inertia is a coast if friction can carry the flap to its landing, and a
-	topple if it can't.
-
-	The coast starts at the release speed and slows under two frictions. Air
-	resistance grows with speed², so a hard flick sheds speed fast and its
-	tail stays short. Stopping friction is a steady slowing on top, so the
-	flap stops in finite time instead of slowing forever.
-
-	With c = AIR_RESISTANCE and s = STOPPING_FRICTION, both multiplied by the
-	fitted friction scale, speed v follows dv/dt = −(c·v² + s). Its exact
-	solution, with θ₀ = atan(v₀·√(c/s)) and ω = √(c·s), is
-
-		v(t) = √(s/c) · tan(θ₀ − ω·t)
-		distance(t) = ln(cos(θ₀ − ω·t) / cos θ₀) / c
-
-	and the flap stops when θ₀ − ω·t reaches 0. Scaling both frictions by one
-	factor divides the stopping distance and time by it, which is how
-	planInertia fits a coast to its landing.
-
-	stoppingTime, stoppingDistance and coastMotion all use this solution, so
-	they must change together. Working out the position from elapsed time,
-	rather than stepping it frame by frame, means inertia lands exactly where
-	it was planned.
-*/
-// The scaled frictions and the values the exact solution above needs, for a coast starting at `speed`.
-function coastFormulaInputs(speed, frictionScale) {
-	const airResistance = AIR_RESISTANCE * frictionScale;
-	const stoppingFriction = STOPPING_FRICTION * frictionScale;
-	// √(s/c), the speed where both frictions slow the flap equally.
-	const balanceSpeed = Math.sqrt(stoppingFriction / airResistance);
-	return {
-		airResistance,
-		balanceSpeed,
-		startPhase: Math.atan(speed / balanceSpeed),
-		phaseRate: Math.sqrt(airResistance * stoppingFriction)
-	};
-}
-
-function stoppingTime(speed, frictionScale) {
-	const { startPhase, phaseRate } = coastFormulaInputs(speed, frictionScale);
-	return startPhase / phaseRate;
-}
-
-function stoppingDistance(speed, frictionScale) {
-	const { airResistance, startPhase } = coastFormulaInputs(speed, frictionScale);
-	return -Math.log(Math.cos(startPhase)) / airResistance;
-}
-
-function nearestLanding(position, landings) {
-	return landings.reduce((best, landing) =>
-		Math.abs(landing - position) < Math.abs(best - position) ? landing : best
-	);
-}
-
-/*
-	Plan inertia from `position`, moving at `velocity`, to end on one of
-	`landings`: positions inertia can stop on, the whole-tick travels.
-	`normalFriction` scales both frictions for the input. It aims for the landing nearest the natural stop and fits
-	friction so the coast stops there, within the
-	MIN_FRICTION_FIT–MAX_FRICTION_FIT band around `normalFriction`. If the
-	clamped coast can't get there, the flap topples there instead.
-*/
-function planInertia(position, velocity, landings, normalFriction) {
-	const speed = Math.abs(velocity);
-	const direction = Math.sign(velocity);
-	const naturalDistance = stoppingDistance(speed, normalFriction);
-	const target = nearestLanding(position + direction * naturalDistance, landings);
-	const distance = (target - position) * direction;
-	// stoppingDistance is inversely proportional to the friction scale, so this lands exactly on distance.
-	const fitted = distance > 0 ? (normalFriction * naturalDistance) / distance : Infinity;
-	const frictionScale = clamp(fitted, MIN_FRICTION_FIT * normalFriction, MAX_FRICTION_FIT * normalFriction);
-	// With no more than the fitted friction the coast gets to the target, so it ends there.
-	if (distance > 0 && frictionScale <= fitted) {
-		return { target, coasts: true, frictionScale, durationMs: stoppingTime(speed, frictionScale) };
-	}
-	return { target, coasts: false, frictionScale: 0, durationMs: toppleTime(target - position, velocity) };
-}
-
 function startInertia() {
 	inertiaLoop = startFrameLoop((frameMs) => {
 		tickInertia(frameMs);
@@ -419,46 +312,6 @@ function startInertia() {
 
 function stopInertia() {
 	inertiaLoop?.stop();
-}
-
-// Where the coast towards `to` has carried the flap `ms` after release. It lands once it stops or reaches `to`.
-function coastMotion(inertia, to, ms) {
-	const direction = Math.sign(inertia.velocity);
-	const { airResistance, balanceSpeed, startPhase, phaseRate } = coastFormulaInputs(
-		Math.abs(inertia.velocity),
-		inertia.frictionScale
-	);
-	const phase = startPhase - phaseRate * Math.min(ms, inertia.durationMs);
-	const coasted = Math.log(Math.cos(phase) / Math.cos(startPhase)) / airResistance;
-	if (ms >= inertia.durationMs || coasted >= Math.abs(to - inertia.start)) {
-		return { travel: to, velocity: 0, landed: true };
-	}
-	return {
-		travel: inertia.start + direction * coasted,
-		velocity: direction * balanceSpeed * Math.tan(phase),
-		landed: false
-	};
-}
-
-/*
-	A topple pulls the flap steadily towards its landing, like gravity. It
-	starts at the release velocity, so a flap moving towards its landing speeds
-	up from there, and one moving away slows, turns and falls back. toppleTime
-	and toppleMotion must change together.
-*/
-function toppleTime(gap, velocity) {
-	const speedTowards = velocity * Math.sign(gap);
-	const reach = Math.sqrt(speedTowards ** 2 + 2 * TOPPLE_ACCELERATION * Math.abs(gap));
-	return (reach - speedTowards) / TOPPLE_ACCELERATION;
-}
-
-// Where the topple towards `to` has carried the flap `ms` after release.
-function toppleMotion(inertia, to, ms) {
-	const pull = Math.sign(to - inertia.start) * TOPPLE_ACCELERATION;
-	const time = Math.min(ms, inertia.durationMs);
-	const velocity = inertia.velocity + pull * time;
-	if (ms >= inertia.durationMs) return { travel: to, velocity, landed: true };
-	return { travel: inertia.start + inertia.velocity * time + (pull * time ** 2) / 2, velocity, landed: false };
 }
 
 // Move the flap to where inertia has carried it after `frameMs` more ms, and settle once it lands.
@@ -491,7 +344,7 @@ function loosenessAt(speed) {
 */
 function tickLooseness() {
 	const page = shownPage();
-	const forward = hingeAngle() >= 0;
+	const forward = hingeAngle(state.travel) >= 0;
 	const held = state.heldLooseness;
 	if (held?.page !== page || held.forward !== forward) {
 		state.heldLooseness = { page, forward, looseness: loosenessAt(Math.abs(state.velocity)) };
@@ -507,12 +360,6 @@ function flapRandom(flapIndex, salt) {
 
 // Falling
 
-// The lowest and highest travel of the tick in progress.
-function tickBounds() {
-	const base = completedTicks() * TICK_DEGREES;
-	return hingeAngle() >= 0 ? [base, base + TICK_DEGREES] : [base - TICK_DEGREES, base];
-}
-
 /*
 	The clacker carries a moving flap up to the top of its tick. Once inertia
 	carries it past its fall point, gravity takes over and it falls ahead
@@ -526,12 +373,12 @@ function tickBounds() {
 	point. It's dropped at each new tick.
 */
 function updateFall(inertia) {
-	const [low, high] = tickBounds();
+	const [low, high] = tickBounds(state.travel);
 	if (inertia.fall?.low === low) return;
 	inertia.fall = null;
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
-	const flapIndex = hingeAngle() >= 0 ? shownPage() : shownPage() - 1;
+	const flapIndex = hingeAngle(state.travel) >= 0 ? shownPage() : shownPage() - 1;
 	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, flapRandom(flapIndex, 0));
 	if (covered < fallPoint * TICK_DEGREES) return;
 	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
@@ -546,7 +393,7 @@ function updateFall(inertia) {
 // Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it started falling.
 function movingTravel() {
 	const fall = state.inertia?.fall;
-	if (!fall || fall.low !== tickBounds()[0]) return state.travel;
+	if (!fall || fall.low !== tickBounds(state.travel)[0]) return state.travel;
 	const fallMs = state.inertia.elapsedMs - fall.fallStartMs;
 	const fallen = state.travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
 	return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
@@ -912,9 +759,9 @@ function easeLandingTier(progress) {
 */
 function renderFlaps() {
 	const shown = shownPage();
-	const forward = hingeAngle() >= 0;
+	const forward = hingeAngle(state.travel) >= 0;
 	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
-	const angle = movingTravel() - completedTicks() * TICK_DEGREES;
+	const angle = movingTravel() - completedTicks(state.travel) * TICK_DEGREES;
 	const progress = Math.abs(angle) / TICK_DEGREES;
 	const looseness = tickLooseness();
 	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
@@ -970,12 +817,12 @@ function renderDebug() {
 	debugFields.current.textContent = pageAt(state.page).label;
 	debugFields.shown.textContent = pageAt(shown).label;
 	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
-	debugFields.angle.textContent = `${hingeAngle().toFixed(1)}°`;
+	debugFields.angle.textContent = `${hingeAngle(state.travel).toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
 	const nowLooseness = loosenessAt(Math.abs(state.velocity));
 	debugFields.looseness.textContent = `${tickLooseness().toFixed(2)} (now ${nowLooseness.toFixed(2)})`;
 	debugFields.releaseSpeed.textContent = `${state.releaseSpeed.toFixed(2)} px/ms`;
-	debugFields.ticks.textContent = `${completedTicks()} / ${state.target / TICK_DEGREES}`;
+	debugFields.ticks.textContent = `${completedTicks(state.travel)} / ${state.target / TICK_DEGREES}`;
 	debugFields.spin.textContent = `${state.spinAngle.toFixed(1)}°`;
 	debugFields.spinVelocity.textContent = `${state.spinVelocity.toFixed(4)} °/ms`;
 	debugFields.slowMo.textContent = slowMo ? `${SLOW_MO_FACTOR}×` : 'off';
