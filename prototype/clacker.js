@@ -1,3 +1,5 @@
+import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
+
 // Pages are a circular sequence. Each page's two half pages share a colour and label.
 const PAGES = [
 	{ label: '1', colour: '#581C87' },
@@ -200,16 +202,6 @@ function startFrameLoop(onFrame) {
 
 function pageAt(index) {
 	return PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
-}
-
-function clamp(value, min, max) {
-	return Math.min(max, Math.max(min, value));
-}
-
-// Blend from `from` to `to`: amount 0 gives `from` and 1 gives `to`. Slides tiers between tilts, picks
-// per-flap values from the tuning bands, and blends each wobble in by looseness.
-function lerp(from, to, amount) {
-	return from + (to - from) * amount;
 }
 
 // Whole ticks the current swipe has completed, signed like travel.
@@ -616,25 +608,17 @@ function startBounces() {
 	});
 }
 
-// Move each bounce's spring on by `frameMs` and drop the ones at rest. It's the same damped spring a seat uses,
-// see stepSeat.
+// Move each bounce's spring on by `frameMs` and drop the ones at rest.
 function stepBounces(frameMs) {
-	const omega = (2 * Math.PI) / BOUNCE_SWING_MS;
-	const steps = Math.ceil(frameMs / 4);
-	const stepMs = frameMs / steps;
 	for (const bounce of bounces) {
-		for (let index = 0; index < steps; index++) {
-			const springPull = -(omega ** 2) * bounce.swing;
-			const damping = 2 * BOUNCE_DAMPING * omega * bounce.swingSpeed;
-			const acceleration = springPull - damping;
-			bounce.swingSpeed += acceleration * stepMs;
-			bounce.swing += bounce.swingSpeed * stepMs;
-		}
+		const spring = stepDampedSpring(bounce.swing, bounce.swingSpeed, frameMs, BOUNCE_SWING_MS, BOUNCE_DAMPING);
+		bounce.swing = spring.offset;
+		bounce.swingSpeed = spring.velocity;
 		if (bounce.grabbed) bounce.rebound = Math.max(0, bounce.rebound - frameMs / GRAB_FADE_MS);
 	}
-	const atRest = (bounce) => Math.abs(bounce.swing) < 0.05 && Math.abs(bounce.swingSpeed) < 0.002;
 	for (let index = bounces.length - 1; index >= 0; index--) {
-		if (atRest(bounces[index])) bounces.splice(index, 1);
+		const bounce = bounces[index];
+		if (springAtRest(bounce.swing, bounce.swingSpeed)) bounces.splice(index, 1);
 	}
 }
 
@@ -842,34 +826,13 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-/*
-	Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
-
-	The seat is a damped spring. The spring pulls the clacker back towards the
-	detent in proportion to how far off it is, and damping slows it in
-	proportion to its speed:
-
-		acceleration = −ω²·offset − 2ζ·ω·velocity
-
-	ω (omega) is how fast the spring swings, a full turn of 2π per
-	SEAT_SWING_MS, and ζ is SEAT_DAMPING. With ζ below 1 the clacker overshoots
-	the detent and swings back, a little less each time. It's moved on in 4 ms
-	steps, so it stays stable however long a frame takes.
-*/
+// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
 function stepSeat(frameMs) {
-	const omega = (2 * Math.PI) / SEAT_SWING_MS;
-	const steps = Math.ceil(frameMs / 4);
-	const stepMs = frameMs / steps;
-	for (let index = 0; index < steps; index++) {
-		const offset = state.spinAngle - state.spinDetent;
-		const springPull = -(omega ** 2) * offset;
-		const damping = 2 * SEAT_DAMPING * omega * state.spinVelocity;
-		const acceleration = springPull - damping;
-		state.spinVelocity += acceleration * stepMs;
-		state.spinAngle += state.spinVelocity * stepMs;
-	}
-	const atRest = Math.abs(state.spinAngle - state.spinDetent) < 0.05 && Math.abs(state.spinVelocity) < 0.002;
-	if (!atRest) return;
+	const offset = state.spinAngle - state.spinDetent;
+	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
+	state.spinAngle = state.spinDetent + spring.offset;
+	state.spinVelocity = spring.velocity;
+	if (!springAtRest(spring.offset, spring.velocity)) return;
 	state.spinAngle = state.spinDetent;
 	state.spinVelocity = 0;
 	state.phase = 'idle';
