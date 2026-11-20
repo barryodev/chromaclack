@@ -1,6 +1,6 @@
 # Clacker prototype
 
-A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transforms and animations by eye in a browser. Once it's settled, the work goes back into the SvelteKit frontend. Tracked in Linear under the milestone "Phase 1: Isolated prototype to lock in css transforms and animations", starting with DAI-38.
+A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transforms and animations by eye in a browser. Once it's settled, the work goes back into the SvelteKit frontend. Phase 1 settled the motion. It's now tracked in Linear under the milestone "Phase 2: Turn the prototype into an HSL colour toy".
 
 ## Rules
 
@@ -13,14 +13,17 @@ A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transfor
 
 Testing is split by the kind of code:
 
-- **Pure logic gets unit tests.** A function with no DOM access and no global state, such as colour conversion, page ↔ value mapping, or choosing landings, lives in its own ES module. It gets tests in the same commit that adds or changes it. Tests use Node's built-in runner (`node --test`), so there are still no dependencies and no `package.json`.
-- **Feel is checked by eye.** Easing, falls, bounces, seats and step sizes get no tests and no verification tooling. Passing tests are never evidence that the feel is right.
+- **Pure logic gets unit tests.** A function with no DOM access and no global state, such as colour conversion, page ↔ value mapping, or choosing landings, lives in an ES module in this folder, and `clacker.js` imports it. `clacker.js` keeps only the DOM, state, pointer wiring, frame loops and rendering. A module's tests live in `test/<module>.test.js`, and they land in the same commit that adds or changes the function.
+- **Tests check exact facts, never tuning values.** For example, a spring comes to rest or a coast lands on its target. "A hard flick coasts 9 ticks" is tuning, so it isn't tested.
+- **Feel is checked by eye.** Easing, falls, bounces, seats and step sizes get no verification tooling. Passing tests are never evidence that the feel is right.
 
-Existing physics in `clacker.js` moves into a module and gets tests only when an issue changes it.
+Run the tests from this folder with `node --test`. Node's built-in runner finds everything in `test/`, so there are still no dependencies and no `package.json`.
 
 ## Viewing
 
-Open `index.html` directly in a browser, or run `python3 -m http.server` from inside this folder and go to http://localhost:8000.
+Run `./serve.sh` from this folder. It serves on all interfaces and prints the localhost and Tailscale URLs, so a phone on the tailnet can open it. `python3 -m http.server` from this folder also works, at http://localhost:8000.
+
+Opening `index.html` directly (`file://`) doesn't work, because browsers block ES modules loaded from `file://`.
 
 ## Reference
 

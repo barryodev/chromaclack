@@ -104,7 +104,9 @@ A swipe has these phases:
 - **Inertia**: after release, flaps keep ticking over and slow down under friction, ending on a landing.
 - **Settle**: the last flap comes to rest and the target page becomes the current page.
 
-**Release speed**: how fast the pointer was moving along the axis when it lifted, measured over its last 80 ms or so of movement rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
+**Release speed**: how fast the pointer was moving along the axis when it lifted, measured over the release window rather than its last move alone. If the finger stopped before lifting, the release speed is close to zero. Inertia starts from it.
+
+**Release window**: the pointer's last 80 ms or so of movement, which release speed is measured over. While the pointer is down, it's **sampled**: each **sample** records where it was and when. Only the samples in the window are kept, plus the newest one from just before it, so the speed covers the whole window.
 
 **Landing**: a position inertia can stop on. For a swipe it's a travel of a whole number of ticks, where every flap rests in a half. It isn't called a "rest", because that word already means at rest and rest tilt.
 
@@ -132,7 +134,9 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Clack**: a falling flap landing on the stack in a half. Its strength comes from how fast the flap hits, times looseness, times the flap's own strength. Ticks dragged by hand don't clack, because a card pushed onto the stack by hand lands gently.
 
-**Bounce**: what a clack sets off, a short damped spring in the half the flap landed in. The clacked flap **rebounds** towards the hinge and settles back, and the flaps beneath it are **knocked back** towards flat, less the deeper they sit. Picking up a rebounding flap fades its rebound out. No flap is ever drawn past the one in front of it, so a flap moving onto a bouncing one pushes it along instead of passing through it.
+**Spring**: a pull back towards a set position that grows the further off it is. Its **offset** is how far off it is right now. **Damping** slows it in proportion to its speed, so it settles there. With little damping it overshoots, swings back and overshoots again, a little less each time. Its **swing time** is how long one swing there and back would take with no damping. The bounce and the seat are both springs, each with its own swing time and damping.
+
+**Bounce**: what a clack sets off, a short spring in the half the flap landed in. The clacked flap **rebounds** towards the hinge and settles back, and the flaps beneath it are **knocked back** towards flat, less the deeper they sit. Picking up a rebounding flap fades its rebound out. No flap is ever drawn past the one in front of it, so a flap moving onto a bouncing one pushes it along instead of passing through it.
 
 ## Spinning
 
