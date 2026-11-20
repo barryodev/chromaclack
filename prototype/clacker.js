@@ -1,5 +1,3 @@
-'use strict';
-
 // Pages are a circular sequence. Each page's two half pages share a colour and label.
 const PAGES = [
 	{ label: '1', colour: '#581C87' },

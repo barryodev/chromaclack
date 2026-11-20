@@ -1,6 +1,6 @@
 # Clacker prototype
 
-A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transforms and animations by eye in a browser. Once it's settled, the work goes back into the SvelteKit frontend. Tracked in Linear under the milestone "Phase 1: Isolated prototype to lock in css transforms and animations", starting with DAI-38.
+A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transforms and animations by eye in a browser. Once it's settled, the work goes back into the SvelteKit frontend. Phase 1 settled the motion. It's now tracked in Linear under the milestone "Phase 2: Turn the prototype into an HSL colour toy".
 
 ## Rules
 
@@ -20,7 +20,9 @@ Existing physics in `clacker.js` moves into a module and gets tests only when an
 
 ## Viewing
 
-Open `index.html` directly in a browser, or run `python3 -m http.server` from inside this folder and go to http://localhost:8000.
+Run `./serve.sh` from this folder. It serves on all interfaces and prints the localhost and Tailscale URLs, so a phone on the tailnet can open it. `python3 -m http.server` from this folder also works, at http://localhost:8000.
+
+Opening `index.html` directly (`file://`) doesn't work, because browsers block ES modules loaded from `file://`.
 
 ## Reference
 
