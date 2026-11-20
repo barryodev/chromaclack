@@ -34,25 +34,26 @@ test('rim speed is 0 when no time has passed', () => {
 	assert.equal(rimSpeed([sampleAt(0, 100, 0)], centre), 0);
 });
 
-// Close enough for maths that runs through exponentials and logarithms.
-function assertNear(actual, expected) {
-	assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} is not ${expected}`);
+// Within `tolerance` of expected, since maths through exponentials and logarithms is rarely exact.
+function assertNear(actual, expected, tolerance) {
+	assert.ok(Math.abs(actual - expected) < tolerance, `${actual} is not within ${tolerance} of ${expected}`);
 }
 
 test('a spin-down starts at its release speed and has not turned yet', () => {
-	assertNear(spinDownSpeed(2, 0), 2);
-	assertNear(spinDownDistance(2, 0), 0);
+	assertNear(spinDownSpeed(2, 0), 2, 1e-9);
+	assertNear(spinDownDistance(2, 0), 0, 1e-9);
 });
 
 test('a spin-down reaches each speed at the time spinDownTime gives for it', () => {
-	assertNear(spinDownSpeed(2, spinDownTime(2, 0.5)), 0.5);
-	assertNear(spinDownSpeed(2, spinDownTime(2, 0)), 0);
+	assertNear(spinDownSpeed(2, spinDownTime(2, 0.5)), 0.5, 1e-9);
+	assertNear(spinDownSpeed(2, spinDownTime(2, 0)), 0, 1e-9);
 });
 
 test("a spin-down's angle grows at its speed", () => {
-	// The angle's change over 1 ms, centred on 500 ms, matches the speed at 500 ms.
+	// The angle's change over 1 ms, centred on 500 ms, matches the speed at 500 ms. A 1 ms step only
+	// estimates the speed, to within about 6e-8 °/ms here, so the tolerance is looser than for exact formulas.
 	const turnedOverOneMs = spinDownDistance(2, 500.5) - spinDownDistance(2, 499.5);
-	assert.ok(Math.abs(turnedOverOneMs - spinDownSpeed(2, 500)) < 1e-6);
+	assertNear(turnedOverOneMs, spinDownSpeed(2, 500), 1e-6);
 });
 
 test('the nearest detent rounds to whole detents, either way round', () => {
