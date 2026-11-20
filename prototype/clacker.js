@@ -19,6 +19,17 @@ import {
 } from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
+	SEAT_DAMPING,
+	SEAT_SPEED,
+	SEAT_SWING_MS,
+	nearestDetent,
+	rimSpeed,
+	shortestTurn,
+	spinDownDistance,
+	spinDownSpeed,
+	spinDownTime
+} from './spin.js';
+import {
 	COAST_DEGREES_PER_PIXEL,
 	DRAG_DEGREES_PER_PIXEL,
 	MAX_TICKS_PER_SWIPE,
@@ -53,16 +64,6 @@ const REST_TILTS = [42, 36, 30];
 const FLAT_TILTS = REST_TILTS.map(() => 0);
 
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
-
-// Spin tuning.
-const SPIN_DETENT_DEGREES = 90;
-// A 3.4 px/ms flick along the rim, a hard one on a phone, spins down about 3½ turns in about 2.3 s.
-const SPIN_SPEED_FRICTION = 0.001; // Per ms. Slows the spin-down in proportion to its speed.
-const SPIN_STOPPING_FRICTION = 0.0002; // °/ms². A steady slowing on top, so the spin-down stops in time.
-const SEAT_SPEED = 0.15; // °/ms. Below this the spin-down hands over to the seat.
-// A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
-const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped it.
-const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
 
 const ARIA_LABELS = {
 	vertical: 'Swipe up or down',
@@ -448,7 +449,8 @@ function settle(pageDelta) {
 // Spin
 
 function pointerAngle(event) {
-	return (Math.atan2(event.clientY - pointer.centreY, event.clientX - pointer.centreX) * 180) / Math.PI;
+	const { centre } = pointer;
+	return (Math.atan2(event.clientY - centre.y, event.clientX - centre.x) * 180) / Math.PI;
 }
 
 // Start a spin drag where the pointer pressed. A press during a spin-down or seat is a catch, so the clacker
@@ -460,8 +462,7 @@ function startSpin(event) {
 	const rect = clacker.getBoundingClientRect();
 	pointer = {
 		id: event.pointerId,
-		centreX: rect.left + rect.width / 2,
-		centreY: rect.top + rect.height / 2,
+		centre: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
 		// The layout width, since a turned clacker's bounding box is wider than the clacker.
 		rimRadius: clacker.offsetWidth / 2,
 		samples: []
@@ -477,45 +478,13 @@ function dragSpin(event) {
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSpinSample(move);
 	const angle = pointerAngle(event);
-	// Shortest way round, so crossing the ±180° line doesn't jump a full turn.
-	let delta = angle - pointer.lastAngle;
-	if (delta > 180) delta -= 360;
-	if (delta < -180) delta += 360;
-	state.spinAngle += delta;
+	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
 	pointer.lastAngle = angle;
 }
 
 function addSpinSample(event) {
 	const sample = { x: event.clientX, y: event.clientY, time: event.timeStamp };
 	pointer.samples = addToReleaseWindow(pointer.samples, sample);
-}
-
-/*
-	The pointer's speed along the rim in px/ms, clockwise positive, across the
-	release window. Each move between samples counts only its part going round
-	the centre, so a flick straight out from the centre doesn't spin. Adding up
-	the moves, rather than measuring straight from the oldest sample to the
-	newest, keeps a fast flick curving round the rim from being cut short.
-*/
-function rimSpeed() {
-	const samples = pointer.samples;
-	const elapsedMs = samples.at(-1).time - samples[0].time;
-	if (elapsedMs <= 0) return 0;
-	let distance = 0;
-	for (let index = 1; index < samples.length; index++) {
-		distance += rimDistance(samples[index - 1], samples[index]);
-	}
-	return distance / elapsedMs;
-}
-
-// How far the pointer went round the centre between two samples, in px, clockwise positive.
-function rimDistance(from, to) {
-	const radiusX = (from.x + to.x) / 2 - pointer.centreX;
-	const radiusY = (from.y + to.y) / 2 - pointer.centreY;
-	const radius = Math.hypot(radiusX, radiusY);
-	if (radius === 0) return 0;
-	// The cross product of radius and move. Screen y points down, so positive is clockwise.
-	return (radiusX * (to.y - from.y) - radiusY * (to.x - from.x)) / radius;
 }
 
 /*
@@ -527,41 +496,13 @@ function rimDistance(from, to) {
 function releaseSpin(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSpinSample(event);
-	const releaseRimSpeed = rimSpeed();
+	const releaseRimSpeed = rimSpeed(pointer.samples, pointer.centre);
 	state.releaseSpeed = Math.abs(releaseRimSpeed);
 	state.spinVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
 	startSpinMotion();
-}
-
-/*
-	A spin-down slows under spin friction. With k = SPIN_SPEED_FRICTION and
-	s = SPIN_STOPPING_FRICTION, speed v follows dv/dt = −(k·v + s). Its exact
-	solution, with b = s/k, the speed where both frictions slow the spin equally, is
-
-		v(t) = (v₀ + b) · e^(−k·t) − b
-		distance(t) = ((v₀ + b) · (1 − e^(−k·t)) − s·t) / k
-
-	spinDownSpeed, spinDownDistance and spinDownTime all use it, so they must
-	change together. Working out the angle from elapsed time, rather than
-	stepping it frame by frame, keeps it the same at any frame rate.
-*/
-const SPIN_BALANCE_SPEED = SPIN_STOPPING_FRICTION / SPIN_SPEED_FRICTION;
-
-function spinDownSpeed(speed, ms) {
-	return (speed + SPIN_BALANCE_SPEED) * Math.exp(-SPIN_SPEED_FRICTION * ms) - SPIN_BALANCE_SPEED;
-}
-
-function spinDownDistance(speed, ms) {
-	const slowed = (speed + SPIN_BALANCE_SPEED) * (1 - Math.exp(-SPIN_SPEED_FRICTION * ms));
-	return (slowed - SPIN_STOPPING_FRICTION * ms) / SPIN_SPEED_FRICTION;
-}
-
-// How long a spin-down takes to slow from `fromSpeed` to `toSpeed`.
-function spinDownTime(fromSpeed, toSpeed) {
-	return Math.log((fromSpeed + SPIN_BALANCE_SPEED) / (toSpeed + SPIN_BALANCE_SPEED)) / SPIN_SPEED_FRICTION;
 }
 
 function startSpinDown() {
@@ -593,7 +534,7 @@ function startSeat() {
 	const naturalStop = state.spinAngle + Math.sign(state.spinVelocity) * stopDistance;
 	state.phase = 'seating';
 	state.spinDown = null;
-	state.spinDetent = Math.round(naturalStop / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
+	state.spinDetent = nearestDetent(naturalStop);
 }
 
 // Turn the clacker through its spin-down and seat until it comes to rest.
