@@ -13,17 +13,12 @@ export function lerp(from, to, amount) {
 const SPRING_STEP_MS = 4;
 
 /*
-	Move a damped spring on by `frameMs`. `offset` is how far it is from where
-	it pulls towards. The spring pulls back in proportion to the offset, and
-	damping slows it in proportion to its velocity:
+	Move a spring (see GLOSSARY.md) on by `frameMs`:
 
 		acceleration = −ω²·offset − 2ζ·ω·velocity
 
-	ω (omega) is how fast the spring swings, a full turn of 2π per `swingMs`,
-	and ζ is `damping`. With ζ below 1 the spring overshoots and swings back, a
-	little less each time. It's moved on in 4 ms steps, so it stays stable
-	however long a frame takes. The seat and the bounce each run one with their
-	own tuning.
+	ω (omega) is a full turn of 2π per `swingMs`, and ζ is `damping`. It's moved
+	on in 4 ms steps, so it stays stable however long a frame takes.
 */
 export function stepDampedSpring(offset, velocity, frameMs, swingMs, damping) {
 	const omega = (2 * Math.PI) / swingMs;

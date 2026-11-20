@@ -570,14 +570,14 @@ function movingTravel() {
 // Clack, knock-back and rebound
 
 /*
-	Each clack starts a bounce: a damped spring in the half the flap landed
-	in. `swing` is how far the clacked flap has rebounded towards the hinge, in
+	Each clack starts a bounce: a spring in the half the flap landed in.
+	Its `offset` is how far the clacked flap has rebounded towards the hinge, in
 	drawn degrees, and the flaps beneath it are knocked back by KNOCK_BACK
 	shares of it. A bounce tracks its flap by index, not by element, so it
 	carries on when the moving flap hands over to a tier at the end of a tick.
 	Bounces run on their own frame loop, so they carry on after settle.
 */
-const bounces = []; // { half, clackedIndex, swing, swingSpeed, rebound, grabbed }
+const bounces = []; // { half, clackedIndex, offset, velocity, rebound, grabbed }
 let bounceLoop = null;
 
 // Clack once the falling flap reaches the stack, or once travel gets there first or inertia lands.
@@ -593,7 +593,7 @@ function checkClack(inertia, landed) {
 	const kick = impactSpeed * fall.looseness * strength * CLACK_KICK;
 	if (kick <= 0) return;
 	const half = fall.direction > 0 ? 'end' : 'start';
-	bounces.push({ half, clackedIndex: fall.flapIndex, swing: 0, swingSpeed: kick, rebound: 1, grabbed: false });
+	bounces.push({ half, clackedIndex: fall.flapIndex, offset: 0, velocity: kick, rebound: 1, grabbed: false });
 	startBounces();
 }
 
@@ -611,14 +611,14 @@ function startBounces() {
 // Move each bounce's spring on by `frameMs` and drop the ones at rest.
 function stepBounces(frameMs) {
 	for (const bounce of bounces) {
-		const spring = stepDampedSpring(bounce.swing, bounce.swingSpeed, frameMs, BOUNCE_SWING_MS, BOUNCE_DAMPING);
-		bounce.swing = spring.offset;
-		bounce.swingSpeed = spring.velocity;
+		const spring = stepDampedSpring(bounce.offset, bounce.velocity, frameMs, BOUNCE_SWING_MS, BOUNCE_DAMPING);
+		bounce.offset = spring.offset;
+		bounce.velocity = spring.velocity;
 		if (bounce.grabbed) bounce.rebound = Math.max(0, bounce.rebound - frameMs / GRAB_FADE_MS);
 	}
 	for (let index = bounces.length - 1; index >= 0; index--) {
 		const bounce = bounces[index];
-		if (springAtRest(bounce.swing, bounce.swingSpeed)) bounces.splice(index, 1);
+		if (springAtRest(bounce.offset, bounce.velocity)) bounces.splice(index, 1);
 	}
 }
 
@@ -637,7 +637,7 @@ function bounceOffset(half, flapIndex) {
 		const depth = (bounce.clackedIndex - flapIndex) * awayFromHinge;
 		if (depth < 0) continue;
 		const share = depth === 0 ? -bounce.rebound : KNOCK_BACK[Math.min(depth, KNOCK_BACK.length) - 1];
-		offset += share * bounce.swing * awayFromHinge;
+		offset += share * bounce.offset * awayFromHinge;
 	}
 	return offset;
 }

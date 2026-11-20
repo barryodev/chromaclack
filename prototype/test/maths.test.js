@@ -15,26 +15,16 @@ test('lerp gives from at 0, to at 1, and halfway at 0.5', () => {
 	assert.equal(lerp(10, 20, 0.5), 15);
 });
 
-// Runs a spring in 16 ms frames until it's at rest, keeping every offset it passes through.
-function runSpring(offset, velocity, swingMs, damping) {
-	const offsets = [];
-	let spring = { offset, velocity };
-	for (let elapsedMs = 0; elapsedMs < 10_000; elapsedMs += 16) {
-		spring = stepDampedSpring(spring.offset, spring.velocity, 16, swingMs, damping);
-		offsets.push(spring.offset);
-		if (springAtRest(spring.offset, spring.velocity)) return { offsets, atRest: true };
-	}
-	return { offsets, atRest: false };
-}
-
 test('a damped spring comes to rest', () => {
-	assert.equal(runSpring(45, 0, 300, 0.3).atRest, true);
-	assert.equal(runSpring(0, 0.5, 300, 0.3).atRest, true);
+	const pulledOut = stepDampedSpring(45, 0, 5000, 300, 0.3);
+	assert.equal(springAtRest(pulledOut.offset, pulledOut.velocity), true);
+	const pushed = stepDampedSpring(0, 0.5, 5000, 300, 0.3);
+	assert.equal(springAtRest(pushed.offset, pushed.velocity), true);
 });
 
 test('a spring with damping below 1 overshoots', () => {
-	const { offsets } = runSpring(45, 0, 300, 0.3);
-	assert.ok(offsets.some((offset) => offset < 0));
+	// About half a swing in, the spring is near its first overshoot.
+	assert.ok(stepDampedSpring(45, 0, 150, 300, 0.3).offset < 0);
 });
 
 test('a spring at rest stays where it is', () => {
