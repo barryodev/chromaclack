@@ -119,7 +119,8 @@ export function createPageReporter({ onShownPage, onCurrentPage }) {
 	}
 	function report(snapshot) {
 		const events = pageEvents(last, snapshot, sequence);
-		// Moved on before the handlers run, so a handler that leads to another report doesn't hear these twice.
+		// Moved on before the handlers run, so a handler that leads to another report doesn't hear these
+		// twice.
 		last = snapshot;
 		for (const shown of events.shown) onShownPage?.(shown);
 		if (events.current) onCurrentPage?.(events.current);

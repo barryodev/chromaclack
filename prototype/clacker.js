@@ -197,8 +197,10 @@ function travelPage() {
 	return state.page + completedTicks(state.travel);
 }
 
-// See Shown page in GLOSSARY.md. On the spin tab there's no travel, and the page follows the shown detent.
+// See Shown page in GLOSSARY.md.
 function shownPage() {
+	// The spin face follows its detent, so its page is already the shown one (see followSpinDetent).
+	if (state.mode === 'spin') return state.page;
 	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
 }
 
@@ -578,8 +580,9 @@ function stepSeat(frameMs) {
 
 // Pointer wiring
 
+// Until the first load() there are no pages, so the clacker ignores input, just as render() draws nothing.
 function pressPointer(event) {
-	if (pointer || event.button !== 0) return;
+	if (pointer || event.button !== 0 || !sequence) return;
 	clacker.setPointerCapture(event.pointerId);
 	if (state.mode === 'spin') startSpin(event);
 	else startSwipe(event);
@@ -640,23 +643,32 @@ export function createClacker(element, { onShownPage, onCurrentPage } = {}) {
 	same answer within a frame. Loading calls no handler.
 */
 function load({ mode, pageCount, circular, pageContent, page }) {
-	stopInertia();
-	stopSpinMotion();
-	if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
-	pointer = null;
+	stopAllMotion();
 	settle(0);
 	bounces.length = 0;
 	sequence = { pageCount, circular, pageContent };
 	state.mode = mode;
 	state.page = page;
-	// Each detent is a page, counting from page 0 at 0°, so the spin starts on the page's detent.
-	state.spinAngle = mode === 'spin' ? page * SPIN_DETENT_DEGREES : 0;
-	state.spinVelocity = 0;
-	state.spinDown = null;
+	resetSpin(mode === 'spin' ? page : 0);
 	lastEvents.shown = null;
 	lastEvents.current = null;
 	reporter.reset(pageSnapshot(), sequence);
 	render();
+}
+
+// Stop every frame loop and let go of the pointer, leaving the clacker where it's drawn.
+function stopAllMotion() {
+	stopInertia();
+	stopSpinMotion();
+	if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
+	pointer = null;
+}
+
+// Put the spin at rest on `page`'s detent. Each detent is a page, counting from page 0 at 0°.
+function resetSpin(page) {
+	state.spinAngle = page * SPIN_DETENT_DEGREES;
+	state.spinVelocity = 0;
+	state.spinDown = null;
 }
 
 function pageSnapshot() {
