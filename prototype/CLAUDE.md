@@ -13,7 +13,9 @@ A standalone HTML/JS/CSS version of the clacker, used to settle its CSS transfor
 
 Testing is split by the kind of code:
 
-- **Pure logic gets unit tests.** A function with no DOM access and no global state, such as colour conversion, page ↔ value mapping, or choosing landings, lives in an ES module in this folder, and `clacker.js` imports it. `clacker.js` keeps only the DOM, state, pointer wiring, frame loops and rendering. A module's tests live in `test/<module>.test.js`, and they land in the same commit that adds or changes the function.
+- **Pure logic gets unit tests.** A function with no DOM access and no module-level state, such as colour conversion, page ↔ value mapping, or choosing landings, lives in an ES module in this folder, and `clacker.js` imports it. State held in a closure is fine, like the page reporter in `pages.js`. `clacker.js` keeps only the DOM, the clacker's state, pointer wiring, frame loops and rendering. `app.js`, the calling code, stays wiring, and any decision it needs goes into a tested module. A module's tests live in `test/<module>.test.js`, and they land in the same commit that adds or changes the function.
+- **The only fakes are recording callbacks.** A test can pass in a spy, a function that records what it's called with, but never a fake DOM. A helper that two test files share goes in `test/testUtils.js`. Until then it lives at the top of the one test file that uses it.
+- **DOM behaviour waits for the port.** Node has no DOM, so what only the browser can show, such as `clacker.js` calling the pure logic at the right moments, goes on the checklist in DAI-75, and gets integration tests in Phase 3.
 - **Tests check exact facts, never tuning values.** For example, a spring comes to rest or a coast lands on its target. "A hard flick coasts 9 ticks" is tuning, so it isn't tested.
 - **Feel is checked by eye.** Easing, falls, bounces, seats and step sizes get no verification tooling. Passing tests are never evidence that the feel is right.
 
