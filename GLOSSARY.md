@@ -32,9 +32,11 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 
 **Half page**: the start-half or end-half portion of a page. A page is never drawn as one object. Its two half pages are printed on sides of two different flaps.
 
-**Page content**: the data that makes up a page (label, colour, and so on). Content can be assigned to a flap side late, while that flap is round the back of the drum.
+**Page content**: the data that makes up a page (label, colour, and so on). The calling code supplies it, one page at a time, whenever a flap side is painted. Content can be assigned to a flap side late, while that flap is round the back of the drum.
 
-**Current page**: the page shown at rest, or the last page that was fully shown.
+**Current page**: the page shown at rest, or the last page that was fully shown. The calling code hears each time a page becomes current, when a swipe settles or a spin seats, even if it's the same page as before.
+
+**Shown page**: the page the user sees right now, which is the page a catch would keep. On a swipe it changes as each moving flap lands in its new half. In a fall that's before travel finishes the tick, because the flap falls ahead of travel. On the spin tab it's the nearest detent's page, or the page of the detent being seated into. The calling code hears it change, once for each page passed.
 
 **Target page**: the page the clacker will come to rest on once the current swipe's ticks finish.
 
@@ -84,7 +86,7 @@ So at rest, page _N_ is made of two flaps. The start half shows the front of fla
 
 **Offstage flap**: a flap in no tier, round the back of the drum and out of view. In a forward tick an offstage flap joins the fan behind the back start tier, and the back end tier's flap goes offstage. A backward tick does the reverse. A clacker keeps only a few offstage flaps however many pages it has, because pages are painted onto flaps as they come round.
 
-**Recycle**: when a flap goes offstage, its sides can be given new half pages. This is how a fixed set of flaps shows an unlimited sequence of pages (DAI-44, DAI-47).
+**Recycle**: flaps hold no pages of their own. Every flap side is painted from its page content each time it's drawn, so a flap coming round from offstage already shows its new half page. This is how a fixed set of flaps shows any number of pages.
 
 ## Swiping
 
@@ -148,7 +150,7 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Spin-down**: after a fast release, the clacker keeps turning at the spin release speed and slows under **spin friction**, like a turntable once its motor stops. One part of spin friction grows with speed, so a hard flick sheds speed fast, and a steady part on top stops it in finite time. Once it's slow, it hands over to the seat. It isn't called a coast, because a coast is fitted to end on a landing and a spin-down isn't.
 
-**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer.
+**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer. Each detent is a page: 0° is page 0, each detent clockwise is the next page, and each one anticlockwise is the page before.
 
 **Seat**: at the end of a spin-down, or after a slow release, a spring pulls the clacker into the detent nearest where the spin-down would have stopped. It overshoots a little and bounces back before coming to rest. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
 

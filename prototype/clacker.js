@@ -1,4 +1,5 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
+import { createPageReporter, sequencePage, spinShownPage, swipeShownPage } from './pages.js';
 import {
 	BOUNCE_DAMPING,
 	BOUNCE_SWING_MS,
@@ -22,6 +23,7 @@ import {
 	SEAT_DAMPING,
 	SEAT_SPEED,
 	SEAT_SWING_MS,
+	SPIN_DETENT_DEGREES,
 	nearestDetent,
 	rimSpeed,
 	shortestTurn,
@@ -46,18 +48,6 @@ import {
 	toppleMotion
 } from './swipe.js';
 
-// Pages are a circular sequence. Each page's two half pages share a colour and label.
-const PAGES = [
-	{ label: '1', colour: '#581C87' },
-	{ label: '2', colour: '#C026D3' },
-	{ label: '3', colour: '#F43F5E' },
-	{ label: '4', colour: '#F97316' },
-	{ label: '5', colour: '#EAB308' },
-	{ label: '6', colour: '#22C55E' },
-	{ label: '7', colour: '#06B6D4' },
-	{ label: '8', colour: '#3B82F6' }
-];
-
 // Rest tilt in degrees, one per tier from front (tier 0) to back. Tiers further back lean less.
 const REST_TILTS = [42, 36, 30];
 // The spin tab lies flat, so a spin looks like turning a record.
@@ -71,8 +61,8 @@ const ARIA_LABELS = {
 	spin: 'Spin'
 };
 
-const clacker = document.querySelector('.clacker');
-const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+// The page's one clacker, until DAI-64 gives each clacker its own state. createClacker sets it up.
+let clacker = null;
 
 // Build one flap with a front and back side. `dataset` tags it so it's easy to find in DevTools.
 function createFlap(name, lift, dataset = {}) {
@@ -119,7 +109,6 @@ const flapsBackToFront = [
 	...tiersBackToFront.flatMap((tier) => [flaps.start[tier], flaps.end[tier]]),
 	flaps.moving
 ];
-clacker.append(...flapsBackToFront.map((flap) => flap.element));
 
 const debugParam = new URLSearchParams(location.search).get('debug');
 const debugPanel = debugParam !== null && debugParam !== 'false' ? document.querySelector('.debug') : null;
@@ -134,7 +123,7 @@ const debugFields = debugPanel
 	directions: positive is forward (swipe down or left), negative is backward
 	(swipe up or right). It's unwrapped, so 360 is two forward ticks, and the
 	hinge angle and completed ticks are both worked out from it. `page` only
-	changes when a swipe settles or is caught. Until then shownPage() adds the
+	changes when a swipe settles or is caught. Until then travelPage() adds the
 	ticks completed so far.
 */
 const state = {
@@ -153,6 +142,9 @@ const state = {
 	spinDetent: 0 // The detent the seat pulls towards.
 };
 
+let sequence = null; // { pageCount, circular, pageContent } from the calling code, see load.
+let reporter = null; // Tells the calling code about page events. render() feeds it each frame.
+const lastEvents = { shown: null, current: null }; // For the ?debug readout.
 let pointer = null;
 let inertiaLoop = null;
 let spinLoop = null;
@@ -197,12 +189,19 @@ function startFrameLoop(onFrame) {
 }
 
 function pageAt(index) {
-	return PAGES[((index % PAGES.length) + PAGES.length) % PAGES.length];
+	return sequence.pageContent(sequencePage(index, sequence));
 }
 
-// The page on show right now, counting the ticks completed in the current swipe.
-function shownPage() {
+// The page travel has reached, counting the ticks completed in the current swipe. The fan is painted from it.
+function travelPage() {
 	return state.page + completedTicks(state.travel);
+}
+
+// See Shown page in GLOSSARY.md.
+function shownPage() {
+	// The spin face follows its detent, so its page is already the shown one (see followSpinDetent).
+	if (state.mode === 'spin') return state.page;
+	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
 }
 
 /*
@@ -242,7 +241,7 @@ function startSwipe(event) {
 	const samples = [{ position, time: event.timeStamp }];
 	pointer = { id: event.pointerId, start, degreesPerPixel, samples };
 	// Either flap at the hinge could end up under the finger, depending on which way the drag goes.
-	grabBounces([shownPage(), shownPage() - 1]);
+	grabBounces([travelPage(), travelPage() - 1]);
 	state.phase = 'dragging';
 	state.velocity = 0;
 }
@@ -251,7 +250,7 @@ function startSwipe(event) {
 function catchFlap() {
 	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
 	stopInertia();
-	state.page = shownPage();
+	state.page = travelPage();
 	state.travel = angle;
 	state.target = 0;
 	state.inertia = null;
@@ -334,7 +333,7 @@ function tickInertia(frameMs) {
 	partway through. A tick is known by the shown page and its direction.
 */
 function tickLooseness() {
-	const page = shownPage();
+	const page = travelPage();
 	const forward = hingeAngle(state.travel) >= 0;
 	const held = state.heldLooseness;
 	if (held?.page !== page || held.forward !== forward) {
@@ -344,6 +343,12 @@ function tickLooseness() {
 }
 
 // Falling
+
+// A flap's own fall point, pull and clack strength (see Fall and Clack in GLOSSARY.md). They come from its
+// page in the sequence, so the flap moves the same way each time it comes round a circular sequence.
+function ownFlapRandom(flapIndex, salt) {
+	return flapRandom(sequencePage(flapIndex, sequence), salt);
+}
 
 /*
 	The clacker carries a moving flap up to the top of its tick. Once inertia
@@ -363,13 +368,13 @@ function updateFall(inertia) {
 	inertia.fall = null;
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
-	const flapIndex = hingeAngle(state.travel) >= 0 ? shownPage() : shownPage() - 1;
-	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, flapRandom(flapIndex, 0));
+	const flapIndex = hingeAngle(state.travel) >= 0 ? travelPage() : travelPage() - 1;
+	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, ownFlapRandom(flapIndex, 0));
 	if (covered < fallPoint * TICK_DEGREES) return;
 	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
 	const releasedHere = inertia.start > low && inertia.start < high;
 	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
-	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, flapRandom(flapIndex, 1)) * looseness;
+	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, ownFlapRandom(flapIndex, 1)) * looseness;
 	const to = direction > 0 ? high : low;
 	const fallStartMs = inertia.elapsedMs;
 	inertia.fall = { low, to, direction, fallStartMs, pull, flapIndex, looseness, clacked: false };
@@ -397,7 +402,7 @@ function checkClack(inertia, landed) {
 	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) return;
 	fall.clacked = true;
 	const impactSpeed = Math.abs(state.velocity) + fall.pull * fallMs;
-	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, flapRandom(fall.flapIndex, 2));
+	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, ownFlapRandom(fall.flapIndex, 2));
 	const kick = impactSpeed * fall.looseness * strength * CLACK_KICK;
 	if (kick <= 0) return;
 	const half = fall.direction > 0 ? 'end' : 'start';
@@ -480,6 +485,7 @@ function dragSpin(event) {
 	const angle = pointerAngle(event);
 	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
 	pointer.lastAngle = angle;
+	followSpinDetent();
 }
 
 function addSpinSample(event) {
@@ -502,6 +508,7 @@ function releaseSpin(event) {
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
+	followSpinDetent();
 	startSpinMotion();
 }
 
@@ -542,9 +549,16 @@ function startSpinMotion() {
 	spinLoop = startFrameLoop((frameMs) => {
 		if (state.phase === 'spin-down') stepSpinDown(frameMs);
 		else stepSeat(frameMs);
+		followSpinDetent();
 		render();
 		return state.phase === 'spin-down' || state.phase === 'seating';
 	});
+}
+
+// The face steps from detent to detent, so the page is the shown detent's (see Shown page in GLOSSARY.md).
+function followSpinDetent() {
+	const seatDetent = state.phase === 'seating' ? state.spinDetent : null;
+	state.page = spinShownPage(state.spinAngle, seatDetent);
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
@@ -566,20 +580,21 @@ function stepSeat(frameMs) {
 
 // Pointer wiring
 
-clacker.addEventListener('pointerdown', (event) => {
-	if (pointer || event.button !== 0) return;
+// Until the first load() there are no pages, so the clacker ignores input, just as render() draws nothing.
+function pressPointer(event) {
+	if (pointer || event.button !== 0 || !sequence) return;
 	clacker.setPointerCapture(event.pointerId);
 	if (state.mode === 'spin') startSpin(event);
 	else startSwipe(event);
 	render();
-});
+}
 
-clacker.addEventListener('pointermove', (event) => {
+function movePointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) return;
 	if (state.mode === 'spin') dragSpin(event);
 	else dragSwipe(event);
 	render();
-});
+}
 
 // A pointer lifting or being cancelled releases the drag, and a spin or a swipe handles its own release.
 function endPointer(event) {
@@ -589,28 +604,75 @@ function endPointer(event) {
 	render();
 }
 
-clacker.addEventListener('pointerup', endPointer);
-clacker.addEventListener('pointercancel', endPointer);
+// The calling code's API
 
-// Mode tabs. Switching mode starts the clacker over on the first page.
-
-for (const tab of tabs) {
-	tab.addEventListener('click', () => {
-		const mode = tab.dataset.mode;
-		if (mode === state.mode) return;
-		stopInertia();
-		stopSpinMotion();
-		if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
-		pointer = null;
-		settle(0);
-		bounces.length = 0;
-		state.page = 0;
-		state.spinAngle = 0;
-		state.spinVelocity = 0;
-		state.spinDown = null;
-		state.mode = mode;
-		render();
+/*
+	Turn `element` into the clacker, and return its controls: load() and
+	repaint(). The handlers are optional, and hear the page events:
+	onShownPage({ page, direction }) and onCurrentPage({ page }), with pages
+	in the loaded sequence. They run before the frame is painted, so content
+	they change shows in the same frame.
+*/
+export function createClacker(element, { onShownPage, onCurrentPage } = {}) {
+	if (clacker) throw new Error('The prototype has one clacker, until DAI-64 gives each its own state.');
+	clacker = element;
+	clacker.append(...flapsBackToFront.map((flap) => flap.element));
+	// Each handler also records its event for the ?debug readout.
+	reporter = createPageReporter({
+		onShownPage(event) {
+			lastEvents.shown = event;
+			onShownPage?.(event);
+		},
+		onCurrentPage(event) {
+			lastEvents.current = event;
+			onCurrentPage?.(event);
+		}
 	});
+	clacker.addEventListener('pointerdown', pressPointer);
+	clacker.addEventListener('pointermove', movePointer);
+	clacker.addEventListener('pointerup', endPointer);
+	clacker.addEventListener('pointercancel', endPointer);
+	return { load, repaint: render };
+}
+
+/*
+	Start the clacker over at rest on `page`, driven by `mode` (vertical,
+	horizontal or spin). `pageContent(page)` gives a page's { label, colour }
+	for each page in a sequence of `pageCount` pages, wrapping round if it's
+	`circular`. It's asked many times a frame, so it must be quick, and give the
+	same answer within a frame. Loading calls no handler.
+*/
+function load({ mode, pageCount, circular, pageContent, page }) {
+	stopAllMotion();
+	settle(0);
+	bounces.length = 0;
+	sequence = { pageCount, circular, pageContent };
+	state.mode = mode;
+	state.page = page;
+	resetSpin(mode === 'spin' ? page : 0);
+	lastEvents.shown = null;
+	lastEvents.current = null;
+	reporter.reset(pageSnapshot(), sequence);
+	render();
+}
+
+// Stop every frame loop and let go of the pointer, leaving the clacker where it's drawn.
+function stopAllMotion() {
+	stopInertia();
+	stopSpinMotion();
+	if (pointer && clacker.hasPointerCapture(pointer.id)) clacker.releasePointerCapture(pointer.id);
+	pointer = null;
+}
+
+// Put the spin at rest on `page`'s detent. Each detent is a page, counting from page 0 at 0°.
+function resetSpin(page) {
+	state.spinAngle = page * SPIN_DETENT_DEGREES;
+	state.spinVelocity = 0;
+	state.spinDown = null;
+}
+
+function pageSnapshot() {
+	return { page: shownPage(), idle: state.phase === 'idle' };
 }
 
 // Rendering
@@ -648,7 +710,7 @@ function setFlap(flap, drawn, front, back) {
 	one, and a back tier being covered by the tier in front goes offstage.
 */
 function renderFlaps() {
-	const shown = shownPage();
+	const shown = travelPage();
 	const forward = hingeAngle(state.travel) >= 0;
 	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
 	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
@@ -706,8 +768,12 @@ function renderDebug() {
 	const shown = shownPage();
 	debugFields.mode.textContent = state.mode;
 	debugFields.phase.textContent = state.phase;
-	debugFields.current.textContent = pageAt(state.page).label;
-	debugFields.shown.textContent = pageAt(shown).label;
+	debugFields.current.textContent = sequencePage(state.page, sequence);
+	debugFields.shown.textContent = sequencePage(shown, sequence);
+	debugFields.shownEvent.textContent = lastEvents.shown
+		? `${lastEvents.shown.page} ${lastEvents.shown.direction}`
+		: '–';
+	debugFields.currentEvent.textContent = lastEvents.current?.page ?? '–';
 	debugFields.travel.textContent = `${state.travel.toFixed(1)}° / ${state.target}°`;
 	debugFields.angle.textContent = `${hingeAngle(state.travel).toFixed(1)}°`;
 	debugFields.velocity.textContent = `${state.velocity.toFixed(4)} °/ms`;
@@ -721,12 +787,14 @@ function renderDebug() {
 	slowMoToggle.checked = slowMo;
 }
 
+// Tell the calling code about any page events first, so content its handlers change shows in this frame.
 function render() {
+	if (!sequence) return;
+	reporter.report(pageSnapshot());
 	clacker.dataset.mode = state.mode;
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
 	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
-	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === state.mode));
 	renderFlaps();
 	renderDebug();
 }
@@ -751,4 +819,3 @@ if (debugPanel) {
 		setSlowMo(!slowMo);
 	});
 }
-render();
