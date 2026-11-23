@@ -1,5 +1,5 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
-import { createPageReporter, sequencePage, swipeShownPage } from './pages.js';
+import { createPageReporter, sequencePage, spinShownPage, swipeShownPage } from './pages.js';
 import {
 	BOUNCE_DAMPING,
 	BOUNCE_SWING_MS,
@@ -23,6 +23,7 @@ import {
 	SEAT_DAMPING,
 	SEAT_SPEED,
 	SEAT_SWING_MS,
+	SPIN_DETENT_DEGREES,
 	nearestDetent,
 	rimSpeed,
 	shortestTurn,
@@ -196,7 +197,7 @@ function travelPage() {
 	return state.page + completedTicks(state.travel);
 }
 
-// See Shown page in GLOSSARY.md. A spin has no travel, so its shown page is just the page.
+// See Shown page in GLOSSARY.md. On the spin tab there's no travel, and the page follows the shown detent.
 function shownPage() {
 	return swipeShownPage(state.page, state.inertia, state.travel);
 }
@@ -479,6 +480,7 @@ function dragSpin(event) {
 	const angle = pointerAngle(event);
 	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
 	pointer.lastAngle = angle;
+	followSpinDetent();
 }
 
 function addSpinSample(event) {
@@ -501,6 +503,7 @@ function releaseSpin(event) {
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
+	followSpinDetent();
 	startSpinMotion();
 }
 
@@ -541,9 +544,16 @@ function startSpinMotion() {
 	spinLoop = startFrameLoop((frameMs) => {
 		if (state.phase === 'spin-down') stepSpinDown(frameMs);
 		else stepSeat(frameMs);
+		followSpinDetent();
 		render();
 		return state.phase === 'spin-down' || state.phase === 'seating';
 	});
+}
+
+// The face steps from detent to detent, so the page is the shown detent's (see Shown page in GLOSSARY.md).
+function followSpinDetent() {
+	const seatDetent = state.phase === 'seating' ? state.spinDetent : null;
+	state.page = spinShownPage(state.spinAngle, seatDetent);
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
@@ -635,7 +645,8 @@ function load({ mode, pageCount, circular, pageContent, page }) {
 	sequence = { pageCount, circular, pageContent };
 	state.mode = mode;
 	state.page = page;
-	state.spinAngle = 0;
+	// Detent k is page k, so the spin starts on the page's detent.
+	state.spinAngle = mode === 'spin' ? page * SPIN_DETENT_DEGREES : 0;
 	state.spinVelocity = 0;
 	state.spinDown = null;
 	lastEvents.shown = null;
