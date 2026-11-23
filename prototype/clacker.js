@@ -342,6 +342,12 @@ function tickLooseness() {
 
 // Falling
 
+// A flap's own fall point, pull and clack strength (see Fall and Clack in GLOSSARY.md). They come from its
+// page in the sequence, so the flap moves the same way each time it comes round a circular sequence.
+function ownFlapRandom(flapIndex, salt) {
+	return flapRandom(sequencePage(flapIndex, sequence), salt);
+}
+
 /*
 	The clacker carries a moving flap up to the top of its tick. Once inertia
 	carries it past its fall point, gravity takes over and it falls ahead
@@ -361,14 +367,12 @@ function updateFall(inertia) {
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
 	const flapIndex = hingeAngle(state.travel) >= 0 ? travelPage() : travelPage() - 1;
-	// A card keeps its quirks each time it comes round a circular sequence.
-	const quirkIndex = sequencePage(flapIndex, sequence);
-	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, flapRandom(quirkIndex, 0));
+	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, ownFlapRandom(flapIndex, 0));
 	if (covered < fallPoint * TICK_DEGREES) return;
 	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
 	const releasedHere = inertia.start > low && inertia.start < high;
 	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
-	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, flapRandom(quirkIndex, 1)) * looseness;
+	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, ownFlapRandom(flapIndex, 1)) * looseness;
 	const to = direction > 0 ? high : low;
 	const fallStartMs = inertia.elapsedMs;
 	inertia.fall = { low, to, direction, fallStartMs, pull, flapIndex, looseness, clacked: false };
@@ -396,8 +400,7 @@ function checkClack(inertia, landed) {
 	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) return;
 	fall.clacked = true;
 	const impactSpeed = Math.abs(state.velocity) + fall.pull * fallMs;
-	const quirkIndex = sequencePage(fall.flapIndex, sequence);
-	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, flapRandom(quirkIndex, 2));
+	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, ownFlapRandom(fall.flapIndex, 2));
 	const kick = impactSpeed * fall.looseness * strength * CLACK_KICK;
 	if (kick <= 0) return;
 	const half = fall.direction > 0 ? 'end' : 'start';
@@ -611,6 +614,7 @@ export function createClacker(element, { onShownPage, onCurrentPage } = {}) {
 	if (clacker) throw new Error('The prototype has one clacker, until DAI-64 gives each its own state.');
 	clacker = element;
 	clacker.append(...flapsBackToFront.map((flap) => flap.element));
+	// Each handler also records its event for the ?debug readout.
 	reporter = createPageReporter({
 		onShownPage(event) {
 			lastEvents.shown = event;
@@ -645,7 +649,7 @@ function load({ mode, pageCount, circular, pageContent, page }) {
 	sequence = { pageCount, circular, pageContent };
 	state.mode = mode;
 	state.page = page;
-	// Detent k is page k, so the spin starts on the page's detent.
+	// Each detent is a page, counting from page 0 at 0°, so the spin starts on the page's detent.
 	state.spinAngle = mode === 'spin' ? page * SPIN_DETENT_DEGREES : 0;
 	state.spinVelocity = 0;
 	state.spinDown = null;

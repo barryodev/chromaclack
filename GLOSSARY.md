@@ -150,7 +150,7 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Spin-down**: after a fast release, the clacker keeps turning at the spin release speed and slows under **spin friction**, like a turntable once its motor stops. One part of spin friction grows with speed, so a hard flick sheds speed fast, and a steady part on top stops it in finite time. Once it's slow, it hands over to the seat. It isn't called a coast, because a coast is fitted to end on a landing and a spin-down isn't.
 
-**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer. Detent _k_ is page _k_, so 0° is page 0, and each detent clockwise is the next page.
+**Detent**: an angle a spin comes to rest on, like the clicks on a dimmer. Each detent is a page: 0° is page 0, each detent clockwise is the next page, and each one anticlockwise is the page before.
 
 **Seat**: at the end of a spin-down, or after a slow release, a spring pulls the clacker into the detent nearest where the spin-down would have stopped. It overshoots a little and bounces back before coming to rest. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
 
