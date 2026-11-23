@@ -2,7 +2,6 @@
 // index is unbounded, so flaps can be told apart however far a swipe goes. The calling code only ever sees
 // pages in its sequence, `{ pageCount, circular }`.
 
-import { movingTravel } from './rolodex.js';
 import { SPIN_DETENT_DEGREES, nearestDetent } from './spin.js';
 import { completedTicks } from './swipe.js';
 
@@ -15,13 +14,22 @@ export function sequencePage(index, sequence) {
 	return index - laps * sequence.pageCount;
 }
 
-// The swipe's shown page, from the page it started on. It follows the moving flap as it's drawn, so in a fall
-// it moves on as the flap lands, before travel finishes the tick.
-export function swipeShownPage(page, inertia, travel) {
-	return page + completedTicks(movingTravel(inertia, travel));
+/*
+	The swipe's shown page. `page` is the page the swipe started on, and
+	`drawnTravel` is the travel the moving flap is drawn at (see movingTravel),
+	which in a fall runs ahead of travel. So the shown page moves on as the
+	flap lands, before travel finishes the tick.
+*/
+export function swipeShownPage(page, drawnTravel) {
+	return page + completedTicks(drawnTravel);
 }
 
-// The spin's shown page: the nearest detent's, or while seating, the page of the detent being seated into.
+/*
+	The spin's shown page. `spinAngle` is the spin angle in degrees, and
+	`seatDetent` is the angle of the detent being seated into, or null when
+	not seating. It's the nearest detent's page, or while seating, the seat
+	detent's page.
+*/
 export function spinShownPage(spinAngle, seatDetent) {
 	const detent = seatDetent ?? nearestDetent(spinAngle);
 	const page = detent / SPIN_DETENT_DEGREES;

@@ -199,7 +199,7 @@ function travelPage() {
 
 // See Shown page in GLOSSARY.md. On the spin tab there's no travel, and the page follows the shown detent.
 function shownPage() {
-	return swipeShownPage(state.page, state.inertia, state.travel);
+	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
 }
 
 /*
