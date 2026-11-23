@@ -2,6 +2,10 @@
 // index is unbounded, so flaps can be told apart however far a swipe goes. The calling code only ever sees
 // pages in its sequence, `{ pageCount, circular }`.
 
+import { movingTravel } from './rolodex.js';
+import { SPIN_DETENT_DEGREES, nearestDetent } from './spin.js';
+import { completedTicks } from './swipe.js';
+
 // The page in the sequence for an unbounded page index. A circular sequence wraps round. A finite one passes
 // it through, until its limits come in DAI-59.
 export function sequencePage(index, sequence) {
@@ -9,6 +13,20 @@ export function sequencePage(index, sequence) {
 	// Floored, so a negative index wraps to the end of the sequence rather than below 0.
 	const laps = Math.floor(index / sequence.pageCount);
 	return index - laps * sequence.pageCount;
+}
+
+// The swipe's shown page, from the page it started on. It follows the moving flap as it's drawn, so in a fall
+// it moves on as the flap lands, before travel finishes the tick.
+export function swipeShownPage(page, inertia, travel) {
+	return page + completedTicks(movingTravel(inertia, travel));
+}
+
+// The spin's shown page: the nearest detent's, or while seating, the page of the detent being seated into.
+export function spinShownPage(spinAngle, seatDetent) {
+	const detent = seatDetent ?? nearestDetent(spinAngle);
+	const page = detent / SPIN_DETENT_DEGREES;
+	// Rounding just short of −45° gives −0, which a readout would print as "-0".
+	return page === 0 ? 0 : page;
 }
 
 /*

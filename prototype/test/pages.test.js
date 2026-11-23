@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createPageReporter, pageEvents, sequencePage } from '../pages.js';
+import { createPageReporter, pageEvents, sequencePage, spinShownPage, swipeShownPage } from '../pages.js';
+import { SPIN_DETENT_DEGREES } from '../spin.js';
+import { TICK_DEGREES } from '../swipe.js';
 
 // A stand-in handler that records each event it's called with. Move it to testUtils.js once a second test
 // file needs it.
@@ -28,6 +30,46 @@ test('a circular sequence wraps an index past either end round to the other', ()
 test('a finite sequence passes the index through', () => {
 	assert.equal(sequencePage(12, finite), 12);
 	assert.equal(sequencePage(-1, finite), -1);
+});
+
+// A fall that started at the top of the first forward or backward tick, `fallMs` ago, pulling hard.
+function fallingInertia(direction, fallMs) {
+	const low = direction > 0 ? 0 : -TICK_DEGREES;
+	const to = direction > 0 ? TICK_DEGREES : -TICK_DEGREES;
+	return { elapsedMs: fallMs, fall: { low, to, direction, fallStartMs: 0, pull: 1 } };
+}
+
+test("with no fall, the swipe's shown page counts the ticks travel has completed", () => {
+	assert.equal(swipeShownPage(2, null, TICK_DEGREES - 10), 2);
+	assert.equal(swipeShownPage(2, null, TICK_DEGREES + 10), 3);
+	assert.equal(swipeShownPage(2, null, -10), 2);
+	assert.equal(swipeShownPage(2, null, -TICK_DEGREES - 10), 1);
+});
+
+test("a fall moves the swipe's shown page on as the flap lands, before travel finishes the tick", () => {
+	const travel = TICK_DEGREES - 10;
+	assert.equal(swipeShownPage(2, fallingInertia(1, 0), travel), 2);
+	assert.equal(swipeShownPage(2, fallingInertia(1, 1000), travel), 3);
+	assert.equal(swipeShownPage(2, fallingInertia(-1, 0), -travel), 2);
+	assert.equal(swipeShownPage(2, fallingInertia(-1, 1000), -travel), 1);
+});
+
+test("the spin's shown page is the nearest detent's, switching halfway between detents", () => {
+	const halfway = SPIN_DETENT_DEGREES / 2;
+	assert.equal(spinShownPage(halfway - 1, null), 0);
+	assert.equal(spinShownPage(halfway + 1, null), 1);
+	assert.equal(spinShownPage(-halfway - 1, null), -1);
+	assert.equal(spinShownPage(4 * SPIN_DETENT_DEGREES + 1, null), 4);
+});
+
+test("the spin's shown page is never −0", () => {
+	assert.ok(Object.is(spinShownPage(-(SPIN_DETENT_DEGREES / 2 - 1), null), 0));
+});
+
+test("while seating, the spin's shown page is the detent being seated into", () => {
+	const pastHalfway = SPIN_DETENT_DEGREES * 0.6;
+	assert.equal(spinShownPage(pastHalfway, 0), 0);
+	assert.equal(spinShownPage(4 * SPIN_DETENT_DEGREES - pastHalfway, 4 * SPIN_DETENT_DEGREES), 4);
 });
 
 test('each page passed gives one shown event, in order', () => {
