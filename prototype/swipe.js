@@ -58,6 +58,33 @@ export const SWIPE_LANDINGS = Array.from(
 );
 
 /*
+	The travel a swipe can reach.
+
+	`ticks` is { back, forward }, the whole ticks to each limit, which can be Infinity (ticksToLimits in
+	pages.js gives it).
+
+	Returns { lowest, highest }, in degrees of travel. Each way it's the ticks to the limit, but no more than
+	MAX_TICKS_PER_SWIPE.
+*/
+export function swipeRange(ticks) {
+	const back = Math.min(ticks.back, MAX_TICKS_PER_SWIPE);
+	const forward = Math.min(ticks.forward, MAX_TICKS_PER_SWIPE);
+	// Taken from 0, so no ticks back gives 0 rather than −0.
+	return { lowest: 0 - back * TICK_DEGREES, highest: forward * TICK_DEGREES };
+}
+
+/*
+	The landings a swipe can settle on inside its range.
+
+	`range` is { lowest, highest }, in degrees of travel (see swipeRange).
+
+	Returns a new list of the SWIPE_LANDINGS from lowest to highest, both included.
+*/
+export function landingsWithin(range) {
+	return SWIPE_LANDINGS.filter((landing) => landing >= range.lowest && landing <= range.highest);
+}
+
+/*
 	Inertia is a coast if friction can carry the flap to its landing, and a
 	topple if it can't.
 

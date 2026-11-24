@@ -6,6 +6,7 @@ import {
 	sequencePage,
 	spinShownPage,
 	swipeShownPage,
+	ticksToLimits,
 	tierFlapIndex
 } from './pages.js';
 import {
@@ -41,16 +42,16 @@ import {
 import {
 	COAST_DEGREES_PER_PIXEL,
 	DRAG_DEGREES_PER_PIXEL,
-	MAX_TICKS_PER_SWIPE,
 	MOUSE_DRAG_DEGREES_PER_PIXEL,
 	MOUSE_FRICTION,
-	SWIPE_LANDINGS,
 	TICK_DEGREES,
 	coastMotion,
 	completedTicks,
 	drawnAngle,
 	hingeAngle,
+	landingsWithin,
 	planInertia,
+	swipeRange,
 	tickBounds,
 	toppleMotion
 } from './swipe.js';
@@ -297,9 +298,19 @@ function dragSwipe(event) {
 	for (const move of moves.length > 0 ? moves : [event]) addSample(move);
 	const position = axisPosition(event);
 	// A drag can tick through pages by itself, as far as inertia could land.
-	const maxTravel = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
-	state.travel = clamp((position - pointer.start) * pointer.degreesPerPixel, -maxTravel, maxTravel);
+	const range = currentSwipeRange();
+	const draggedTravel = (position - pointer.start) * pointer.degreesPerPixel;
+	state.travel = clamp(draggedTravel, range.lowest, range.highest);
+	// Held at a limit, the start moves with the finger, so turning back moves the flap straight away.
+	if (state.travel !== draggedTravel) {
+		pointer.start = position - state.travel / pointer.degreesPerPixel;
+	}
 	state.velocity = windowVelocity(pointer.samples) * pointer.degreesPerPixel;
+}
+
+// The travel this swipe can reach from the current page, up to the limits (see swipeRange).
+function currentSwipeRange() {
+	return swipeRange(ticksToLimits(state.page, sequence));
 }
 
 function addSample(event) {
@@ -315,7 +326,9 @@ function releaseSwipe(event) {
 	state.releaseSpeed = Math.abs(releaseVelocity);
 	pointer = null;
 	const normalFriction = event.pointerType === 'mouse' ? MOUSE_FRICTION : 1;
-	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS, normalFriction);
+	// A landing past a limit isn't offered, so a flick that would coast past one lands on it instead.
+	const landings = landingsWithin(currentSwipeRange());
+	const plan = planInertia(state.travel, state.velocity, landings, normalFriction);
 	state.phase = 'inertia';
 	state.target = plan.target;
 	state.inertia = {

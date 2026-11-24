@@ -9,6 +9,7 @@ import {
 	sequencePage,
 	spinShownPage,
 	swipeShownPage,
+	ticksToLimits,
 	tierFlapIndex
 } from '../pages.js';
 import { SPIN_DETENT_DEGREES } from '../spin.js';
@@ -29,6 +30,16 @@ test('a circular sequence wraps an index past either end round to the other', ()
 test('a finite sequence passes the index through', () => {
 	assert.equal(sequencePage(12, finite), 12);
 	assert.equal(sequencePage(-1, finite), -1);
+});
+
+test('a finite sequence counts the ticks back to its first page and forward to its last', () => {
+	assert.deepEqual(ticksToLimits(3, finite), { back: 3, forward: 7 });
+	assert.deepEqual(ticksToLimits(0, finite), { back: 0, forward: 10 });
+	assert.deepEqual(ticksToLimits(10, finite), { back: 10, forward: 0 });
+});
+
+test('a circular sequence has no limits either way', () => {
+	assert.deepEqual(ticksToLimits(3, circular), { back: Infinity, forward: Infinity });
 });
 
 test("the swipe's shown page moves on once the drawn flap reaches the end of its tick, either way", () => {
@@ -118,6 +129,17 @@ test('coming to rest gives a current event, after the shown events', () => {
 
 test('a snap back gives only a current event, on the page it started from', () => {
 	assert.deepEqual(pageEvents(moving(2), idle(2), circular), { shown: [], current: { page: 2 } });
+});
+
+test('a flick that lands on a limit shows that page and makes it current', () => {
+	assert.deepEqual(pageEvents(moving(9), idle(10), finite), {
+		shown: [{ page: 10, direction: 'forward' }],
+		current: { page: 10 }
+	});
+	assert.deepEqual(pageEvents(moving(1), idle(0), finite), {
+		shown: [{ page: 0, direction: 'backward' }],
+		current: { page: 0 }
+	});
 });
 
 test('a catch, which carries on moving, gives no current event', () => {

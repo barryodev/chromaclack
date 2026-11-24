@@ -44,6 +44,23 @@ export function sequencePage(index, sequence) {
 }
 
 /*
+	How far a swipe can go from a page before it reaches a limit (see Limit in GLOSSARY.md).
+
+	`page` is the page index the swipe starts from, which is in the sequence. `sequence` is a sequence (see
+	Sequences above).
+
+	Returns { back, forward }, the number of whole ticks to the first page and to the last page. Both are
+	Infinity for a circular sequence, which has no limits.
+*/
+export function ticksToLimits(page, sequence) {
+	if (sequence.circular) {
+		return { back: Infinity, forward: Infinity };
+	} else {
+		return { back: page, forward: sequence.pageCount - 1 - page };
+	}
+}
+
+/*
 	The page the user sees during a swipe.
 
 	`page` is the unbounded index of the page the swipe started on. `drawnTravel` is how far the moving
