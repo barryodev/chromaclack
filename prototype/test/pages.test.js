@@ -67,8 +67,12 @@ test("while seating, the spin's shown page is the detent being seated into", () 
 
 test('at rest, start tier k shows page N + k, and end tier k shows page N − k', () => {
 	const pageShownAt = (half, tier) => restingFlapPage(half, tierFlapIndex(half, tier, 5));
-	assert.deepEqual([0, 1, 2].map((tier) => pageShownAt('start', tier)), [5, 6, 7]);
-	assert.deepEqual([0, 1, 2].map((tier) => pageShownAt('end', tier)), [5, 4, 3]);
+	assert.equal(pageShownAt('start', 0), 5);
+	assert.equal(pageShownAt('start', 1), 6);
+	assert.equal(pageShownAt('start', 2), 7);
+	assert.equal(pageShownAt('end', 0), 5);
+	assert.equal(pageShownAt('end', 1), 4);
+	assert.equal(pageShownAt('end', 2), 3);
 });
 
 test('the moving flap starts as tier 0 of the half it leaves, and lands as tier 0 of the other half', () => {
