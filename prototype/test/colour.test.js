@@ -39,10 +39,14 @@ test('a page past either end of saturation or lightness gives the value at that 
 	assert.equal(valueAt(-1, lightness), 0);
 });
 
-test('a tab opens on the page for its value, so a page round-trips through its value', () => {
+test('a tab opens on the page for its value', () => {
 	assert.equal(openingPage(210, hue), 14);
 	assert.equal(openingPage(70, saturation), 7);
-	assert.equal(openingPage(valueAt(5, lightness), lightness), 5);
+});
+
+test('a lightness between whole percentages opens back on its own detent', () => {
+	const detentFive = valueAt(5, lightness); // 41.666…%
+	assert.equal(openingPage(detentFive, lightness), 5);
 });
 
 test('the starting colour sits on a page of every component', () => {
