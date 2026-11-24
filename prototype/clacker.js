@@ -777,7 +777,7 @@ function placeHalf(half, page, forward, slide, movingDrawn) {
 	const leaving = half === leavingHalf;
 	let frontmost = movingDrawn;
 	flaps[half].forEach((flap, tier) => {
-		flap.element.hidden = leaving && tier === 0;
+		flap.element.hidden = (leaving && tier === 0);
 		const towards = leaving ? tier - 1 : tier + 1;
 		const tilt = lerp(tierTilt(tier), tierTilt(towards), slide);
 		frontmost = placeRestingFlap(flap, half, tilt, tierFlapIndex(half, tier, page), frontmost);
