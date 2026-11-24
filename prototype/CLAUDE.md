@@ -23,7 +23,7 @@ Run the tests from this folder with `node --test`. Node's built-in runner finds 
 
 ## Viewing
 
-Run `./serve.sh` from this folder. It serves on all interfaces and prints the localhost and Tailscale URLs, so a phone on the tailnet can open it. `python3 -m http.server` from this folder also works, at http://localhost:8000.
+Run `./serve.sh` from this folder. It serves on all interfaces and prints the localhost and Tailscale URLs, so a phone on the tailnet can open it. It also tells browsers not to cache anything, so a phone never runs an old module after an edit. `python3 -m http.server` from this folder also works, at http://localhost:8000, but browsers may keep old copies of files that haven't changed in a while.
 
 Opening `index.html` directly (`file://`) doesn't work, because browsers block ES modules loaded from `file://`.
 
