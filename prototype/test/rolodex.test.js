@@ -124,5 +124,7 @@ test('a loose tick eases the half the moving flap leaves and the half it lands i
 });
 
 test('both halves finish sliding as the tick completes, however loose it is', () => {
-	for (const looseness of [0, 0.5, 1]) assert.deepEqual(tierSlides(1, looseness, true), { start: 1, end: 1 });
+	assert.deepEqual(tierSlides(1, 0, true), { start: 1, end: 1 });
+	assert.deepEqual(tierSlides(1, 0.5, true), { start: 1, end: 1 });
+	assert.deepEqual(tierSlides(1, 1, true), { start: 1, end: 1 });
 });
