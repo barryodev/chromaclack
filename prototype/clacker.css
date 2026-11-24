@@ -31,8 +31,9 @@ body {
 	min-height: 100%;
 }
 
+/* app.js sets --colour to the mixed colour. */
 body {
-	background: var(--bg);
+	background: var(--colour, var(--bg));
 	color: var(--fg);
 	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 	-webkit-font-smoothing: antialiased;
