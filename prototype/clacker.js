@@ -772,7 +772,9 @@ function placeMovingFlap(page, forward, angle) {
 	tier behind.
 */
 function placeHalf(half, page, forward, slide, movingDrawn) {
-	const leaving = forward === (half === 'start');
+	// A forward tick leaves the start half, and a backward one leaves the end half.
+	const leavingHalf = forward ? 'start' : 'end';
+	const leaving = half === leavingHalf;
 	let frontmost = movingDrawn;
 	flaps[half].forEach((flap, tier) => {
 		flap.element.hidden = leaving && tier === 0;
