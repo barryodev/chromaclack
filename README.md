@@ -1,6 +1,10 @@
 # ChromaClack
 
-ChromaClack is a toy for exploring colour theory through a single tactile UI element. It has three interaction modes. Swiping up/down and left/right ticks the clacker over like a mechanical split-flap rolodex. Hold-and-rotate turns it like a dimmer switch. Each axis maps to a colour component (Hue/Saturation/Lightness or Red/Green/Blue), so you can mix values and watch the colour change. The same Svelte interface runs in a browser, as a desktop app, and on Android.
+ChromaClack is a colour-mixing toy built around one tactile control, a split-flap "clacker". Swipe it to tick it over like a rolodex, or spin it like a dimmer. Each input sets one part of the colour.
+
+<p align="center">
+  <img src="docs/clacker.gif" width="246" alt="The clacker ticking over and spinning">
+</p>
 
 ## Stack
 
@@ -11,11 +15,11 @@ ChromaClack is a toy for exploring colour theory through a single tactile UI ele
 
 ## Status
 
-The cross-platform foundations work: one shared Rust function serves web, desktop, and Android. The flap interaction is being reset around a small, isolated CSS prototype that is verified by eye in the browser before it returns to the monorepo. The current gesture-model prototype stays in place until then.
+The clacker's motion is settled in a standalone prototype (`prototype/`). Next it becomes an HSL colour toy, then moves into the SvelteKit app for web, desktop and Android.
 
 ## Links
 
 - [ChromaClack: the good, the bad and the ugly](https://www.barryodev.io/posts/chroma-clack-the-good-the-bad-and-the-ugly) — retrospective on the project so far
-- [Linear project](https://linear.app/barryodev/project/chromaclack-2e8504a557ec/overview) — roadmap and issues
+- [Tightening the loop](https://www.barryodev.io/posts/tightening-the-loop) — the second sprint, working with Claude Code and Linear
 - [SETUP.md](SETUP.md) — architecture, local development, and deployment
 - [GLOSSARY.md](GLOSSARY.md) — names for the clacker's parts and interactions
