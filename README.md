@@ -2,7 +2,9 @@
 
 ChromaClack is a colour-mixing toy built around one tactile control, a split-flap "clacker". Swipe it to tick it over like a rolodex, or spin it like a dimmer. Each input sets one part of the colour.
 
-![The clacker ticking over and spinning](docs/clacker.gif)
+<p align="center">
+  <img src="docs/clacker.gif" width="246" alt="The clacker ticking over and spinning">
+</p>
 
 ## Stack
 
