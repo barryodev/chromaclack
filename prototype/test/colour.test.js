@@ -8,6 +8,7 @@ import {
 	hslToRgb,
 	openingPage,
 	readableTextOn,
+	relativeLuminance,
 	valueAt
 } from '../colour.js';
 
@@ -74,4 +75,17 @@ test('pale colours get black text and deep ones white', () => {
 	assert.equal(readableTextOn({ hue: 60, saturation: 100, lightness: 50 }), 'black');
 	assert.equal(readableTextOn({ hue: 0, saturation: 0, lightness: 0 }), 'white');
 	assert.equal(readableTextOn({ hue: 240, saturation: 100, lightness: 50 }), 'white');
+});
+
+test('each primary weighs what WCAG gives it, from nothing for black to all of it for white', () => {
+	assert.equal(relativeLuminance({ red: 1, green: 0, blue: 0 }), 0.2126);
+	assert.equal(relativeLuminance({ red: 0, green: 1, blue: 0 }), 0.7152);
+	assert.equal(relativeLuminance({ red: 0, green: 0, blue: 1 }), 0.0722);
+	assert.equal(relativeLuminance({ red: 0, green: 0, blue: 0 }), 0);
+	assert.equal(relativeLuminance({ red: 1, green: 1, blue: 1 }), 1);
+});
+
+test('a mid grey is darker than halfway, because screens brighten on a curve', () => {
+	const midGrey = relativeLuminance({ red: 0.5, green: 0.5, blue: 0.5 });
+	assert.equal(midGrey.toFixed(3), '0.214');
 });

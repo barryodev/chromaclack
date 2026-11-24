@@ -95,8 +95,16 @@ export function readableTextOn(colour) {
 	return blackContrast >= whiteContrast ? 'black' : 'white';
 }
 
-// How bright `rgb` looks, from 0 for black to 1 for white, as WCAG defines it.
-function relativeLuminance({ red, green, blue }) {
+/*
+	How bright a colour looks, as WCAG defines it.
+
+	`rgb` is { red, green, blue }, each from 0 to 1, as hslToRgb gives it. It isn't changed.
+
+	Returns the brightness, from 0 for black to 1 for white. Each channel is first undone from the
+	screen's brightening curve, so a mid grey comes out darker than halfway. Green weighs most and
+	blue least, the way the eye sees them.
+*/
+export function relativeLuminance({ red, green, blue }) {
 	const linear = (channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
 	return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
 }
