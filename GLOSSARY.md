@@ -157,3 +157,5 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 ## Colour
 
 **Colour component**: one value of the colour model, either Hue/Saturation/Lightness or Red/Green/Blue. Each interaction (vertical swipe, horizontal swipe, spin) drives one component.
+
+**Mixed colour**: the one HSL colour that is the toy's state. Each tab drives one of its components: the vertical swipe drives hue, the horizontal swipe saturation, and the spin lightness. The colour is kept when you switch tabs, and each tab opens on the page or detent for its component's current value. The page background shows the mixed colour, and it follows the shown page, so the background and the face always agree.
