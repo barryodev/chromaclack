@@ -46,7 +46,10 @@ body {
 	min-height: 100%;
 }
 
-/* app.js sets --colour to the mixed colour. */
+/*
+	app.js keeps the mixed colour and copies it into --colour on <html> each time it changes, so the
+	background and the selected tab can show it. --bg only shows before app.js first runs.
+*/
 body {
 	background: var(--colour, var(--bg));
 	color: var(--fg);
