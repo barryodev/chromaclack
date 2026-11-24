@@ -1,5 +1,13 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
-import { createPageReporter, sequencePage, spinShownPage, swipeShownPage } from './pages.js';
+import {
+	createPageReporter,
+	movingFlapIndex,
+	restingFlapPage,
+	sequencePage,
+	spinShownPage,
+	swipeShownPage,
+	tierFlapIndex
+} from './pages.js';
 import {
 	BOUNCE_DAMPING,
 	BOUNCE_SWING_MS,
@@ -12,11 +20,10 @@ import {
 	MIN_FALL_POINT,
 	MIN_FALL_PULL,
 	bounceOffset,
-	easeLandingTier,
-	easeLeavingTier,
 	flapRandom,
 	loosenessAt,
-	movingTravel
+	movingTravel,
+	tierSlides
 } from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
@@ -122,9 +129,9 @@ const debugFields = debugPanel
 	caught at, and any other swipe at 0. It's signed so one number covers both
 	directions: positive is forward (swipe down or left), negative is backward
 	(swipe up or right). It's unwrapped, so 360 is two forward ticks, and the
-	hinge angle and completed ticks are both worked out from it. `page` only
-	changes when a swipe settles or is caught. Until then travelPage() adds the
-	ticks completed so far.
+	hinge angle and completed ticks are both worked out from it. `page` is the
+	current page. It only changes when a swipe settles or is caught, or a spin
+	seats. Until then travelPage() adds the ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
@@ -199,9 +206,18 @@ function travelPage() {
 
 // See Shown page in GLOSSARY.md.
 function shownPage() {
-	// The spin face follows its detent, so its page is already the shown one (see followSpinDetent).
-	if (state.mode === 'spin') return state.page;
+	if (state.mode === 'spin') return spinShownPage(state.spinAngle, seatDetent());
 	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
+}
+
+// The page the fan is painted from. Nothing ticks on the spin tab, so there the face shows the shown page.
+function facePage() {
+	return state.mode === 'spin' ? shownPage() : travelPage();
+}
+
+// The moving flap's hinge angle where it's drawn, which can be ahead of travel as it falls.
+function drawnHingeAngle() {
+	return movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
 }
 
 /*
@@ -246,9 +262,9 @@ function startSwipe(event) {
 	state.velocity = 0;
 }
 
-// Keep the completed ticks, and pick the flap up where it's drawn, which can be ahead of travel as it falls.
+// Keep the completed ticks, and pick the flap up where it's drawn.
 function catchFlap() {
-	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
+	const angle = drawnHingeAngle();
 	stopInertia();
 	state.page = travelPage();
 	state.travel = angle;
@@ -368,7 +384,7 @@ function updateFall(inertia) {
 	inertia.fall = null;
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
-	const flapIndex = hingeAngle(state.travel) >= 0 ? travelPage() : travelPage() - 1;
+	const flapIndex = movingFlapIndex(travelPage(), hingeAngle(state.travel) >= 0);
 	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, ownFlapRandom(flapIndex, 0));
 	if (covered < fallPoint * TICK_DEGREES) return;
 	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
@@ -485,7 +501,6 @@ function dragSpin(event) {
 	const angle = pointerAngle(event);
 	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
 	pointer.lastAngle = angle;
-	followSpinDetent();
 }
 
 function addSpinSample(event) {
@@ -508,7 +523,6 @@ function releaseSpin(event) {
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
-	followSpinDetent();
 	startSpinMotion();
 }
 
@@ -549,16 +563,14 @@ function startSpinMotion() {
 	spinLoop = startFrameLoop((frameMs) => {
 		if (state.phase === 'spin-down') stepSpinDown(frameMs);
 		else stepSeat(frameMs);
-		followSpinDetent();
 		render();
 		return state.phase === 'spin-down' || state.phase === 'seating';
 	});
 }
 
-// The face steps from detent to detent, so the page is the shown detent's (see Shown page in GLOSSARY.md).
-function followSpinDetent() {
-	const seatDetent = state.phase === 'seating' ? state.spinDetent : null;
-	state.page = spinShownPage(state.spinAngle, seatDetent);
+// The detent the spin is seating into, or null when it isn't seating.
+function seatDetent() {
+	return state.phase === 'seating' ? state.spinDetent : null;
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
@@ -566,13 +578,14 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
+// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest. Its page becomes current.
 function stepSeat(frameMs) {
 	const offset = state.spinAngle - state.spinDetent;
 	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
 	state.spinAngle = state.spinDetent + spring.offset;
 	state.spinVelocity = spring.velocity;
 	if (!springAtRest(spring.offset, spring.velocity)) return;
+	state.page = spinShownPage(state.spinDetent, null);
 	state.spinAngle = state.spinDetent;
 	state.spinVelocity = 0;
 	state.phase = 'idle';
@@ -710,56 +723,79 @@ function setFlap(flap, drawn, front, back) {
 	one, and a back tier being covered by the tier in front goes offstage.
 */
 function renderFlaps() {
-	const shown = travelPage();
+	const page = facePage();
 	const forward = hingeAngle(state.travel) >= 0;
 	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
-	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
-	const progress = Math.abs(angle) / TICK_DEGREES;
-	const looseness = tickLooseness();
-	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
-	const landingSlide = lerp(progress, easeLandingTier(progress), looseness);
-	const startSlide = forward ? leavingSlide : landingSlide;
-	const endSlide = forward ? landingSlide : leavingSlide;
-	const slideTilt = (tier, towards, slide) => lerp(tierTilt(tier), tierTilt(towards), slide);
+	const angle = drawnHingeAngle();
+	const slides = tierSlides(Math.abs(angle) / TICK_DEGREES, tickLooseness(), forward);
+	const movingDrawn = placeMovingFlap(page, forward, angle);
+	placeHalf('start', page, forward, slides.start, movingDrawn);
+	placeHalf('end', page, forward, slides.end, movingDrawn);
+}
 
-	// The moving flap keeps tier 0's tilt for the whole tick.
-	const movingIndex = forward ? shown : shown - 1;
-	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
-	const movingHalf = movingPlain < TICK_DEGREES / 2 ? 'start' : 'end';
-	const movingDrawn = movingPlain + bounceOffset(bounces, movingHalf, movingIndex);
+/*
+	Place the moving flap for a tick and paint its pages. It keeps tier 0's tilt for the whole tick.
+
+	`page` is the page the fan is painted from, `forward` is the tick's direction, and `angle` is the
+	moving flap's drawn hinge angle, from −180 to 180 (see drawnHingeAngle).
+
+	Returns the angle the moving flap is drawn at, in degrees, after any bounce.
+*/
+function placeMovingFlap(page, forward, angle) {
+	const flapIndex = movingFlapIndex(page, forward);
+	const plainAngle = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
+	const half = plainAngle < TICK_DEGREES / 2 ? 'start' : 'end';
+	const drawn = plainAngle + bounceOffset(bounces, half, flapIndex);
 	// Nothing ticks on the spin tab, so the moving flap lies level with end tier 0. Lifted, perspective draws it
 	// a fraction bigger than the flap beside it.
 	flaps.moving.element.style.setProperty('--lift', `${state.mode === 'spin' ? 0 : 1}px`);
-	setFlap(flaps.moving, movingDrawn, pageAt(movingIndex), pageAt(movingIndex + 1));
+	setFlap(flaps.moving, drawn, pageAt(flapIndex), pageAt(flapIndex + 1));
+	return drawn;
+}
 
-	// Each half from the hinge out: no flap is drawn past the one in front of it, so a bouncing flap gets
-	// pushed along instead of passed through.
+/*
+	Place one half's tiers and its offstage flap, from the hinge out, and paint their pages.
+
+	`half` is 'start' or 'end', `page` is the page the fan is painted from, and `forward` is the tick's
+	direction. `slide` is how far this half's tiers have slid towards their next pose, from 0 to 1 (see
+	tierSlides). `movingDrawn` is the angle the moving flap is drawn at.
+
+	The moving flap stands in for tier 0 of the half it leaves, so that tier's own flap is hidden. In the
+	half it leaves, each tier slides towards the tier in front, and in the half it lands in, towards the
+	tier behind.
+*/
+function placeHalf(half, page, forward, slide, movingDrawn) {
+	const leaving = forward === (half === 'start');
 	let frontmost = movingDrawn;
-	const placeStart = (flap, tilt, flapIndex) => {
-		const bounced = drawnAngle(0, tilt) + bounceOffset(bounces, 'start', flapIndex);
-		const drawn = Math.min(bounced, frontmost);
-		if (!flap.element.hidden) frontmost = drawn;
-		setFlap(flap, drawn, pageAt(flapIndex), pageAt(flapIndex));
-	};
-	flaps.start.forEach((flap, tier) => {
-		flap.element.hidden = forward && tier === 0;
-		placeStart(flap, slideTilt(tier, forward ? tier - 1 : tier + 1, startSlide), shown + tier);
+	flaps[half].forEach((flap, tier) => {
+		flap.element.hidden = leaving && tier === 0;
+		const towards = leaving ? tier - 1 : tier + 1;
+		const tilt = lerp(tierTilt(tier), tierTilt(towards), slide);
+		frontmost = placeRestingFlap(flap, half, tilt, tierFlapIndex(half, tier, page), frontmost);
 	});
-	placeStart(flaps.offstage.start, tierTilt(REST_TILTS.length), shown + REST_TILTS.length);
+	const offstageTier = REST_TILTS.length;
+	const offstageIndex = tierFlapIndex(half, offstageTier, page);
+	placeRestingFlap(flaps.offstage[half], half, tierTilt(offstageTier), offstageIndex, frontmost);
+}
 
-	frontmost = movingDrawn;
-	const placeEnd = (flap, tilt, flapIndex) => {
-		const bounced = drawnAngle(TICK_DEGREES, tilt) + bounceOffset(bounces, 'end', flapIndex);
-		const drawn = Math.max(bounced, frontmost);
-		if (!flap.element.hidden) frontmost = drawn;
-		// An end-half flap shows the page after it, the one whose end half it is.
-		setFlap(flap, drawn, pageAt(flapIndex + 1), pageAt(flapIndex + 1));
-	};
-	flaps.end.forEach((flap, tier) => {
-		flap.element.hidden = !forward && tier === 0;
-		placeEnd(flap, slideTilt(tier, forward ? tier + 1 : tier - 1, endSlide), shown - 1 - tier);
-	});
-	placeEnd(flaps.offstage.end, tierTilt(REST_TILTS.length), shown - 1 - REST_TILTS.length);
+/*
+	Place a resting flap and paint its page on both sides.
+
+	`flap` is the flap to place, resting in `half` ('start' or 'end') at rest tilt `tilt`, in degrees.
+	`flapIndex` is its flap index (see Flaps in pages.js). `frontmost` is the angle the flap in front of it
+	is drawn at.
+
+	No flap is drawn past the one in front of it, so a bouncing flap gets pushed along instead of passed
+	through. Returns the angle the next flap out mustn't pass: this flap's, or `frontmost` again if this
+	flap is hidden.
+*/
+function placeRestingFlap(flap, half, tilt, flapIndex, frontmost) {
+	const restAngle = half === 'start' ? 0 : TICK_DEGREES;
+	const bounced = drawnAngle(restAngle, tilt) + bounceOffset(bounces, half, flapIndex);
+	const drawn = half === 'start' ? Math.min(bounced, frontmost) : Math.max(bounced, frontmost);
+	const page = pageAt(restingFlapPage(half, flapIndex));
+	setFlap(flap, drawn, page, page);
+	return flap.element.hidden ? frontmost : drawn;
 }
 
 // Fill the ?debug readout from state.

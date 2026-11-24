@@ -12,6 +12,14 @@
 	The clacker's sequence also holds `pageContent`, which this file doesn't use.
 */
 
+/*
+	Flaps
+
+	A flap index is a whole number, unbounded like a page index. Flap i sits between page i and page
+	i + 1: its front carries page i's start half, and its back carries page i + 1's end half. A half is
+	'start' or 'end'.
+*/
+
 import { SPIN_DETENT_DEGREES, nearestDetent } from './spin.js';
 import { completedTicks } from './swipe.js';
 
@@ -63,6 +71,45 @@ export function spinShownPage(spinAngle, seatDetent) {
 	const page = detent / SPIN_DETENT_DEGREES;
 	// Rounding just short of −45° gives −0, which a readout would print as "-0".
 	return page === 0 ? 0 : page;
+}
+
+/*
+	The flap that turns over in a tick from a page.
+
+	`page` is the unbounded index of the page the tick starts from. `forward` is true for a forward tick
+	and false for a backward one.
+
+	Returns a flap index (see Flaps above): `page` going forward, and `page` − 1 going back.
+*/
+export function movingFlapIndex(page, forward) {
+	return forward ? page : page - 1;
+}
+
+/*
+	The flap resting at a tier in one half of the fan, when the fan is painted from a page.
+
+	`half` is 'start' or 'end'. `tier` is the tier number, from 0 next to the hinge outwards. One past the
+	back tier is the offstage flap's place. `page` is the unbounded index of the page the fan is painted
+	from.
+
+	Returns a flap index (see Flaps above): `page` + `tier` in the start half, and `page` − 1 − `tier` in
+	the end half.
+*/
+export function tierFlapIndex(half, tier, page) {
+	return half === 'start' ? page + tier : page - 1 - tier;
+}
+
+/*
+	The page a resting flap shows. A resting flap shows the same page on both of its sides.
+
+	`half` is the half the flap rests in, 'start' or 'end'. `flapIndex` is its flap index (see Flaps
+	above).
+
+	Returns the unbounded index of the page whose half faces the user: the page on the flap's front in the
+	start half, and the page on its back in the end half.
+*/
+export function restingFlapPage(half, flapIndex) {
+	return half === 'start' ? flapIndex : flapIndex + 1;
 }
 
 /*

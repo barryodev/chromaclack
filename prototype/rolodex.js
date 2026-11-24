@@ -1,6 +1,6 @@
 // Rolodex motion: looseness, falls, clacks and bounces (see Rolodex motion in GLOSSARY.md).
 
-import { clamp } from './maths.js';
+import { clamp, lerp } from './maths.js';
 import { tickBounds } from './swipe.js';
 
 // Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the rolodex wobbles are at full
@@ -70,4 +70,22 @@ export function easeLeavingTier(progress) {
 // Smoothstep. Tiers in the half the moving flap lands in give way as it arrives.
 export function easeLandingTier(progress) {
 	return progress * progress * (3 - 2 * progress);
+}
+
+/*
+	How far each half's tiers have slid towards their pose for the next page, during a tick.
+
+	`progress` is how far through its tick the moving flap is drawn, from 0 to 1. `looseness` is the
+	tick's looseness, from 0 to 1 (see loosenessAt). `forward` is true for a forward tick, where the moving
+	flap leaves the start half, and false for a backward one, where it leaves the end half.
+
+	Returns { start, end }, each from 0 at the start of the tick to 1 at its end. A tight tick slides both
+	halves evenly with progress. A loose one eases the half the moving flap leaves with easeLeavingTier and
+	the half it lands in with easeLandingTier.
+*/
+export function tierSlides(progress, looseness, forward) {
+	const leaving = lerp(progress, easeLeavingTier(progress), looseness);
+	const landing = lerp(progress, easeLandingTier(progress), looseness);
+	if (forward) return { start: leaving, end: landing };
+	return { start: landing, end: leaving };
 }

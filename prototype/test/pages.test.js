@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createPageReporter, pageEvents, sequencePage, spinShownPage, swipeShownPage } from '../pages.js';
+import {
+	createPageReporter,
+	movingFlapIndex,
+	pageEvents,
+	restingFlapPage,
+	sequencePage,
+	spinShownPage,
+	swipeShownPage,
+	tierFlapIndex
+} from '../pages.js';
 import { SPIN_DETENT_DEGREES } from '../spin.js';
 import { TICK_DEGREES } from '../swipe.js';
 
@@ -54,6 +63,19 @@ test("while seating, the spin's shown page is the detent being seated into", () 
 	const pastHalfway = SPIN_DETENT_DEGREES * 0.6;
 	assert.equal(spinShownPage(pastHalfway, 0), 0);
 	assert.equal(spinShownPage(4 * SPIN_DETENT_DEGREES - pastHalfway, 4 * SPIN_DETENT_DEGREES), 4);
+});
+
+test('at rest, start tier k shows page N + k, and end tier k shows page N − k', () => {
+	const pageShownAt = (half, tier) => restingFlapPage(half, tierFlapIndex(half, tier, 5));
+	assert.deepEqual([0, 1, 2].map((tier) => pageShownAt('start', tier)), [5, 6, 7]);
+	assert.deepEqual([0, 1, 2].map((tier) => pageShownAt('end', tier)), [5, 4, 3]);
+});
+
+test('the moving flap starts as tier 0 of the half it leaves, and lands as tier 0 of the other half', () => {
+	assert.equal(movingFlapIndex(5, true), tierFlapIndex('start', 0, 5));
+	assert.equal(movingFlapIndex(5, true), tierFlapIndex('end', 0, 6));
+	assert.equal(movingFlapIndex(5, false), tierFlapIndex('end', 0, 5));
+	assert.equal(movingFlapIndex(5, false), tierFlapIndex('start', 0, 4));
 });
 
 const moving = (page) => ({ page, idle: false });
