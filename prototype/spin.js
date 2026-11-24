@@ -19,12 +19,15 @@ export const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out oversho
 */
 export function rimSpeed(samples, centre) {
 	const elapsedMs = samples.at(-1).time - samples[0].time;
-	if (elapsedMs <= 0) return 0;
-	let distance = 0;
-	for (let index = 1; index < samples.length; index++) {
-		distance += rimDistance(samples[index - 1], samples[index], centre);
+	if (elapsedMs <= 0) {
+		return 0;
+	} else {
+		let distance = 0;
+		for (let index = 1; index < samples.length; index++) {
+			distance += rimDistance(samples[index - 1], samples[index], centre);
+		}
+		return distance / elapsedMs;
 	}
-	return distance / elapsedMs;
 }
 
 // How far the pointer went round `centre` between two samples, in px, clockwise positive.
@@ -32,9 +35,12 @@ export function rimDistance(from, to, centre) {
 	const radiusX = (from.x + to.x) / 2 - centre.x;
 	const radiusY = (from.y + to.y) / 2 - centre.y;
 	const radius = Math.hypot(radiusX, radiusY);
-	if (radius === 0) return 0;
-	// The cross product of radius and move. Screen y points down, so positive is clockwise.
-	return (radiusX * (to.y - from.y) - radiusY * (to.x - from.x)) / radius;
+	if (radius === 0) {
+		return 0;
+	} else {
+		// The cross product of radius and move. Screen y points down, so positive is clockwise.
+		return (radiusX * (to.y - from.y) - radiusY * (to.x - from.x)) / radius;
+	}
 }
 
 /*

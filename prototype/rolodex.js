@@ -40,10 +40,13 @@ export function flapRandom(flapIndex, salt) {
 // Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it started falling.
 export function movingTravel(inertia, travel) {
 	const fall = inertia?.fall;
-	if (!fall || fall.low !== tickBounds(travel)[0]) return travel;
-	const fallMs = inertia.elapsedMs - fall.fallStartMs;
-	const fallen = travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
-	return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
+	if (!fall || fall.low !== tickBounds(travel)[0]) {
+		return travel;
+	} else {
+		const fallMs = inertia.elapsedMs - fall.fallStartMs;
+		const fallen = travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
+		return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
+	}
 }
 
 // How far `bounces` move a flap in `half` off its drawn angle, in degrees.
@@ -86,6 +89,9 @@ export function easeLandingTier(progress) {
 export function tierSlides(progress, looseness, forward) {
 	const leaving = lerp(progress, easeLeavingTier(progress), looseness);
 	const landing = lerp(progress, easeLandingTier(progress), looseness);
-	if (forward) return { start: leaving, end: landing };
-	return { start: landing, end: leaving };
+	if (forward) {
+		return { start: leaving, end: landing };
+	} else {
+		return { start: landing, end: leaving };
+	}
 }

@@ -34,10 +34,13 @@ import { completedTicks } from './swipe.js';
 	returned unchanged, until DAI-59 adds limits.
 */
 export function sequencePage(index, sequence) {
-	if (!sequence.circular) return index;
-	// Floored, so a negative index wraps to the end of the sequence rather than below 0.
-	const laps = Math.floor(index / sequence.pageCount);
-	return index - laps * sequence.pageCount;
+	if (!sequence.circular) {
+		return index;
+	} else {
+		// Floored, so a negative index wraps to the end of the sequence rather than below 0.
+		const laps = Math.floor(index / sequence.pageCount);
+		return index - laps * sequence.pageCount;
+	}
 }
 
 /*

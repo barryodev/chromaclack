@@ -168,6 +168,10 @@ export function toppleMotion(inertia, to, ms) {
 	const pull = Math.sign(to - inertia.start) * TOPPLE_ACCELERATION;
 	const time = Math.min(ms, inertia.durationMs);
 	const velocity = inertia.velocity + pull * time;
-	if (ms >= inertia.durationMs) return { travel: to, velocity, landed: true };
-	return { travel: inertia.start + inertia.velocity * time + (pull * time ** 2) / 2, velocity, landed: false };
+	if (ms >= inertia.durationMs) {
+		return { travel: to, velocity, landed: true };
+	} else {
+		const travel = inertia.start + inertia.velocity * time + (pull * time ** 2) / 2;
+		return { travel, velocity, landed: false };
+	}
 }

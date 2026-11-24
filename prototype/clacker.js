@@ -206,13 +206,20 @@ function travelPage() {
 
 // See Shown page in GLOSSARY.md.
 function shownPage() {
-	if (state.mode === 'spin') return spinShownPage(state.spinAngle, seatDetent());
-	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
+	if (state.mode === 'spin') {
+		return spinShownPage(state.spinAngle, seatDetent());
+	} else {
+		return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
+	}
 }
 
 // The page the fan is painted from. Nothing ticks on the spin tab, so there the face shows the shown page.
 function facePage() {
-	return state.mode === 'spin' ? shownPage() : travelPage();
+	if (state.mode === 'spin') {
+		return shownPage();
+	} else {
+		return travelPage();
+	}
 }
 
 // The moving flap's hinge angle where it's drawn, which can be ahead of travel as it falls.
