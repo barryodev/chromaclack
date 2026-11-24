@@ -1,6 +1,7 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
 import {
 	createPageReporter,
+	hasPage,
 	movingFlapIndex,
 	restingFlapPage,
 	sequencePage,
@@ -200,8 +201,13 @@ function startFrameLoop(onFrame) {
 	return loop;
 }
 
+// The content of the page at an unbounded page index, or null past a limit, where there's no page.
 function pageAt(index) {
-	return sequence.pageContent(sequencePage(index, sequence));
+	if (hasPage(index, sequence)) {
+		return sequence.pageContent(sequencePage(index, sequence));
+	} else {
+		return null;
+	}
 }
 
 // The page travel has reached, counting the ticks completed in the current swipe. The fan is painted from it.
@@ -746,9 +752,15 @@ function pageSnapshot() {
 
 // Rendering
 
+// Paint a page's label and colour on a flap side. A side with no page, past a limit, is left blank.
 function paintSide(side, page) {
-	side.textContent = page.label;
-	side.style.setProperty('--page-colour', page.colour);
+	if (page === null) {
+		side.textContent = '';
+		side.style.removeProperty('--page-colour');
+	} else {
+		side.textContent = page.label;
+		side.style.setProperty('--page-colour', page.colour);
+	}
 }
 
 /*
@@ -818,7 +830,7 @@ function placeMovingFlap(page, forward, angle) {
 
 	The moving flap stands in for tier 0 of the half it leaves, so that tier's own flap is hidden. In the
 	half it leaves, each tier slides towards the tier in front, and in the half it lands in, towards the
-	tier behind.
+	tier behind. Near a limit, the flaps past it have no page, so they're hidden and the fan thins.
 */
 function placeHalf(half, page, forward, slide, movingDrawn) {
 	// A forward tick leaves the start half, and a backward one leaves the end half.
@@ -826,36 +838,39 @@ function placeHalf(half, page, forward, slide, movingDrawn) {
 	const leaving = half === leavingHalf;
 	let frontmost = movingDrawn;
 	flaps[half].forEach((flap, tier) => {
-		flap.element.hidden = (leaving && tier === 0);
+		const movingFlapStandsIn = (leaving && tier === 0);
 		const towards = leaving ? tier - 1 : tier + 1;
 		const tilt = lerp(tierTilt(tier), tierTilt(towards), slide);
-		frontmost = placeRestingFlap(flap, half, tilt, tierFlapIndex(half, tier, page), frontmost);
+		const flapIndex = tierFlapIndex(half, tier, page);
+		frontmost = placeRestingFlap(flap, half, tilt, flapIndex, frontmost, movingFlapStandsIn);
 	});
 	const offstageTier = REST_TILTS.length;
 	const offstageIndex = tierFlapIndex(half, offstageTier, page);
-	placeRestingFlap(flaps.offstage[half], half, tierTilt(offstageTier), offstageIndex, frontmost);
+	placeRestingFlap(flaps.offstage[half], half, tierTilt(offstageTier), offstageIndex, frontmost, false);
 }
 
 /*
-	Place a resting flap and paint its page on both sides.
+	Place a resting flap and paint its page on both sides, or hide it.
 
 	`flap` is the flap to place, resting in `half` ('start' or 'end') at rest tilt `tilt`, in degrees.
 	`flapIndex` is its flap index (see Flaps in pages.js). `frontmost` is the angle the flap in front of it
-	is drawn at.
+	is drawn at. `movingFlapStandsIn` is true when the moving flap is drawn in this flap's place.
 
-	No flap is drawn past the one in front of it, so a bouncing flap gets pushed along instead of passed
-	through. Returns the angle the next flap out mustn't pass: this flap's, or `frontmost` again if this
-	flap is hidden.
+	The flap is hidden when the moving flap stands in for it, or when it has no page because it's past a
+	limit. No flap is drawn past the one in front of it, so a bouncing flap gets pushed along instead of
+	passed through. Returns the angle the next flap out mustn't pass: this flap's, or `frontmost` again if
+	this flap is hidden.
 */
-function placeRestingFlap(flap, half, tilt, flapIndex, frontmost) {
-	const restAngle = half === 'start' ? 0 : TICK_DEGREES;
-	const bounced = drawnAngle(restAngle, tilt) + bounceOffset(bounces, half, flapIndex);
-	const drawn = half === 'start' ? Math.min(bounced, frontmost) : Math.max(bounced, frontmost);
+function placeRestingFlap(flap, half, tilt, flapIndex, frontmost, movingFlapStandsIn) {
 	const page = pageAt(restingFlapPage(half, flapIndex));
-	setFlap(flap, drawn, page, page);
+	flap.element.hidden = (movingFlapStandsIn || page === null);
 	if (flap.element.hidden) {
 		return frontmost;
 	} else {
+		const restAngle = half === 'start' ? 0 : TICK_DEGREES;
+		const bounced = drawnAngle(restAngle, tilt) + bounceOffset(bounces, half, flapIndex);
+		const drawn = half === 'start' ? Math.min(bounced, frontmost) : Math.max(bounced, frontmost);
+		setFlap(flap, drawn, page, page);
 		return drawn;
 	}
 }

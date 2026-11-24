@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
 	createPageReporter,
+	hasPage,
 	movingFlapIndex,
 	pageEvents,
 	restingFlapPage,
@@ -30,6 +31,18 @@ test('a circular sequence wraps an index past either end round to the other', ()
 test('a finite sequence passes the index through', () => {
 	assert.equal(sequencePage(12, finite), 12);
 	assert.equal(sequencePage(-1, finite), -1);
+});
+
+test('a finite sequence has pages from its first page to its last, and none past either limit', () => {
+	assert.equal(hasPage(0, finite), true);
+	assert.equal(hasPage(10, finite), true);
+	assert.equal(hasPage(-1, finite), false);
+	assert.equal(hasPage(11, finite), false);
+});
+
+test('a circular sequence has a page at every index', () => {
+	assert.equal(hasPage(-1, circular), true);
+	assert.equal(hasPage(8, circular), true);
 });
 
 test('a finite sequence counts the ticks back to its first page and forward to its last', () => {
@@ -84,6 +97,24 @@ test('at rest, start tier k shows page N + k, and end tier k shows page N − k'
 	assert.equal(pageShownAt('end', 0), 5);
 	assert.equal(pageShownAt('end', 1), 4);
 	assert.equal(pageShownAt('end', 2), 3);
+});
+
+test('on the last page, the start half has no pages past the board', () => {
+	const hasPageAt = (tier) => hasPage(restingFlapPage('start', tierFlapIndex('start', tier, 10)), finite);
+	const offstageTier = 3;
+	assert.equal(hasPageAt(0), true);
+	assert.equal(hasPageAt(1), false);
+	assert.equal(hasPageAt(2), false);
+	assert.equal(hasPageAt(offstageTier), false);
+});
+
+test('on the first page, the end half has no pages past the board', () => {
+	const hasPageAt = (tier) => hasPage(restingFlapPage('end', tierFlapIndex('end', tier, 0)), finite);
+	const offstageTier = 3;
+	assert.equal(hasPageAt(0), true);
+	assert.equal(hasPageAt(1), false);
+	assert.equal(hasPageAt(2), false);
+	assert.equal(hasPageAt(offstageTier), false);
 });
 
 test('the moving flap starts as tier 0 of the half it leaves, and lands as tier 0 of the other half', () => {

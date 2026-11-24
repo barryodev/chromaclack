@@ -8,7 +8,9 @@
 	A sequence is { pageCount, circular }:
 	- `pageCount` is how many pages it has, numbered 0 to pageCount − 1.
 	- `circular` is true if the page after the last is the first again, and false if the sequence is
-	  finite. Until DAI-59 adds limits, a finite sequence's pages run on past both ends.
+	  finite. A finite sequence's first and last pages are limits (see Limit in GLOSSARY.md), and past
+	  them there are no pages. Until DAI-60 gives the spin its limits, its shown page can still go past
+	  them.
 	The clacker's sequence also holds `pageContent`, which this file doesn't use.
 */
 
@@ -31,7 +33,7 @@ import { completedTicks } from './swipe.js';
 
 	Returns the page index in the sequence. For a circular sequence, `index` is wrapped round into 0 to
 	pageCount − 1, so pageCount is page 0 and −1 is the last page. For a finite sequence, `index` is
-	returned unchanged, until DAI-59 adds limits.
+	returned unchanged, and past a limit it isn't a page in the sequence (see hasPage).
 */
 export function sequencePage(index, sequence) {
 	if (!sequence.circular) {
@@ -40,6 +42,23 @@ export function sequencePage(index, sequence) {
 		// Floored, so a negative index wraps to the end of the sequence rather than below 0.
 		const laps = Math.floor(index / sequence.pageCount);
 		return index - laps * sequence.pageCount;
+	}
+}
+
+/*
+	Whether there's a page at an unbounded page index.
+
+	`index` is a whole number, which can be negative or past the last page. `sequence` is a sequence (see
+	Sequences above).
+
+	Returns true for any index in a circular sequence. In a finite sequence it's true from 0 to
+	pageCount − 1, and false past a limit.
+*/
+export function hasPage(index, sequence) {
+	if (sequence.circular) {
+		return true;
+	} else {
+		return (index >= 0 && index < sequence.pageCount);
 	}
 }
 

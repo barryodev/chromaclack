@@ -44,7 +44,7 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 
 **Limit**: the first page or the last page of a finite sequence, past which there are no more pages. On the spin tab, the lowest and highest detents are limits too. The word names where the value runs out, not the motion there. It isn't called an "end", because that's a half, or a "stop", because that's the natural stop.
 
-**Board**: the fixed piece a limit's outer half page is printed on, like the stand at the back of a desk flip calendar. At the last page, its start half is on the board, and at the first page, its end half. The board never moves, so at a limit there's no flap left to tick over. Near a limit the fan thins on that side, because there are no pages past the limit to fill its tiers. It isn't called a "stand", because that looks like "stack" and "start", or a "backboard", because "back" is already a flap side.
+**Board**: the fixed piece a limit's outer half page is printed on, like the stand at the back of a desk flip calendar. At the last page, its start half is on the board, and at the first page, its end half. The board is never lifted, so at a limit there's no flap left to tick over. Near a limit it slides with the tiers, like any tier. Near a limit the fan thins on that side, because there are no pages past the limit to fill its tiers. It isn't called a "stand", because that looks like "stack" and "start", or a "backboard", because "back" is already a flap side.
 
 ## Flaps
 
