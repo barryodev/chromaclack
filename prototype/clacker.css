@@ -4,8 +4,6 @@
 	--muted: #5f6672;
 	--field: #ffffff;
 	--border: #d9dde3;
-	--accent: #1c1f26;
-	--on-accent: #ffffff;
 	--radius: 0.75rem;
 }
 
@@ -16,9 +14,26 @@
 		--muted: #949cab;
 		--field: #191c22;
 		--border: #2a2f38;
-		--accent: #ff8a4c;
-		--on-accent: #1a1005;
 	}
+}
+
+/*
+	Text and edges drawn straight on the mixed colour. app.js sets data-text to whichever of black or white
+	reads best on it. The debug panel keeps the theme above, because it has its own background.
+*/
+:root,
+:root[data-text='black'] {
+	--on-colour: #16181d;
+	--on-colour-soft: rgb(22 24 29 / 0.7);
+	--on-colour-faint: rgb(22 24 29 / 0.12);
+	--on-colour-edge: rgb(22 24 29 / 0.45);
+}
+
+:root[data-text='white'] {
+	--on-colour: #ffffff;
+	--on-colour-soft: rgb(255 255 255 / 0.8);
+	--on-colour-faint: rgb(255 255 255 / 0.16);
+	--on-colour-edge: rgb(255 255 255 / 0.55);
 }
 
 * {
@@ -63,9 +78,9 @@ main {
 	display: flex;
 	gap: 0.25rem;
 	padding: 0.25rem;
-	border: 1px solid var(--border);
+	border: 1px solid var(--on-colour-faint);
 	border-radius: 999px;
-	background: var(--field);
+	background: var(--on-colour-faint);
 }
 
 .tabs button {
@@ -73,19 +88,20 @@ main {
 	border: 0;
 	border-radius: 999px;
 	background: transparent;
-	color: var(--muted);
+	color: var(--on-colour-soft);
 	font: inherit;
 	font-size: 0.8rem;
 	cursor: pointer;
 }
 
+/* The selected tab is cut out of the text colour, so the mixed colour shows through as its label. */
 .tabs button[aria-selected='true'] {
-	background: var(--accent);
-	color: var(--on-accent);
+	background: var(--on-colour);
+	color: var(--colour, var(--bg));
 }
 
 .tabs button:focus-visible {
-	outline: 2px solid var(--accent);
+	outline: 2px solid var(--on-colour);
 	outline-offset: 2px;
 }
 
@@ -96,11 +112,17 @@ main {
 	}
 }
 
+/*
+	The clacker's edge, so it doesn't vanish into a background of its own colour: a thin rim in the text
+	colour, then a soft shadow beneath. Both follow the flaps' drawn shape. The filter sits here and not on
+	.clacker, because a filter on .clacker would flatten its 3D flaps.
+*/
 .stage {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	padding: 3rem;
+	filter: drop-shadow(0 0 1px var(--on-colour-edge)) drop-shadow(0 0.5rem 1rem rgb(0 0 0 / 0.3));
 }
 
 /* Clacker */
@@ -129,7 +151,7 @@ main {
 }
 
 .clacker:focus-visible {
-	outline: 2px solid var(--accent);
+	outline: 2px solid var(--on-colour);
 	outline-offset: 4px;
 }
 
