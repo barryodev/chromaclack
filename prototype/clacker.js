@@ -159,7 +159,11 @@ let slowMo = false; // Only the ?debug panel can turn this on.
 
 // How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
 function timeScale() {
-	return slowMo ? SLOW_MO_FACTOR : 1;
+	if (slowMo) {
+		return SLOW_MO_FACTOR;
+	} else {
+		return 1;
+	}
 }
 
 /*
@@ -244,12 +248,20 @@ function tierTilt(tier) {
 }
 
 function tiltsForMode() {
-	return state.mode === 'spin' ? FLAT_TILTS : REST_TILTS;
+	if (state.mode === 'spin') {
+		return FLAT_TILTS;
+	} else {
+		return REST_TILTS;
+	}
 }
 
 // Pointer position along the swipe axis, oriented so forward is positive.
 function axisPosition(event) {
-	return state.mode === 'vertical' ? event.clientY : -event.clientX;
+	if (state.mode === 'vertical') {
+		return event.clientY;
+	} else {
+		return -event.clientX;
+	}
 }
 
 // Swipe
@@ -387,13 +399,17 @@ function ownFlapRandom(flapIndex, salt) {
 */
 function updateFall(inertia) {
 	const [low, high] = tickBounds(state.travel);
-	if (inertia.fall?.low === low) return;
+	if (inertia.fall?.low === low) {
+		return;
+	}
 	inertia.fall = null;
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
 	const flapIndex = movingFlapIndex(travelPage(), hingeAngle(state.travel) >= 0);
 	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, ownFlapRandom(flapIndex, 0));
-	if (covered < fallPoint * TICK_DEGREES) return;
+	if (covered < fallPoint * TICK_DEGREES) {
+		return;
+	}
 	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
 	const releasedHere = inertia.start > low && inertia.start < high;
 	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
@@ -419,15 +435,21 @@ let bounceLoop = null;
 // Clack once the falling flap reaches the stack, or once travel gets there first or inertia lands.
 function checkClack(inertia, landed) {
 	const fall = inertia.fall;
-	if (!fall || fall.clacked) return;
+	if (!fall || fall.clacked) {
+		return;
+	}
 	const fallMs = inertia.elapsedMs - fall.fallStartMs;
 	const travelThere = (state.travel - fall.to) * fall.direction >= 0;
-	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) return;
+	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) {
+		return;
+	}
 	fall.clacked = true;
 	const impactSpeed = Math.abs(state.velocity) + fall.pull * fallMs;
 	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, ownFlapRandom(fall.flapIndex, 2));
 	const kick = impactSpeed * fall.looseness * strength * CLACK_KICK;
-	if (kick <= 0) return;
+	if (kick <= 0) {
+		return;
+	}
 	const half = fall.direction > 0 ? 'end' : 'start';
 	bounces.push({ half, clackedIndex: fall.flapIndex, offset: 0, velocity: kick, rebound: 1, grabbed: false });
 	startBounces();
@@ -435,7 +457,9 @@ function checkClack(inertia, landed) {
 
 // One loop moves every bounce, so a clack while bounces are moving just joins it.
 function startBounces() {
-	if (bounceLoop?.running) return;
+	if (bounceLoop?.running) {
+		return;
+	}
 	bounceLoop = startFrameLoop((frameMs) => {
 		stepBounces(frameMs);
 		// Inertia renders every frame itself.
@@ -577,7 +601,11 @@ function startSpinMotion() {
 
 // The detent the spin is seating into, or null when it isn't seating.
 function seatDetent() {
-	return state.phase === 'seating' ? state.spinDetent : null;
+	if (state.phase === 'seating') {
+		return state.spinDetent;
+	} else {
+		return null;
+	}
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
@@ -591,7 +619,9 @@ function stepSeat(frameMs) {
 	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
 	state.spinAngle = state.spinDetent + spring.offset;
 	state.spinVelocity = spring.velocity;
-	if (!springAtRest(spring.offset, spring.velocity)) return;
+	if (!springAtRest(spring.offset, spring.velocity)) {
+		return;
+	}
 	state.page = spinShownPage(state.spinDetent, null);
 	state.spinAngle = state.spinDetent;
 	state.spinVelocity = 0;
@@ -602,7 +632,9 @@ function stepSeat(frameMs) {
 
 // Until the first load() there are no pages, so the clacker ignores input, just as render() draws nothing.
 function pressPointer(event) {
-	if (pointer || event.button !== 0 || !sequence) return;
+	if (pointer || event.button !== 0 || !sequence) {
+		return;
+	}
 	clacker.setPointerCapture(event.pointerId);
 	if (state.mode === 'spin') startSpin(event);
 	else startSwipe(event);
@@ -610,7 +642,9 @@ function pressPointer(event) {
 }
 
 function movePointer(event) {
-	if (!pointer || event.pointerId !== pointer.id) return;
+	if (!pointer || event.pointerId !== pointer.id) {
+		return;
+	}
 	if (state.mode === 'spin') dragSpin(event);
 	else dragSwipe(event);
 	render();
@@ -618,7 +652,9 @@ function movePointer(event) {
 
 // A pointer lifting or being cancelled releases the drag, and a spin or a swipe handles its own release.
 function endPointer(event) {
-	if (!pointer || event.pointerId !== pointer.id) return;
+	if (!pointer || event.pointerId !== pointer.id) {
+		return;
+	}
 	if (state.mode === 'spin') releaseSpin(event);
 	else releaseSwipe(event);
 	render();
@@ -804,12 +840,18 @@ function placeRestingFlap(flap, half, tilt, flapIndex, frontmost) {
 	const drawn = half === 'start' ? Math.min(bounced, frontmost) : Math.max(bounced, frontmost);
 	const page = pageAt(restingFlapPage(half, flapIndex));
 	setFlap(flap, drawn, page, page);
-	return flap.element.hidden ? frontmost : drawn;
+	if (flap.element.hidden) {
+		return frontmost;
+	} else {
+		return drawn;
+	}
 }
 
 // Fill the ?debug readout from state.
 function renderDebug() {
-	if (!debugPanel) return;
+	if (!debugPanel) {
+		return;
+	}
 	const shown = shownPage();
 	debugFields.mode.textContent = state.mode;
 	debugFields.phase.textContent = state.phase;
@@ -834,7 +876,9 @@ function renderDebug() {
 
 // Tell the calling code about any page events first, so content its handlers change shows in this frame.
 function render() {
-	if (!sequence) return;
+	if (!sequence) {
+		return;
+	}
 	reporter.report(pageSnapshot());
 	clacker.dataset.mode = state.mode;
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
@@ -859,8 +903,12 @@ if (debugPanel) {
 	debugPanel.hidden = false;
 	slowMoToggle.addEventListener('change', () => setSlowMo(slowMoToggle.checked));
 	document.addEventListener('keydown', (event) => {
-		if (event.key.toLowerCase() !== 's' || event.repeat) return;
-		if (event.ctrlKey || event.metaKey || event.altKey) return;
+		if (event.key.toLowerCase() !== 's' || event.repeat) {
+			return;
+		}
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return;
+		}
 		setSlowMo(!slowMo);
 	});
 }

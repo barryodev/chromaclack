@@ -48,7 +48,11 @@ export function componentSequence(component) {
 export function valueAt(page, component) {
 	// Multiplied before dividing, so a value such as 25% comes out exact.
 	const value = (page * component.range) / component.steps;
-	return component.circular ? value : clamp(value, 0, component.range);
+	if (component.circular) {
+		return value;
+	} else {
+		return clamp(value, 0, component.range);
+	}
 }
 
 /*
@@ -92,7 +96,11 @@ export function readableTextOn(colour) {
 	const luminance = relativeLuminance(hslToRgb(colour));
 	const blackContrast = (luminance + 0.05) / 0.05;
 	const whiteContrast = 1.05 / (luminance + 0.05);
-	return blackContrast >= whiteContrast ? 'black' : 'white';
+	if (blackContrast >= whiteContrast) {
+		return 'black';
+	} else {
+		return 'white';
+	}
 }
 
 /*

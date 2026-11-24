@@ -73,7 +73,11 @@ export function spinShownPage(spinAngle, seatDetent) {
 	const detent = seatDetent ?? nearestDetent(spinAngle);
 	const page = detent / SPIN_DETENT_DEGREES;
 	// Rounding just short of −45° gives −0, which a readout would print as "-0".
-	return page === 0 ? 0 : page;
+	if (page === 0) {
+		return 0;
+	} else {
+		return page;
+	}
 }
 
 /*
@@ -85,7 +89,11 @@ export function spinShownPage(spinAngle, seatDetent) {
 	Returns a flap index (see Flaps above): `page` going forward, and `page` − 1 going back.
 */
 export function movingFlapIndex(page, forward) {
-	return forward ? page : page - 1;
+	if (forward) {
+		return page;
+	} else {
+		return page - 1;
+	}
 }
 
 /*
@@ -99,7 +107,11 @@ export function movingFlapIndex(page, forward) {
 	the end half.
 */
 export function tierFlapIndex(half, tier, page) {
-	return half === 'start' ? page + tier : page - 1 - tier;
+	if (half === 'start') {
+		return page + tier;
+	} else {
+		return page - 1 - tier;
+	}
 }
 
 /*
@@ -112,7 +124,11 @@ export function tierFlapIndex(half, tier, page) {
 	start half, and the page on its back in the end half.
 */
 export function restingFlapPage(half, flapIndex) {
-	return half === 'start' ? flapIndex : flapIndex + 1;
+	if (half === 'start') {
+		return flapIndex;
+	} else {
+		return flapIndex + 1;
+	}
 }
 
 /*

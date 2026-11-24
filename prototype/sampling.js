@@ -15,5 +15,9 @@ export function windowVelocity(samples) {
 	const oldest = samples[0];
 	const newest = samples.at(-1);
 	const elapsedMs = newest.time - oldest.time;
-	return elapsedMs > 0 ? (newest.position - oldest.position) / elapsedMs : 0;
+	if (elapsedMs > 0) {
+		return (newest.position - oldest.position) / elapsedMs;
+	} else {
+		return 0;
+	}
 }

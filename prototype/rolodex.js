@@ -45,7 +45,11 @@ export function movingTravel(inertia, travel) {
 	} else {
 		const fallMs = inertia.elapsedMs - fall.fallStartMs;
 		const fallen = travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
-		return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
+		if (fall.direction > 0) {
+			return Math.min(fallen, fall.to);
+		} else {
+			return Math.max(fallen, fall.to);
+		}
 	}
 }
 

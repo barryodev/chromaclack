@@ -33,7 +33,11 @@ export function hingeAngle(travel) {
 // The lowest and highest travel of the tick in progress.
 export function tickBounds(travel) {
 	const base = completedTicks(travel) * TICK_DEGREES;
-	return hingeAngle(travel) >= 0 ? [base, base + TICK_DEGREES] : [base - TICK_DEGREES, base];
+	if (hingeAngle(travel) >= 0) {
+		return [base, base + TICK_DEGREES];
+	} else {
+		return [base - TICK_DEGREES, base];
+	}
 }
 
 /*
