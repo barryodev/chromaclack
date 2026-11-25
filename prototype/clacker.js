@@ -838,9 +838,11 @@ function placeMovingFlap(page, forward, angle) {
 /*
 	Place one half's tiers and its offstage flap, from the hinge out, and paint their pages.
 
-	`half` is 'start' or 'end', `page` is the page the fan is painted from, and `forward` is the tick's
-	direction. `slide` is how far this half's tiers have slid towards their next pose, from 0 to 1 (see
-	tierSlides). `movingDrawn` is the angle the moving flap is drawn at.
+	`half` is 'start' or 'end'. The start half is the top on the vertical tab and the right on the
+	horizontal tab, and a forward tick carries the moving flap from the start half to the end half.
+	`page` is the page the fan is painted from, and `forward` is the tick's direction. `slide` is how far
+	through the tick this half's tiers have moved, from 0 to 1 (see tierSlides). `movingDrawn` is the
+	angle the moving flap is drawn at.
 
 	The moving flap stands in for tier 0 of the half it leaves, so that tier's own flap is hidden. In the
 	half it leaves, each tier slides towards the tier in front, and in the half it lands in, towards the
