@@ -673,6 +673,7 @@ function pressPointer(event) {
 	render();
 }
 
+// A pointer moving drags the spin or the swipe it started. Any other pointer is ignored.
 function movePointer(event) {
 	if (!pointer || event.pointerId !== pointer.id) {
 		return;
