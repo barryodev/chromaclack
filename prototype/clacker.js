@@ -49,6 +49,7 @@ import {
 	coastMotion,
 	completedTicks,
 	drawnAngle,
+	fallLooseness,
 	hingeAngle,
 	landingsWithin,
 	planInertia,
@@ -442,9 +443,15 @@ function updateFall(inertia) {
 	if (covered < fallPoint * TICK_DEGREES) {
 		return;
 	}
-	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
-	const releasedHere = inertia.start > low && inertia.start < high;
-	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
+	// In the tick the swipe was let go in, rendering the drag already held its looseness, so asking for it
+	// here changes nothing.
+	const looseness = fallLooseness({
+		releaseStart: inertia.start,
+		low,
+		high,
+		releaseLooseness: inertia.releaseLooseness,
+		heldLooseness: tickLooseness()
+	});
 	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, ownFlapRandom(flapIndex, 1)) * looseness;
 	const to = direction > 0 ? high : low;
 	const fallStartMs = inertia.elapsedMs;

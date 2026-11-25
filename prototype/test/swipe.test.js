@@ -12,6 +12,7 @@ import {
 	coastMotion,
 	completedTicks,
 	drawnAngle,
+	fallLooseness,
 	hingeAngle,
 	landingsWithin,
 	nearestLanding,
@@ -37,6 +38,13 @@ test('the hinge angle is the part of travel inside the tick in progress', () => 
 test('tick bounds are the lowest and highest travel of the tick in progress', () => {
 	assert.deepEqual(tickBounds(400), [360, 540]);
 	assert.deepEqual(tickBounds(-400), [-540, -360]);
+});
+
+test('a fall uses the looseness at release only in the tick the swipe was let go in', () => {
+	const loosenesses = { releaseLooseness: 0.8, heldLooseness: 0.2 };
+	assert.equal(fallLooseness({ releaseStart: 90, low: 0, high: 180, ...loosenesses }), 0.8);
+	assert.equal(fallLooseness({ releaseStart: 180, low: 180, high: 360, ...loosenesses }), 0.2);
+	assert.equal(fallLooseness({ releaseStart: 90, low: 180, high: 360, ...loosenesses }), 0.2);
 });
 
 test('a flap is drawn at its rest tilt at 0° and at 180° minus it at 180°', () => {

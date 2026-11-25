@@ -41,6 +41,25 @@ export function tickBounds(travel) {
 }
 
 /*
+	The looseness a fall uses.
+
+	`releaseStart` is the travel the swipe was let go at. `low` and `high` are the ends of the tick the flap is
+	falling in (see tickBounds). `releaseLooseness` is the looseness at release, and `heldLooseness` is the
+	looseness held for this tick.
+
+	Returns the looseness at release if the swipe was let go inside this tick, because the looseness held for
+	that tick is the drag's. Otherwise it returns the held looseness. A swipe let go exactly on the end of a
+	tick, as it is when held at a limit, hasn't started that tick yet.
+*/
+export function fallLooseness({ releaseStart, low, high, releaseLooseness, heldLooseness }) {
+	if (releaseStart > low && releaseStart < high) {
+		return releaseLooseness;
+	} else {
+		return heldLooseness;
+	}
+}
+
+/*
 	The angle a flap is drawn at, in degrees. Rest tilt is applied only when
 	drawing, and the swipe maths stays in hinge-angle space. A hinge angle of
 	0–180 is drawn from restTilt to 180 − restTilt, so no flap is ever drawn
