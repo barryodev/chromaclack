@@ -89,14 +89,26 @@ test("while seating, the spin's shown page is the detent being seated into", () 
 	assert.equal(spinShownPage(4 * SPIN_DETENT_DEGREES - pastHalfway, 4 * SPIN_DETENT_DEGREES), 4);
 });
 
-test('at rest, start tier k shows page N + k, and end tier k shows page N − k', () => {
-	const pageShownAt = (half, tier) => restingFlapPage(half, tierFlapIndex(half, tier, 5));
-	assert.equal(pageShownAt('start', 0), 5);
-	assert.equal(pageShownAt('start', 1), 6);
-	assert.equal(pageShownAt('start', 2), 7);
-	assert.equal(pageShownAt('end', 0), 5);
-	assert.equal(pageShownAt('end', 1), 4);
-	assert.equal(pageShownAt('end', 2), 3);
+test('the moving flap is the one between the page and the page the tick turns to', () => {
+	assert.equal(movingFlapIndex(5, true), 5);
+	assert.equal(movingFlapIndex(5, false), 4);
+});
+
+test('the start tiers count up from the page, and the end tiers count down from the page before', () => {
+	const offstageTier = 3;
+	assert.equal(tierFlapIndex('start', 0, 5), 5);
+	assert.equal(tierFlapIndex('start', 1, 5), 6);
+	assert.equal(tierFlapIndex('start', 2, 5), 7);
+	assert.equal(tierFlapIndex('start', offstageTier, 5), 8);
+	assert.equal(tierFlapIndex('end', 0, 5), 4);
+	assert.equal(tierFlapIndex('end', 1, 5), 3);
+	assert.equal(tierFlapIndex('end', 2, 5), 2);
+	assert.equal(tierFlapIndex('end', offstageTier, 5), 1);
+});
+
+test('a resting flap shows its front page in the start half, and its back page in the end half', () => {
+	assert.equal(restingFlapPage('start', 5), 5);
+	assert.equal(restingFlapPage('end', 4), 5);
 });
 
 test('on the last page, the start half has no pages past the board', () => {
@@ -115,13 +127,6 @@ test('on the first page, the end half has no pages past the board', () => {
 	assert.equal(hasPageAt(1), false);
 	assert.equal(hasPageAt(2), false);
 	assert.equal(hasPageAt(offstageTier), false);
-});
-
-test('the moving flap starts as tier 0 of the half it leaves, and lands as tier 0 of the other half', () => {
-	assert.equal(movingFlapIndex(5, true), tierFlapIndex('start', 0, 5));
-	assert.equal(movingFlapIndex(5, true), tierFlapIndex('end', 0, 6));
-	assert.equal(movingFlapIndex(5, false), tierFlapIndex('end', 0, 5));
-	assert.equal(movingFlapIndex(5, false), tierFlapIndex('start', 0, 4));
 });
 
 const moving = (page) => ({ page, idle: false });
