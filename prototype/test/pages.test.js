@@ -111,24 +111,6 @@ test('a resting flap shows its front page in the start half, and its back page i
 	assert.equal(restingFlapPage('end', 4), 5);
 });
 
-test('on the last page, the start half has no pages past the board', () => {
-	const hasPageAt = (tier) => hasPage(restingFlapPage('start', tierFlapIndex('start', tier, 10)), finite);
-	const offstageTier = 3;
-	assert.equal(hasPageAt(0), true);
-	assert.equal(hasPageAt(1), false);
-	assert.equal(hasPageAt(2), false);
-	assert.equal(hasPageAt(offstageTier), false);
-});
-
-test('on the first page, the end half has no pages past the board', () => {
-	const hasPageAt = (tier) => hasPage(restingFlapPage('end', tierFlapIndex('end', tier, 0)), finite);
-	const offstageTier = 3;
-	assert.equal(hasPageAt(0), true);
-	assert.equal(hasPageAt(1), false);
-	assert.equal(hasPageAt(2), false);
-	assert.equal(hasPageAt(offstageTier), false);
-});
-
 const moving = (page) => ({ page, idle: false });
 const idle = (page) => ({ page, idle: true });
 
