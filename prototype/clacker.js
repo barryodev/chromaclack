@@ -298,6 +298,13 @@ function catchFlap() {
 	state.inertia = null;
 }
 
+/*
+	Move the swipe with the finger.
+
+	`event` is a pointermove from the finger that started the swipe. Sets state.travel from how far the
+	finger has moved, clamped to the swipe's range, and state.velocity from its recent speed. While the
+	drag is held at a limit, pointer.start moves along with the finger.
+*/
 function dragSwipe(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
 	const moves = event.getCoalescedEvents?.() ?? [];
