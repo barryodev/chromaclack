@@ -331,6 +331,12 @@ function addSample(event) {
 	pointer.samples = addToReleaseWindow(pointer.samples, sample);
 }
 
+/*
+	Let go of the swipe, and set the flap coasting or toppling to a landing.
+
+	`event` is the pointerup or pointercancel that ends the swipe. Works out the release speed from the
+	finger's recent samples, plans inertia to a landing inside the limits, and starts it. Clears pointer.
+*/
 function releaseSwipe(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSample(event);
