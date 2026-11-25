@@ -251,10 +251,10 @@ function drawnHingeAngle() {
 	  the moving flap, so its value never shows.
 */
 function tierTilt(tier) {
-	return tiltsForMode()[clamp(tier, 0, REST_TILTS.length - 1)];
+	return restTiltsForTab()[clamp(tier, 0, REST_TILTS.length - 1)];
 }
 
-function tiltsForMode() {
+function restTiltsForTab() {
 	if (state.mode === 'spin') {
 		return FLAT_TILTS;
 	} else {
