@@ -844,9 +844,11 @@ function placeMovingFlap(page, forward, angle) {
 	through the tick this half's tiers have moved, from 0 to 1 (see tierSlides). `movingDrawn` is the
 	angle the moving flap is drawn at.
 
-	The moving flap stands in for tier 0 of the half it leaves, so that tier's own flap is hidden. In the
-	half it leaves, each tier slides towards the tier in front, and in the half it lands in, towards the
-	tier behind. Near a limit, the flaps past it have no page, so they're hidden and the fan thins.
+	The moving flap starts the tick as the front flap of the half it leaves, so that half's tier 0 is
+	hidden while the moving flap is drawn in its place. As the tick goes on, the half it leaves closes up,
+	with each tier moving one place towards the hinge. The half it lands in makes room, with each tier
+	moving one place away. Near a limit, the flaps past it have no page, so they're hidden and the fan
+	thins.
 */
 function placeHalf(half, page, forward, slide, movingDrawn) {
 	// A forward tick leaves the start half, and a backward one leaves the end half.
