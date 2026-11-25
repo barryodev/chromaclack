@@ -52,20 +52,18 @@ test('swipe landings are every whole tick either way, up to the most ticks a swi
 });
 
 test("a swipe's range reaches each limit", () => {
-	const range = swipeRange({ back: 2, forward: 5 });
-	assert.deepEqual(range, { lowest: -2 * TICK_DEGREES, highest: 5 * TICK_DEGREES });
-	assert.deepEqual(swipeRange({ back: 0, forward: 10 }), { lowest: 0, highest: 10 * TICK_DEGREES });
+	assert.deepEqual(swipeRange({ back: 2, forward: 5 }), { lowest: -360, highest: 900 });
+	assert.deepEqual(swipeRange({ back: 0, forward: 10 }), { lowest: 0, highest: 1800 });
 });
 
 test("a swipe's range stops at the most ticks a swipe can make, however far the limits are", () => {
-	const most = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
+	const most = MAX_TICKS_PER_SWIPE * 180;
 	assert.deepEqual(swipeRange({ back: Infinity, forward: Infinity }), { lowest: -most, highest: most });
-	assert.deepEqual(swipeRange({ back: 3, forward: 100 }), { lowest: -3 * TICK_DEGREES, highest: most });
+	assert.deepEqual(swipeRange({ back: 3, forward: 100 }), { lowest: -540, highest: most });
 });
 
 test('the landings within a range are its whole ticks, both ends included', () => {
-	const range = { lowest: -2 * TICK_DEGREES, highest: TICK_DEGREES };
-	assert.deepEqual(landingsWithin(range), [-2 * TICK_DEGREES, -TICK_DEGREES, 0, TICK_DEGREES]);
+	assert.deepEqual(landingsWithin({ lowest: -360, highest: 180 }), [-360, -180, 0, 180]);
 });
 
 test('the nearest landing is the closest one to the position', () => {
