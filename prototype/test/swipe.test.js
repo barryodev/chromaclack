@@ -112,14 +112,14 @@ test('a swipe released with no speed finishes its tick past 90°, and snaps back
 
 test('a hard flick towards a limit two ticks away coasts to the limit', () => {
 	const hardFlick = 3.4 * COAST_DEGREES_PER_PIXEL;
-	const plan = planInertia(0, hardFlick, landingsWithin(swipeRange({ back: 5, forward: 2 })), 1);
-	assert.equal(plan.target, 2 * TICK_DEGREES);
+	const plan = planInertia(0, hardFlick, [-180, 0, 180, 360], 1);
+	assert.equal(plan.target, 360);
 	assert.equal(plan.coasts, true);
 });
 
 test('a flick against a limit the flap is already on stays on it', () => {
 	const hardFlick = 3.4 * COAST_DEGREES_PER_PIXEL;
-	const plan = planInertia(0, hardFlick, landingsWithin(swipeRange({ back: 5, forward: 0 })), 1);
+	const plan = planInertia(0, hardFlick, [-360, -180, 0], 1);
 	assert.equal(plan.target, 0);
 });
 
