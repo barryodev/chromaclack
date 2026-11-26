@@ -148,7 +148,7 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Spin release speed**: how fast the pointer was moving along the rim when it lifted, clockwise or counterclockwise, measured over the same window as a swipe's release speed. Only the part of the movement going round the centre counts, so a flick straight out from the centre doesn't spin. It's turned into a spin at the rim, half the clacker's width from the centre, so a flick close to the centre doesn't spin wildly.
 
-**Spin-down**: after a fast release, the clacker keeps turning at the spin release speed and slows under **spin friction**, like a turntable once its motor stops. One part of spin friction grows with speed, so a hard flick sheds speed fast, and a steady part on top stops it in finite time. Once it's slow, it hands over to the seat. It isn't called a coast, because a coast is fitted to end on a landing and a spin-down isn't.
+**Spin-down**: after a fast release, the clacker keeps turning at the spin release speed and slows under **spin friction**, like a turntable once its motor stops. One part of spin friction grows with speed, so a hard flick sheds speed fast, and a steady part on top stops it in finite time. Once it's slow, it hands over to the seat. If it reaches a limit first, it recoils off the limit and seats into the limit's detent. It isn't called a coast, because a coast is fitted to end on a landing and a spin-down isn't.
 
 **Detent**: an angle a spin comes to rest on, like the clicks on a dimmer. Each detent is a page: 0° is page 0, each detent clockwise is the next page, and each one anticlockwise is the page before.
 

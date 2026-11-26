@@ -39,6 +39,7 @@ import {
 	spinDownDistance,
 	spinDownSpeed,
 	spinDownTime,
+	spinDownTimeTo,
 	stepSpinSeat
 } from './spin.js';
 import {
@@ -149,7 +150,7 @@ const state = {
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
 	spinVelocity: 0, // °/ms, clockwise positive
-	spinDown: null, // { start, velocity, elapsedMs, handoverMs }
+	spinDown: null, // { start, velocity, elapsedMs, handoverMs, limit, hitMs }
 	spinDetent: 0 // The detent the seat pulls towards.
 };
 
@@ -608,26 +609,56 @@ function releaseSpin(event) {
 	startSpinMotion();
 }
 
+/*
+	Start the spin-down from where the finger let go.
+
+	Reads state.spinAngle, the clacker's angle in degrees, and state.spinVelocity, its speed in °/ms, both
+	clockwise positive. Sets state.phase to 'spin-down' and state.spinDown to what stepSpinDown needs:
+	where it started and how fast, how long until it's slow enough to hand over to the seat, the limit it's
+	turning towards, and when it will reach that limit. A limit is the lowest or highest detent of a finite
+	sequence. A circular sequence has none, so the limit is Infinity either way, and it's never reached.
+*/
 function startSpinDown() {
 	const speed = Math.abs(state.spinVelocity);
+	const range = spinRange(sequence);
+	const limit = state.spinVelocity > 0 ? range.highest : range.lowest;
 	state.phase = 'spin-down';
 	state.spinDown = {
 		start: state.spinAngle,
 		velocity: state.spinVelocity,
 		elapsedMs: 0,
-		handoverMs: spinDownTime(speed, SEAT_SPEED)
+		handoverMs: spinDownTime(speed, SEAT_SPEED),
+		limit,
+		hitMs: spinDownTimeTo(speed, Math.abs(limit - state.spinAngle))
 	};
 }
 
-// Turn the clacker to where the spin-down has carried it after `frameMs` more ms, and seat it once it's slow.
+/*
+	Move the spin-down on by one frame.
+
+	`frameMs` is how long the frame took, in milliseconds, already slowed if slow-mo is on.
+
+	Moves state.spinAngle and state.spinVelocity to where the spin-down has carried the clacker, working
+	them out from the time since it started. It stops early at whichever comes first:
+	- the limit, where it seats into the limit's detent. The seat's first step carries it onto the limit,
+	  and it recoils off it there (see stepSpinSeat). What's left of the frame goes to the seat.
+	- slowing down enough to hand over to the seat, which aims at the detent nearest where it would stop.
+*/
 function stepSpinDown(frameMs) {
 	const spinDown = state.spinDown;
-	spinDown.elapsedMs = Math.min(spinDown.elapsedMs + frameMs, spinDown.handoverMs);
+	const endMs = Math.min(spinDown.handoverMs, spinDown.hitMs);
+	const leftoverMs = Math.max(0, spinDown.elapsedMs + frameMs - endMs);
+	spinDown.elapsedMs = Math.min(spinDown.elapsedMs + frameMs, endMs);
 	const direction = Math.sign(spinDown.velocity);
 	const speed = Math.abs(spinDown.velocity);
 	state.spinAngle = spinDown.start + direction * spinDownDistance(speed, spinDown.elapsedMs);
 	state.spinVelocity = direction * spinDownSpeed(speed, spinDown.elapsedMs);
-	if (spinDown.elapsedMs === spinDown.handoverMs) startSeat();
+	if (spinDown.elapsedMs === spinDown.hitMs) {
+		seatInto(spinDown.limit);
+		stepSeat(leftoverMs);
+	} else if (spinDown.elapsedMs === spinDown.handoverMs) {
+		startSeat();
+	}
 }
 
 // Seat into the detent nearest where the spin-down would stop from here, but not past a limit, carrying on at
@@ -636,9 +667,14 @@ function startSeat() {
 	const speed = Math.abs(state.spinVelocity);
 	const stopDistance = spinDownDistance(speed, spinDownTime(speed, 0));
 	const naturalStop = state.spinAngle + Math.sign(state.spinVelocity) * stopDistance;
+	seatInto(seatAim(naturalStop, spinRange(sequence)));
+}
+
+// Start seating into `detent`, an angle in degrees, carrying on at the spin's velocity. Ends any spin-down.
+function seatInto(detent) {
 	state.phase = 'seating';
 	state.spinDown = null;
-	state.spinDetent = seatAim(naturalStop, spinRange(sequence));
+	state.spinDetent = detent;
 }
 
 // Turn the clacker through its spin-down and seat until it comes to rest.

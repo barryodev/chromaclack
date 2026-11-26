@@ -13,6 +13,7 @@ import {
 	spinDownDistance,
 	spinDownSpeed,
 	spinDownTime,
+	spinDownTimeTo,
 	stepSpinSeat
 } from '../spin.js';
 
@@ -58,6 +59,18 @@ test("a spin-down's angle grows at its speed", () => {
 	// estimates the speed, to within about 6e-8 °/ms here, so the tolerance is looser than for exact formulas.
 	const turnedOverOneMs = spinDownDistance(2, 500.5) - spinDownDistance(2, 499.5);
 	assertNear(turnedOverOneMs, spinDownSpeed(2, 500), 1e-6);
+});
+
+test('a spin-down has turned the distance at the time spinDownTimeTo gives, without passing it', () => {
+	const hitMs = spinDownTimeTo(2, 300);
+	assertNear(spinDownDistance(2, hitMs), 300, 1e-6);
+	assert.ok(spinDownDistance(2, hitMs) <= 300);
+});
+
+test('a spin-down that stops short of the distance never reaches it', () => {
+	const stopDistance = spinDownDistance(2, spinDownTime(2, 0));
+	assert.equal(spinDownTimeTo(2, stopDistance + 1), Infinity);
+	assert.equal(spinDownTimeTo(2, Infinity), Infinity);
 });
 
 test('the nearest detent rounds to whole detents, either way round', () => {

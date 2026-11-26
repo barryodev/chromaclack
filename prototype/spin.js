@@ -75,6 +75,36 @@ export function spinDownTime(fromSpeed, toSpeed) {
 	return Math.log((fromSpeed + SPIN_BALANCE_SPEED) / (toSpeed + SPIN_BALANCE_SPEED)) / SPIN_SPEED_FRICTION;
 }
 
+/*
+	When a spin-down reaches a limit.
+
+	`speed` is the spin-down's starting speed in °/ms, either way round. `distance` is how far away the
+	limit is, in degrees, in the direction it's turning. It can be Infinity, when there's no limit.
+
+	Returns the time in ms from the start of the spin-down until it has turned `distance`, or Infinity if
+	it stops first. There's no exact formula for it, because the distance mixes an exponential with a
+	straight line, so it's narrowed down by halving: 60 halvings are far finer than a millisecond. It
+	gives the time just short of the limit, never past it.
+*/
+export function spinDownTimeTo(speed, distance) {
+	const stopMs = spinDownTime(speed, 0);
+	if (spinDownDistance(speed, stopMs) < distance) {
+		return Infinity;
+	} else {
+		let shortMs = 0;
+		let pastMs = stopMs;
+		for (let halving = 0; halving < 60; halving++) {
+			const middleMs = (shortMs + pastMs) / 2;
+			if (spinDownDistance(speed, middleMs) < distance) {
+				shortMs = middleMs;
+			} else {
+				pastMs = middleMs;
+			}
+		}
+		return shortMs;
+	}
+}
+
 // The detent nearest `angle`.
 export function nearestDetent(angle) {
 	return Math.round(angle / SPIN_DETENT_DEGREES) * SPIN_DETENT_DEGREES;
