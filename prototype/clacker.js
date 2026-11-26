@@ -5,6 +5,7 @@ import {
 	movingFlapIndex,
 	restingFlapPage,
 	sequencePage,
+	spinRange,
 	spinShownPage,
 	swipeShownPage,
 	ticksToLimits,
@@ -29,16 +30,17 @@ import {
 } from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
-	SEAT_DAMPING,
 	SEAT_SPEED,
-	SEAT_SWING_MS,
 	SPIN_DETENT_DEGREES,
-	nearestDetent,
+	heldReleaseVelocity,
 	rimSpeed,
+	seatAim,
 	shortestTurn,
 	spinDownDistance,
 	spinDownSpeed,
-	spinDownTime
+	spinDownTime,
+	spinDownTimeTo,
+	stepSpinSeat
 } from './spin.js';
 import {
 	COAST_DEGREES_PER_PIXEL,
@@ -148,7 +150,7 @@ const state = {
 	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
 	spinAngle: 0,
 	spinVelocity: 0, // °/ms, clockwise positive
-	spinDown: null, // { start, velocity, elapsedMs, handoverMs }
+	spinDown: null, // { start, velocity, elapsedMs, handoverMs, limit, hitMs }
 	spinDetent: 0 // The detent the seat pulls towards.
 };
 
@@ -563,13 +565,22 @@ function startSpin(event) {
 	state.phase = 'dragging';
 }
 
-// Turn the clacker 1:1 with the pointer's angle round the centre, and sample the pointer for the release speed.
+/*
+	Turn the clacker with the finger.
+
+	`event` is a pointermove from the finger that started the spin. Turns state.spinAngle 1:1 with the
+	finger's angle round the centre, but no further than a limit. Samples the finger for the release speed,
+	and moves pointer.lastAngle to the finger's angle. That carries on while the clacker is held at a limit,
+	so turning back moves it straight away.
+*/
 function dragSpin(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSpinSample(move);
 	const angle = pointerAngle(event);
-	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
+	const range = spinRange(sequence);
+	const turnedAngle = state.spinAngle + shortestTurn(pointer.lastAngle, angle);
+	state.spinAngle = clamp(turnedAngle, range.lowest, range.highest);
 	pointer.lastAngle = angle;
 }
 
@@ -579,53 +590,100 @@ function addSpinSample(event) {
 }
 
 /*
-	The spin keeps the pointer's speed along the rim, turned into a spin at the
-	rim radius, so a flick near the centre doesn't spin wildly. A fast release
-	spins down and a slow one seats straight away. A cancel does the same, so
-	the clacker never stops between detents.
+	Let go of the spin, and start the clacker turning on by itself.
+
+	`event` is the pointerup or pointercancel from the finger that started the spin. A cancel is handled
+	like a lift, so the clacker never stops between detents.
+
+	Sets state.spinVelocity, in °/ms clockwise positive, from the finger's speed along the rim, turned into
+	a spin at the rim radius, so a flick near the centre doesn't spin wildly. A finger held at a limit, the
+	lowest or highest detent of a finite sequence, and still heading past it lets go with no speed. Sets
+	state.releaseSpeed to the rim speed for the debug readout, and lets go of the pointer. Then a fast
+	release spins down and a slow one seats straight away. state.spinAngle isn't changed.
 */
 function releaseSpin(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSpinSample(event);
 	const releaseRimSpeed = rimSpeed(pointer.samples, pointer.centre);
 	state.releaseSpeed = Math.abs(releaseRimSpeed);
-	state.spinVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
+	const releaseVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
+	state.spinVelocity = heldReleaseVelocity(state.spinAngle, releaseVelocity, spinRange(sequence));
 	pointer = null;
-	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
-	else startSeat();
+	if (Math.abs(state.spinVelocity) > SEAT_SPEED) {
+		startSpinDown();
+	} else {
+		startSeat();
+	}
 	startSpinMotion();
 }
 
+/*
+	Start the spin-down from where the finger let go.
+
+	Reads state.spinAngle, the clacker's angle in degrees, and state.spinVelocity, its speed in °/ms, both
+	clockwise positive. Sets state.phase to 'spin-down' and state.spinDown to what stepSpinDown needs:
+	where it started and how fast, how long until it's slow enough to hand over to the seat, the limit it's
+	turning towards, and when it will reach that limit. A limit is the lowest or highest detent of a finite
+	sequence. A circular sequence has none, so the limit is Infinity going forward and −Infinity going back,
+	and it's never reached.
+*/
 function startSpinDown() {
 	const speed = Math.abs(state.spinVelocity);
+	const range = spinRange(sequence);
+	const limit = state.spinVelocity > 0 ? range.highest : range.lowest;
 	state.phase = 'spin-down';
 	state.spinDown = {
 		start: state.spinAngle,
 		velocity: state.spinVelocity,
 		elapsedMs: 0,
-		handoverMs: spinDownTime(speed, SEAT_SPEED)
+		handoverMs: spinDownTime(speed, SEAT_SPEED),
+		limit,
+		hitMs: spinDownTimeTo(speed, Math.abs(limit - state.spinAngle))
 	};
 }
 
-// Turn the clacker to where the spin-down has carried it after `frameMs` more ms, and seat it once it's slow.
+/*
+	Move the spin-down on by one frame.
+
+	`frameMs` is how long the frame took, in milliseconds, already slowed if slow-mo is on.
+
+	Moves state.spinAngle and state.spinVelocity to where the spin-down has carried the clacker, working
+	them out from the time since it started. It stops early at whichever comes first:
+	- the limit, where it seats into the limit's detent. The seat's first step carries it onto the limit,
+	  and it recoils off it there (see stepSpinSeat). What's left of the frame goes to the seat.
+	- slowing down enough to hand over to the seat, which aims at the detent nearest where it would stop.
+*/
 function stepSpinDown(frameMs) {
 	const spinDown = state.spinDown;
-	spinDown.elapsedMs = Math.min(spinDown.elapsedMs + frameMs, spinDown.handoverMs);
+	const endMs = Math.min(spinDown.handoverMs, spinDown.hitMs);
+	const leftoverMs = Math.max(0, spinDown.elapsedMs + frameMs - endMs);
+	spinDown.elapsedMs = Math.min(spinDown.elapsedMs + frameMs, endMs);
 	const direction = Math.sign(spinDown.velocity);
 	const speed = Math.abs(spinDown.velocity);
 	state.spinAngle = spinDown.start + direction * spinDownDistance(speed, spinDown.elapsedMs);
 	state.spinVelocity = direction * spinDownSpeed(speed, spinDown.elapsedMs);
-	if (spinDown.elapsedMs === spinDown.handoverMs) startSeat();
+	if (spinDown.elapsedMs === spinDown.hitMs) {
+		seatInto(spinDown.limit);
+		stepSeat(leftoverMs);
+	} else if (spinDown.elapsedMs === spinDown.handoverMs) {
+		startSeat();
+	}
 }
 
-// Seat into the detent nearest where the spin-down would stop from here, carrying on at the spin's velocity.
+// Seat into the detent nearest where the spin-down would stop from here, but not past a limit, carrying on at
+// the spin's velocity.
 function startSeat() {
 	const speed = Math.abs(state.spinVelocity);
 	const stopDistance = spinDownDistance(speed, spinDownTime(speed, 0));
 	const naturalStop = state.spinAngle + Math.sign(state.spinVelocity) * stopDistance;
+	seatInto(seatAim(naturalStop, spinRange(sequence)));
+}
+
+// Start seating into `detent`, an angle in degrees, carrying on at the spin's velocity. Ends any spin-down.
+function seatInto(detent) {
 	state.phase = 'seating';
 	state.spinDown = null;
-	state.spinDetent = nearestDetent(naturalStop);
+	state.spinDetent = detent;
 }
 
 // Turn the clacker through its spin-down and seat until it comes to rest.
@@ -652,19 +710,33 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest. Its page becomes current.
+/*
+	Move the seat on by one frame. A seat is the spring that pulls the clacker into a detent, one of the
+	angles a spin comes to rest on, once the spin has slowed.
+
+	`frameMs` is how long the frame took, in milliseconds, already slowed if slow-mo is on.
+
+	Moves state.spinAngle, the clacker's angle in degrees, and state.spinVelocity, its speed in °/ms, both
+	clockwise positive, on by the spring's pull towards state.spinDetent, the detent's angle in degrees.
+	If the clacker reaches a limit, the lowest or highest detent of a finite sequence, it turns back off it,
+	keeping part of its speed (see stepSpinSeat). state.spinDetent and the sequence aren't changed.
+
+	Once the seat is close enough to rest, it puts the clacker exactly on the detent and stops it, sets
+	state.page to the detent's page and state.phase to 'idle'. The next render tells the calling code that
+	page is now current. Returns nothing.
+*/
 function stepSeat(frameMs) {
-	const offset = state.spinAngle - state.spinDetent;
-	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
-	state.spinAngle = state.spinDetent + spring.offset;
-	state.spinVelocity = spring.velocity;
-	if (!springAtRest(spring.offset, spring.velocity)) {
-		return;
+	const seat = { angle: state.spinAngle, velocity: state.spinVelocity, detent: state.spinDetent };
+	const stepped = stepSpinSeat(seat, frameMs, spinRange(sequence));
+	if (stepped.atRest) {
+		state.page = spinShownPage(state.spinDetent, null);
+		state.spinAngle = state.spinDetent;
+		state.spinVelocity = 0;
+		state.phase = 'idle';
+	} else {
+		state.spinAngle = stepped.angle;
+		state.spinVelocity = stepped.velocity;
 	}
-	state.page = spinShownPage(state.spinDetent, null);
-	state.spinAngle = state.spinDetent;
-	state.spinVelocity = 0;
-	state.phase = 'idle';
 }
 
 // Pointer wiring

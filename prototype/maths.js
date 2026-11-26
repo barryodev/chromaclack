@@ -13,6 +13,23 @@ export function lerp(from, to, amount) {
 const SPRING_STEP_MS = 4;
 
 /*
+	Cut a frame into equal steps for a spring to move on by.
+
+	`frameMs` is how long the frame took, in milliseconds.
+
+	Returns { steps, stepMs }: how many steps, and how long each one is in milliseconds. No step is longer
+	than 4 ms, so a spring stays stable however long the frame. A frame of 0 ms gives no steps.
+*/
+export function springSteps(frameMs) {
+	const steps = Math.ceil(frameMs / SPRING_STEP_MS);
+	if (steps === 0) {
+		return { steps, stepMs: 0 };
+	} else {
+		return { steps, stepMs: frameMs / steps };
+	}
+}
+
+/*
 	Move a spring (see GLOSSARY.md) on by `frameMs`:
 
 		acceleration = −ω²·offset − 2ζ·ω·velocity
@@ -22,8 +39,7 @@ const SPRING_STEP_MS = 4;
 */
 export function stepDampedSpring(offset, velocity, frameMs, swingMs, damping) {
 	const omega = (2 * Math.PI) / swingMs;
-	const steps = Math.ceil(frameMs / SPRING_STEP_MS);
-	const stepMs = frameMs / steps;
+	const { steps, stepMs } = springSteps(frameMs);
 	for (let index = 0; index < steps; index++) {
 		const springPull = -(omega ** 2) * offset;
 		const dampingPull = 2 * damping * omega * velocity;

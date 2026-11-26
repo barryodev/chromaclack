@@ -8,6 +8,7 @@ import {
 	pageEvents,
 	restingFlapPage,
 	sequencePage,
+	spinRange,
 	spinShownPage,
 	swipeShownPage,
 	ticksToLimits,
@@ -53,6 +54,14 @@ test('a finite sequence counts the ticks back to its first page and forward to i
 
 test('a circular sequence has no limits either way', () => {
 	assert.deepEqual(ticksToLimits(3, circular), { back: Infinity, forward: Infinity });
+});
+
+test("a finite sequence's spin runs from page 0's detent to the last page's", () => {
+	assert.deepEqual(spinRange(finite), { lowest: 0, highest: 10 * SPIN_DETENT_DEGREES });
+});
+
+test('a circular sequence spins without limits either way', () => {
+	assert.deepEqual(spinRange(circular), { lowest: -Infinity, highest: Infinity });
 });
 
 test("the swipe's shown page moves on once the drawn flap reaches the end of its tick, either way", () => {

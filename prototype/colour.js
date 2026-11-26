@@ -1,7 +1,6 @@
 // The mixed colour and its components (see Colour in GLOSSARY.md). Hue is in degrees, and saturation and
 // lightness are percentages.
 
-import { clamp } from './maths.js';
 import { SPIN_DETENT_DEGREES } from './spin.js';
 
 /*
@@ -40,19 +39,16 @@ export function componentSequence(component) {
 /*
 	The value a page or detent stands for.
 
-	`page` is a page index in the component's sequence. `component` is a component (see Components above).
+	`page` is a page index in the component's sequence, from 0 to its last page. `component` is the colour
+	component the page belongs to: `range`, how far its value runs from 0, and `steps`, how many equal
+	steps that range is cut into, one per page or detent.
 
-	Returns the value, `page` steps up from 0. On a finite component it's clamped to 0 to range, because
-	until DAI-59 and DAI-60 add limits, its pages run on past both ends.
+	Returns the value, `page` steps up from 0. The swipes and the spin both stop at their limits, so a page
+	never runs past either end of the range.
 */
 export function valueAt(page, component) {
 	// Multiplied before dividing, so a value such as 25% comes out exact.
-	const value = (page * component.range) / component.steps;
-	if (component.circular) {
-		return value;
-	} else {
-		return clamp(value, 0, component.range);
-	}
+	return (page * component.range) / component.steps;
 }
 
 /*

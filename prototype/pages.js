@@ -9,8 +9,7 @@
 	- `pageCount` is how many pages it has, numbered 0 to pageCount − 1.
 	- `circular` is true if the page after the last is the first again, and false if the sequence is
 	  finite. A finite sequence's first and last pages are limits (see Limit in GLOSSARY.md), and past
-	  them there are no pages. Until DAI-60 gives the spin its limits, its shown page can still go past
-	  them.
+	  them there are no pages.
 	The clacker's sequence also holds `pageContent`, which this file doesn't use.
 */
 
@@ -82,6 +81,23 @@ export function ticksToLimits(page, sequence) {
 		return { back: Infinity, forward: Infinity };
 	} else {
 		return { back: page, forward: sequence.pageCount - 1 - page };
+	}
+}
+
+/*
+	The spin angles a spin can reach before it meets a limit (see Limit in GLOSSARY.md).
+
+	`sequence` is the pages the clacker turns through: `pageCount`, how many there are, and `circular`,
+	true if the page after the last is the first again.
+
+	Returns { lowest, highest }, in degrees of spin angle. A finite sequence runs from page 0's detent at
+	0° to the last page's detent. A circular one has no limits, so it gives −Infinity and Infinity.
+*/
+export function spinRange(sequence) {
+	if (sequence.circular) {
+		return { lowest: -Infinity, highest: Infinity };
+	} else {
+		return { lowest: 0, highest: (sequence.pageCount - 1) * SPIN_DETENT_DEGREES };
 	}
 }
 
