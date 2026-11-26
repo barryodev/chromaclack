@@ -1,7 +1,7 @@
 // Spin physics: rim speed, spin-down, detents, seat and recoil (see Spinning in GLOSSARY.md). Angles are in
 // degrees and times in milliseconds.
 
-import { SPRING_STEP_MS, clamp, springAtRest, stepDampedSpring } from './maths.js';
+import { clamp, springAtRest, springSteps, stepDampedSpring } from './maths.js';
 
 export const SPIN_DETENT_DEGREES = 90;
 // A 3.4 px/ms flick along the rim, a hard one on a phone, spins down about 3½ turns in about 2.3 s.
@@ -152,17 +152,18 @@ export function recoil(angle, velocity, range) {
 	in is changed.
 
 	Returns the seat one frame on, as { angle, velocity, detent, atRest }, after its spring has pulled for
-	`frameMs`. The detent is the same one. The spring moves on in short steps and recoils off a limit after
-	each one, so a long frame can't carry it far past the limit before it turns back. `atRest` is true once
-	it's close enough to the detent, and still enough, to snap there.
+	`frameMs`. The detent is the same one. The spring moves on in steps of 4 ms or less (see springSteps in
+	maths.js) and recoils off a limit after each one. `atRest` is true once it's close enough to the
+	detent, and still enough, to snap there.
 */
 export function stepSpinSeat(seat, frameMs, range) {
-	const steps = Math.ceil(frameMs / SPRING_STEP_MS);
+	const { steps, stepMs } = springSteps(frameMs);
 	let angle = seat.angle;
 	let velocity = seat.velocity;
+	// Recoil after every step, so a long frame can't carry the seat past the limit before it turns back.
 	for (let index = 0; index < steps; index++) {
 		const offset = angle - seat.detent;
-		const spring = stepDampedSpring(offset, velocity, frameMs / steps, SEAT_SWING_MS, SEAT_DAMPING);
+		const spring = stepDampedSpring(offset, velocity, stepMs, SEAT_SWING_MS, SEAT_DAMPING);
 		const recoiled = recoil(seat.detent + spring.offset, spring.velocity, range);
 		angle = recoiled.angle;
 		velocity = recoiled.velocity;

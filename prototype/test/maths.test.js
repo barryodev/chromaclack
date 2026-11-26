@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { clamp, lerp, springAtRest, stepDampedSpring } from '../maths.js';
+import { clamp, lerp, springAtRest, springSteps, stepDampedSpring } from '../maths.js';
 
 test('clamp keeps a value inside its range', () => {
 	assert.equal(clamp(-5, 0, 10), 0);
@@ -13,6 +13,15 @@ test('lerp gives from at 0, to at 1, and halfway at 0.5', () => {
 	assert.equal(lerp(10, 20, 0), 10);
 	assert.equal(lerp(10, 20, 1), 20);
 	assert.equal(lerp(10, 20, 0.5), 15);
+});
+
+test('a frame is cut into equal spring steps of 4 ms or less', () => {
+	assert.deepEqual(springSteps(10), { steps: 3, stepMs: 10 / 3 });
+	assert.deepEqual(springSteps(4), { steps: 1, stepMs: 4 });
+});
+
+test('a frame of 0 ms gives no spring steps', () => {
+	assert.deepEqual(springSteps(0), { steps: 0, stepMs: 0 });
 });
 
 test('a damped spring comes to rest', () => {
