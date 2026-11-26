@@ -14,4 +14,22 @@ if command -v tailscale >/dev/null 2>&1; then
 fi
 echo
 
-exec python3 -m http.server "$port" --bind 0.0.0.0 --directory "$dir"
+# Python's own http.server sends no caching headers, so browsers guess, and a phone can keep running an
+# old module for hours after an edit. This one tells them not to keep copies at all.
+exec python3 - "$port" "$dir" <<'PYTHON'
+import functools
+import http.server
+import sys
+
+
+class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+
+port = int(sys.argv[1])
+handler = functools.partial(NoCacheHandler, directory=sys.argv[2])
+print(f"Serving on port {port}, with caching off.", flush=True)
+http.server.ThreadingHTTPServer(("0.0.0.0", port), handler).serve_forever()
+PYTHON

@@ -1,5 +1,15 @@
 import { clamp, lerp, springAtRest, stepDampedSpring } from './maths.js';
-import { createPageReporter, sequencePage, spinShownPage, swipeShownPage } from './pages.js';
+import {
+	createPageReporter,
+	hasPage,
+	movingFlapIndex,
+	restingFlapPage,
+	sequencePage,
+	spinShownPage,
+	swipeShownPage,
+	ticksToLimits,
+	tierFlapIndex
+} from './pages.js';
 import {
 	BOUNCE_DAMPING,
 	BOUNCE_SWING_MS,
@@ -12,11 +22,10 @@ import {
 	MIN_FALL_POINT,
 	MIN_FALL_PULL,
 	bounceOffset,
-	easeLandingTier,
-	easeLeavingTier,
 	flapRandom,
 	loosenessAt,
-	movingTravel
+	movingTravel,
+	tierSlides
 } from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
@@ -34,16 +43,17 @@ import {
 import {
 	COAST_DEGREES_PER_PIXEL,
 	DRAG_DEGREES_PER_PIXEL,
-	MAX_TICKS_PER_SWIPE,
 	MOUSE_DRAG_DEGREES_PER_PIXEL,
 	MOUSE_FRICTION,
-	SWIPE_LANDINGS,
 	TICK_DEGREES,
 	coastMotion,
 	completedTicks,
 	drawnAngle,
+	fallLooseness,
 	hingeAngle,
+	landingsWithin,
 	planInertia,
+	swipeRange,
 	tickBounds,
 	toppleMotion
 } from './swipe.js';
@@ -122,9 +132,9 @@ const debugFields = debugPanel
 	caught at, and any other swipe at 0. It's signed so one number covers both
 	directions: positive is forward (swipe down or left), negative is backward
 	(swipe up or right). It's unwrapped, so 360 is two forward ticks, and the
-	hinge angle and completed ticks are both worked out from it. `page` only
-	changes when a swipe settles or is caught. Until then travelPage() adds the
-	ticks completed so far.
+	hinge angle and completed ticks are both worked out from it. `page` is the
+	current page. It only changes when a swipe settles or is caught, or a spin
+	seats. Until then travelPage() adds the ticks completed so far.
 */
 const state = {
 	mode: 'vertical',
@@ -152,7 +162,11 @@ let slowMo = false; // Only the ?debug panel can turn this on.
 
 // How fast motion the clacker drives itself runs: 1 normally, SLOW_MO_FACTOR in slow-mo.
 function timeScale() {
-	return slowMo ? SLOW_MO_FACTOR : 1;
+	if (slowMo) {
+		return SLOW_MO_FACTOR;
+	} else {
+		return 1;
+	}
 }
 
 /*
@@ -188,8 +202,13 @@ function startFrameLoop(onFrame) {
 	return loop;
 }
 
+// The content of the page at an unbounded page index, or null past a limit, where there's no page.
 function pageAt(index) {
-	return sequence.pageContent(sequencePage(index, sequence));
+	if (hasPage(index, sequence)) {
+		return sequence.pageContent(sequencePage(index, sequence));
+	} else {
+		return null;
+	}
 }
 
 // The page travel has reached, counting the ticks completed in the current swipe. The fan is painted from it.
@@ -199,9 +218,25 @@ function travelPage() {
 
 // See Shown page in GLOSSARY.md.
 function shownPage() {
-	// The spin face follows its detent, so its page is already the shown one (see followSpinDetent).
-	if (state.mode === 'spin') return state.page;
-	return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
+	if (state.mode === 'spin') {
+		return spinShownPage(state.spinAngle, seatDetent());
+	} else {
+		return swipeShownPage(state.page, movingTravel(state.inertia, state.travel));
+	}
+}
+
+// The page the fan is painted from. Nothing ticks on the spin tab, so there the face shows the shown page.
+function facePage() {
+	if (state.mode === 'spin') {
+		return shownPage();
+	} else {
+		return travelPage();
+	}
+}
+
+// The moving flap's hinge angle where it's drawn, which can be ahead of travel as it falls.
+function drawnHingeAngle() {
+	return movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
 }
 
 /*
@@ -217,16 +252,24 @@ function shownPage() {
 	  the moving flap, so its value never shows.
 */
 function tierTilt(tier) {
-	return tiltsForMode()[clamp(tier, 0, REST_TILTS.length - 1)];
+	return restTiltsForTab()[clamp(tier, 0, REST_TILTS.length - 1)];
 }
 
-function tiltsForMode() {
-	return state.mode === 'spin' ? FLAT_TILTS : REST_TILTS;
+function restTiltsForTab() {
+	if (state.mode === 'spin') {
+		return FLAT_TILTS;
+	} else {
+		return REST_TILTS;
+	}
 }
 
 // Pointer position along the swipe axis, oriented so forward is positive.
 function axisPosition(event) {
-	return state.mode === 'vertical' ? event.clientY : -event.clientX;
+	if (state.mode === 'vertical') {
+		return event.clientY;
+	} else {
+		return -event.clientX;
+	}
 }
 
 // Swipe
@@ -246,9 +289,9 @@ function startSwipe(event) {
 	state.velocity = 0;
 }
 
-// Keep the completed ticks, and pick the flap up where it's drawn, which can be ahead of travel as it falls.
+// Keep the completed ticks, and pick the flap up where it's drawn.
 function catchFlap() {
-	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
+	const angle = drawnHingeAngle();
 	stopInertia();
 	state.page = travelPage();
 	state.travel = angle;
@@ -256,15 +299,32 @@ function catchFlap() {
 	state.inertia = null;
 }
 
+/*
+	Move the swipe with the finger.
+
+	`event` is a pointermove from the finger that started the swipe. Sets state.travel from how far the
+	finger has moved, clamped to the swipe's range, and state.velocity from its recent speed. While the
+	drag is held at a limit, pointer.start moves along with the finger.
+*/
 function dragSwipe(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSample(move);
 	const position = axisPosition(event);
 	// A drag can tick through pages by itself, as far as inertia could land.
-	const maxTravel = MAX_TICKS_PER_SWIPE * TICK_DEGREES;
-	state.travel = clamp((position - pointer.start) * pointer.degreesPerPixel, -maxTravel, maxTravel);
+	const range = currentSwipeRange();
+	const draggedTravel = (position - pointer.start) * pointer.degreesPerPixel;
+	state.travel = clamp(draggedTravel, range.lowest, range.highest);
+	// Held at a limit, the start moves with the finger, so turning back moves the flap straight away.
+	if (state.travel !== draggedTravel) {
+		pointer.start = position - state.travel / pointer.degreesPerPixel;
+	}
 	state.velocity = windowVelocity(pointer.samples) * pointer.degreesPerPixel;
+}
+
+// The travel this swipe can reach from the current page, up to the limits (see swipeRange).
+function currentSwipeRange() {
+	return swipeRange(ticksToLimits(state.page, sequence));
 }
 
 function addSample(event) {
@@ -272,6 +332,12 @@ function addSample(event) {
 	pointer.samples = addToReleaseWindow(pointer.samples, sample);
 }
 
+/*
+	Let go of the swipe, and set the flap coasting or toppling to a landing.
+
+	`event` is the pointerup or pointercancel that ends the swipe. Works out the release speed from the
+	finger's recent samples, plans inertia to a landing inside the limits, and starts it. Clears pointer.
+*/
 function releaseSwipe(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSample(event);
@@ -280,7 +346,9 @@ function releaseSwipe(event) {
 	state.releaseSpeed = Math.abs(releaseVelocity);
 	pointer = null;
 	const normalFriction = event.pointerType === 'mouse' ? MOUSE_FRICTION : 1;
-	const plan = planInertia(state.travel, state.velocity, SWIPE_LANDINGS, normalFriction);
+	// A landing past a limit isn't offered, so a flick that would coast past one lands on it instead.
+	const landings = landingsWithin(currentSwipeRange());
+	const plan = planInertia(state.travel, state.velocity, landings, normalFriction);
 	state.phase = 'inertia';
 	state.target = plan.target;
 	state.inertia = {
@@ -364,16 +432,26 @@ function ownFlapRandom(flapIndex, salt) {
 */
 function updateFall(inertia) {
 	const [low, high] = tickBounds(state.travel);
-	if (inertia.fall?.low === low) return;
+	if (inertia.fall?.low === low) {
+		return;
+	}
 	inertia.fall = null;
 	const direction = state.target > state.travel ? 1 : -1;
 	const covered = (state.travel - (direction > 0 ? low : high)) * direction;
-	const flapIndex = hingeAngle(state.travel) >= 0 ? travelPage() : travelPage() - 1;
+	const flapIndex = movingFlapIndex(travelPage(), hingeAngle(state.travel) >= 0);
 	const fallPoint = lerp(MIN_FALL_POINT, MAX_FALL_POINT, ownFlapRandom(flapIndex, 0));
-	if (covered < fallPoint * TICK_DEGREES) return;
-	// The tick inertia was released in uses the looseness at release, since its held looseness is the drag's.
-	const releasedHere = inertia.start > low && inertia.start < high;
-	const looseness = releasedHere ? inertia.releaseLooseness : tickLooseness();
+	if (covered < fallPoint * TICK_DEGREES) {
+		return;
+	}
+	// In the tick the swipe was let go in, rendering the drag already held its looseness, so asking for it
+	// here changes nothing.
+	const looseness = fallLooseness({
+		releaseStart: inertia.start,
+		low,
+		high,
+		releaseLooseness: inertia.releaseLooseness,
+		heldLooseness: tickLooseness()
+	});
 	const pull = lerp(MIN_FALL_PULL, MAX_FALL_PULL, ownFlapRandom(flapIndex, 1)) * looseness;
 	const to = direction > 0 ? high : low;
 	const fallStartMs = inertia.elapsedMs;
@@ -396,15 +474,21 @@ let bounceLoop = null;
 // Clack once the falling flap reaches the stack, or once travel gets there first or inertia lands.
 function checkClack(inertia, landed) {
 	const fall = inertia.fall;
-	if (!fall || fall.clacked) return;
+	if (!fall || fall.clacked) {
+		return;
+	}
 	const fallMs = inertia.elapsedMs - fall.fallStartMs;
 	const travelThere = (state.travel - fall.to) * fall.direction >= 0;
-	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) return;
+	if (!landed && !travelThere && movingTravel(state.inertia, state.travel) !== fall.to) {
+		return;
+	}
 	fall.clacked = true;
 	const impactSpeed = Math.abs(state.velocity) + fall.pull * fallMs;
 	const strength = lerp(MIN_CLACK_STRENGTH, MAX_CLACK_STRENGTH, ownFlapRandom(fall.flapIndex, 2));
 	const kick = impactSpeed * fall.looseness * strength * CLACK_KICK;
-	if (kick <= 0) return;
+	if (kick <= 0) {
+		return;
+	}
 	const half = fall.direction > 0 ? 'end' : 'start';
 	bounces.push({ half, clackedIndex: fall.flapIndex, offset: 0, velocity: kick, rebound: 1, grabbed: false });
 	startBounces();
@@ -412,7 +496,9 @@ function checkClack(inertia, landed) {
 
 // One loop moves every bounce, so a clack while bounces are moving just joins it.
 function startBounces() {
-	if (bounceLoop?.running) return;
+	if (bounceLoop?.running) {
+		return;
+	}
 	bounceLoop = startFrameLoop((frameMs) => {
 		stepBounces(frameMs);
 		// Inertia renders every frame itself.
@@ -485,7 +571,6 @@ function dragSpin(event) {
 	const angle = pointerAngle(event);
 	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
 	pointer.lastAngle = angle;
-	followSpinDetent();
 }
 
 function addSpinSample(event) {
@@ -508,7 +593,6 @@ function releaseSpin(event) {
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
-	followSpinDetent();
 	startSpinMotion();
 }
 
@@ -549,16 +633,18 @@ function startSpinMotion() {
 	spinLoop = startFrameLoop((frameMs) => {
 		if (state.phase === 'spin-down') stepSpinDown(frameMs);
 		else stepSeat(frameMs);
-		followSpinDetent();
 		render();
 		return state.phase === 'spin-down' || state.phase === 'seating';
 	});
 }
 
-// The face steps from detent to detent, so the page is the shown detent's (see Shown page in GLOSSARY.md).
-function followSpinDetent() {
-	const seatDetent = state.phase === 'seating' ? state.spinDetent : null;
-	state.page = spinShownPage(state.spinAngle, seatDetent);
+// The detent the spin is seating into, or null when it isn't seating.
+function seatDetent() {
+	if (state.phase === 'seating') {
+		return state.spinDetent;
+	} else {
+		return null;
+	}
 }
 
 // Stop the spin's frame loop, leaving the clacker where it's drawn. A catch uses this to stop it dead.
@@ -566,13 +652,16 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest.
+// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest. Its page becomes current.
 function stepSeat(frameMs) {
 	const offset = state.spinAngle - state.spinDetent;
 	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
 	state.spinAngle = state.spinDetent + spring.offset;
 	state.spinVelocity = spring.velocity;
-	if (!springAtRest(spring.offset, spring.velocity)) return;
+	if (!springAtRest(spring.offset, spring.velocity)) {
+		return;
+	}
+	state.page = spinShownPage(state.spinDetent, null);
 	state.spinAngle = state.spinDetent;
 	state.spinVelocity = 0;
 	state.phase = 'idle';
@@ -582,15 +671,20 @@ function stepSeat(frameMs) {
 
 // Until the first load() there are no pages, so the clacker ignores input, just as render() draws nothing.
 function pressPointer(event) {
-	if (pointer || event.button !== 0 || !sequence) return;
+	if (pointer || event.button !== 0 || !sequence) {
+		return;
+	}
 	clacker.setPointerCapture(event.pointerId);
 	if (state.mode === 'spin') startSpin(event);
 	else startSwipe(event);
 	render();
 }
 
+// A pointer moving drags the spin or the swipe it started. Any other pointer is ignored.
 function movePointer(event) {
-	if (!pointer || event.pointerId !== pointer.id) return;
+	if (!pointer || event.pointerId !== pointer.id) {
+		return;
+	}
 	if (state.mode === 'spin') dragSpin(event);
 	else dragSwipe(event);
 	render();
@@ -598,7 +692,9 @@ function movePointer(event) {
 
 // A pointer lifting or being cancelled releases the drag, and a spin or a swipe handles its own release.
 function endPointer(event) {
-	if (!pointer || event.pointerId !== pointer.id) return;
+	if (!pointer || event.pointerId !== pointer.id) {
+		return;
+	}
 	if (state.mode === 'spin') releaseSpin(event);
 	else releaseSwipe(event);
 	render();
@@ -677,9 +773,15 @@ function pageSnapshot() {
 
 // Rendering
 
+// Paint a page's label and colour on a flap side. A side with no page, past a limit, is left blank.
 function paintSide(side, page) {
-	side.textContent = page.label;
-	side.style.setProperty('--page-colour', page.colour);
+	if (page === null) {
+		side.textContent = '';
+		side.style.removeProperty('--page-colour');
+	} else {
+		side.textContent = page.label;
+		side.style.setProperty('--page-colour', page.colour);
+	}
 }
 
 /*
@@ -710,61 +812,99 @@ function setFlap(flap, drawn, front, back) {
 	one, and a back tier being covered by the tier in front goes offstage.
 */
 function renderFlaps() {
-	const shown = travelPage();
+	const page = facePage();
 	const forward = hingeAngle(state.travel) >= 0;
 	// The fan follows the moving flap as it's drawn, so the stacks react as it falls, not as travel catches up.
-	const angle = movingTravel(state.inertia, state.travel) - completedTicks(state.travel) * TICK_DEGREES;
-	const progress = Math.abs(angle) / TICK_DEGREES;
-	const looseness = tickLooseness();
-	const leavingSlide = lerp(progress, easeLeavingTier(progress), looseness);
-	const landingSlide = lerp(progress, easeLandingTier(progress), looseness);
-	const startSlide = forward ? leavingSlide : landingSlide;
-	const endSlide = forward ? landingSlide : leavingSlide;
-	const slideTilt = (tier, towards, slide) => lerp(tierTilt(tier), tierTilt(towards), slide);
+	const angle = drawnHingeAngle();
+	const slides = tierSlides(Math.abs(angle) / TICK_DEGREES, tickLooseness(), forward);
+	const movingDrawn = placeMovingFlap(page, forward, angle);
+	placeHalf('start', page, forward, slides.start, movingDrawn);
+	placeHalf('end', page, forward, slides.end, movingDrawn);
+}
 
-	// The moving flap keeps tier 0's tilt for the whole tick.
-	const movingIndex = forward ? shown : shown - 1;
-	const movingPlain = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
-	const movingHalf = movingPlain < TICK_DEGREES / 2 ? 'start' : 'end';
-	const movingDrawn = movingPlain + bounceOffset(bounces, movingHalf, movingIndex);
+/*
+	Place the moving flap for a tick and paint its pages. It keeps tier 0's tilt for the whole tick.
+
+	`page` is the page the fan is painted from, `forward` is the tick's direction, and `angle` is the
+	moving flap's drawn hinge angle, from −180 to 180 (see drawnHingeAngle).
+
+	Returns the angle the moving flap is drawn at, in degrees, after any bounce.
+*/
+function placeMovingFlap(page, forward, angle) {
+	const flapIndex = movingFlapIndex(page, forward);
+	const plainAngle = drawnAngle(forward ? angle : TICK_DEGREES + angle, tierTilt(0));
+	const half = plainAngle < TICK_DEGREES / 2 ? 'start' : 'end';
+	const drawn = plainAngle + bounceOffset(bounces, half, flapIndex);
 	// Nothing ticks on the spin tab, so the moving flap lies level with end tier 0. Lifted, perspective draws it
 	// a fraction bigger than the flap beside it.
 	flaps.moving.element.style.setProperty('--lift', `${state.mode === 'spin' ? 0 : 1}px`);
-	setFlap(flaps.moving, movingDrawn, pageAt(movingIndex), pageAt(movingIndex + 1));
+	setFlap(flaps.moving, drawn, pageAt(flapIndex), pageAt(flapIndex + 1));
+	return drawn;
+}
 
-	// Each half from the hinge out: no flap is drawn past the one in front of it, so a bouncing flap gets
-	// pushed along instead of passed through.
+/*
+	Place one half's tiers and its offstage flap, from the hinge out, and paint their pages.
+
+	`half` is 'start' or 'end'. The start half is the top on the vertical tab and the right on the
+	horizontal tab, and a forward tick carries the moving flap from the start half to the end half.
+	`page` is the page the fan is painted from, and `forward` is the tick's direction. `slide` is how far
+	through the tick this half's tiers have moved, from 0 to 1 (see tierSlides). `movingDrawn` is the
+	angle the moving flap is drawn at.
+
+	The moving flap starts the tick as the front flap of the half it leaves, so that half's tier 0 is
+	hidden while the moving flap is drawn in its place. As the tick goes on, the half it leaves closes up,
+	with each tier moving one place towards the hinge. The half it lands in makes room, with each tier
+	moving one place away. Near a limit, the flaps past it have no page, so they're hidden and the fan
+	thins.
+*/
+function placeHalf(half, page, forward, slide, movingDrawn) {
+	// A forward tick leaves the start half, and a backward one leaves the end half.
+	const leavingHalf = forward ? 'start' : 'end';
+	const leaving = half === leavingHalf;
 	let frontmost = movingDrawn;
-	const placeStart = (flap, tilt, flapIndex) => {
-		const bounced = drawnAngle(0, tilt) + bounceOffset(bounces, 'start', flapIndex);
-		const drawn = Math.min(bounced, frontmost);
-		if (!flap.element.hidden) frontmost = drawn;
-		setFlap(flap, drawn, pageAt(flapIndex), pageAt(flapIndex));
-	};
-	flaps.start.forEach((flap, tier) => {
-		flap.element.hidden = forward && tier === 0;
-		placeStart(flap, slideTilt(tier, forward ? tier - 1 : tier + 1, startSlide), shown + tier);
+	flaps[half].forEach((flap, tier) => {
+		const movingFlapStandsIn = (leaving && tier === 0);
+		const towards = leaving ? tier - 1 : tier + 1;
+		const tilt = lerp(tierTilt(tier), tierTilt(towards), slide);
+		const flapIndex = tierFlapIndex(half, tier, page);
+		frontmost = placeRestingFlap(flap, half, tilt, flapIndex, frontmost, movingFlapStandsIn);
 	});
-	placeStart(flaps.offstage.start, tierTilt(REST_TILTS.length), shown + REST_TILTS.length);
+	const offstageTier = REST_TILTS.length;
+	const offstageIndex = tierFlapIndex(half, offstageTier, page);
+	placeRestingFlap(flaps.offstage[half], half, tierTilt(offstageTier), offstageIndex, frontmost, false);
+}
 
-	frontmost = movingDrawn;
-	const placeEnd = (flap, tilt, flapIndex) => {
-		const bounced = drawnAngle(TICK_DEGREES, tilt) + bounceOffset(bounces, 'end', flapIndex);
-		const drawn = Math.max(bounced, frontmost);
-		if (!flap.element.hidden) frontmost = drawn;
-		// An end-half flap shows the page after it, the one whose end half it is.
-		setFlap(flap, drawn, pageAt(flapIndex + 1), pageAt(flapIndex + 1));
-	};
-	flaps.end.forEach((flap, tier) => {
-		flap.element.hidden = !forward && tier === 0;
-		placeEnd(flap, slideTilt(tier, forward ? tier + 1 : tier - 1, endSlide), shown - 1 - tier);
-	});
-	placeEnd(flaps.offstage.end, tierTilt(REST_TILTS.length), shown - 1 - REST_TILTS.length);
+/*
+	Place a resting flap and paint its page on both sides, or hide it.
+
+	`flap` is the flap to place, resting in `half` ('start' or 'end') at rest tilt `tilt`, in degrees.
+	`flapIndex` is its flap index (see Flaps in pages.js). `frontmost` is the angle the flap in front of it
+	is drawn at. `movingFlapStandsIn` is true when the moving flap is drawn in this flap's place.
+
+	The flap is hidden when the moving flap stands in for it, or when it has no page because it's past a
+	limit. No flap is drawn past the one in front of it, so a bouncing flap gets pushed along instead of
+	passed through. Returns the angle the next flap out mustn't pass: this flap's, or `frontmost` again if
+	this flap is hidden.
+*/
+function placeRestingFlap(flap, half, tilt, flapIndex, frontmost, movingFlapStandsIn) {
+	const page = pageAt(restingFlapPage(half, flapIndex));
+	flap.element.hidden = (movingFlapStandsIn || page === null);
+	if (flap.element.hidden) {
+		return frontmost;
+	} else {
+		const restAngle = half === 'start' ? 0 : TICK_DEGREES;
+		const bounced = drawnAngle(restAngle, tilt) + bounceOffset(bounces, half, flapIndex);
+		const drawn = half === 'start' ? Math.min(bounced, frontmost) : Math.max(bounced, frontmost);
+		setFlap(flap, drawn, page, page);
+		return drawn;
+	}
 }
 
 // Fill the ?debug readout from state.
 function renderDebug() {
-	if (!debugPanel) return;
+	if (!debugPanel) {
+		return;
+	}
 	const shown = shownPage();
 	debugFields.mode.textContent = state.mode;
 	debugFields.phase.textContent = state.phase;
@@ -789,7 +929,9 @@ function renderDebug() {
 
 // Tell the calling code about any page events first, so content its handlers change shows in this frame.
 function render() {
-	if (!sequence) return;
+	if (!sequence) {
+		return;
+	}
 	reporter.report(pageSnapshot());
 	clacker.dataset.mode = state.mode;
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
@@ -814,8 +956,12 @@ if (debugPanel) {
 	debugPanel.hidden = false;
 	slowMoToggle.addEventListener('change', () => setSlowMo(slowMoToggle.checked));
 	document.addEventListener('keydown', (event) => {
-		if (event.key.toLowerCase() !== 's' || event.repeat) return;
-		if (event.ctrlKey || event.metaKey || event.altKey) return;
+		if (event.key.toLowerCase() !== 's' || event.repeat) {
+			return;
+		}
+		if (event.ctrlKey || event.metaKey || event.altKey) {
+			return;
+		}
 		setSlowMo(!slowMo);
 	});
 }

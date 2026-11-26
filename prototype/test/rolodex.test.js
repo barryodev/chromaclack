@@ -9,7 +9,8 @@ import {
 	easeLeavingTier,
 	flapRandom,
 	loosenessAt,
-	movingTravel
+	movingTravel,
+	tierSlides
 } from '../rolodex.js';
 
 test('looseness is 0 at or above the tight speed, and 1 at or below the loose speed', () => {
@@ -108,4 +109,22 @@ test('both tier easings start at 0 and end at 1, so the fan meets its next pose 
 	assert.equal(easeLeavingTier(1), 1);
 	assert.equal(easeLandingTier(0), 0);
 	assert.equal(easeLandingTier(1), 1);
+});
+
+test('a tight tick slides both halves evenly with its progress', () => {
+	assert.deepEqual(tierSlides(0.3, 0, true), { start: 0.3, end: 0.3 });
+	assert.deepEqual(tierSlides(0.3, 0, false), { start: 0.3, end: 0.3 });
+});
+
+test('a loose tick eases the half the moving flap leaves and the half it lands in each their own way', () => {
+	const leaving = easeLeavingTier(0.5);
+	const landing = easeLandingTier(0.5);
+	assert.deepEqual(tierSlides(0.5, 1, true), { start: leaving, end: landing });
+	assert.deepEqual(tierSlides(0.5, 1, false), { start: landing, end: leaving });
+});
+
+test('both halves finish sliding as the tick completes, however loose it is', () => {
+	assert.deepEqual(tierSlides(1, 0, true), { start: 1, end: 1 });
+	assert.deepEqual(tierSlides(1, 0.5, true), { start: 1, end: 1 });
+	assert.deepEqual(tierSlides(1, 1, true), { start: 1, end: 1 });
 });

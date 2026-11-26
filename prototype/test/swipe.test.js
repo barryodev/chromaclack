@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+	COAST_DEGREES_PER_PIXEL,
 	MAX_FRICTION_FIT,
 	MAX_TICKS_PER_SWIPE,
 	MIN_FRICTION_FIT,
@@ -11,11 +12,14 @@ import {
 	coastMotion,
 	completedTicks,
 	drawnAngle,
+	fallLooseness,
 	hingeAngle,
+	landingsWithin,
 	nearestLanding,
 	planInertia,
 	stoppingDistance,
 	stoppingTime,
+	swipeRange,
 	tickBounds,
 	toppleMotion
 } from '../swipe.js';
@@ -36,6 +40,13 @@ test('tick bounds are the lowest and highest travel of the tick in progress', ()
 	assert.deepEqual(tickBounds(-400), [-540, -360]);
 });
 
+test('a fall uses the looseness at release only in the tick the swipe was let go in', () => {
+	const loosenesses = { releaseLooseness: 0.8, heldLooseness: 0.2 };
+	assert.equal(fallLooseness({ releaseStart: 90, low: 0, high: 180, ...loosenesses }), 0.8);
+	assert.equal(fallLooseness({ releaseStart: 180, low: 180, high: 360, ...loosenesses }), 0.2);
+	assert.equal(fallLooseness({ releaseStart: 90, low: 180, high: 360, ...loosenesses }), 0.2);
+});
+
 test('a flap is drawn at its rest tilt at 0° and at 180° minus it at 180°', () => {
 	assert.equal(drawnAngle(0, 42), 42);
 	assert.equal(drawnAngle(180, 42), 138);
@@ -46,6 +57,21 @@ test('swipe landings are every whole tick either way, up to the most ticks a swi
 	assert.equal(SWIPE_LANDINGS.at(-1), MAX_TICKS_PER_SWIPE * TICK_DEGREES);
 	assert.ok(SWIPE_LANDINGS.includes(0));
 	assert.ok(SWIPE_LANDINGS.every((landing) => landing % TICK_DEGREES === 0));
+});
+
+test("a swipe's range reaches each limit", () => {
+	assert.deepEqual(swipeRange({ back: 2, forward: 5 }), { lowest: -360, highest: 900 });
+	assert.deepEqual(swipeRange({ back: 0, forward: 10 }), { lowest: 0, highest: 1800 });
+});
+
+test("a swipe's range stops at the most ticks a swipe can make, however far the limits are", () => {
+	const most = MAX_TICKS_PER_SWIPE * 180;
+	assert.deepEqual(swipeRange({ back: Infinity, forward: Infinity }), { lowest: -most, highest: most });
+	assert.deepEqual(swipeRange({ back: 3, forward: 100 }), { lowest: -540, highest: most });
+});
+
+test('the landings within a range are its whole ticks, both ends included', () => {
+	assert.deepEqual(landingsWithin({ lowest: -360, highest: 180 }), [-360, -180, 0, 180]);
 });
 
 test('the nearest landing is the closest one to the position', () => {
@@ -90,6 +116,19 @@ test('a coast lands on its target at the end of its duration, without jumping th
 test('a swipe released with no speed finishes its tick past 90°, and snaps back short of it', () => {
 	assert.equal(planInertia(100, 0, SWIPE_LANDINGS, 1).target, 180);
 	assert.equal(planInertia(60, 0, SWIPE_LANDINGS, 1).target, 0);
+});
+
+test('a hard flick towards a limit two ticks away coasts to the limit', () => {
+	const hardFlick = 3.4 * COAST_DEGREES_PER_PIXEL;
+	const plan = planInertia(0, hardFlick, [-180, 0, 180, 360], 1);
+	assert.equal(plan.target, 360);
+	assert.equal(plan.coasts, true);
+});
+
+test('a flick against a limit the flap is already on stays on it', () => {
+	const hardFlick = 3.4 * COAST_DEGREES_PER_PIXEL;
+	const plan = planInertia(0, hardFlick, [-360, -180, 0], 1);
+	assert.equal(plan.target, 0);
 });
 
 test('a flap moving away from its landing topples back to it', () => {

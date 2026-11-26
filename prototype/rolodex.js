@@ -1,6 +1,6 @@
 // Rolodex motion: looseness, falls, clacks and bounces (see Rolodex motion in GLOSSARY.md).
 
-import { clamp } from './maths.js';
+import { clamp, lerp } from './maths.js';
 import { tickBounds } from './swipe.js';
 
 // Looseness runs from 0, where a fast swipe ticks evenly, to 1, where the rolodex wobbles are at full
@@ -37,13 +37,32 @@ export function flapRandom(flapIndex, salt) {
 	return wave - Math.floor(wave);
 }
 
-// Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it started falling.
+/*
+	Where the moving flap is drawn during a swipe's inertia.
+
+	`inertia` is the inertia in progress, or null if there's none. Once the flap passes its fall point, its
+	`fall` says when the flap started falling, how hard gravity pulls it, and which end of the tick it falls
+	to (see updateFall in clacker.js). `travel` is how far the swipe has turned flaps over the hinge since it
+	started, counted across ticks: 180° to a tick, counting up going forward and down going back.
+
+	Returns a travel in the same degrees. Until the flap falls, it's `travel` itself. Once the flap falls,
+	it's drawn ahead of `travel` by how far gravity has pulled it, but never past the end of the tick, where
+	it lies on the stack until travel catches up. A fall left over from an earlier tick is ignored. Nothing
+	passed in is changed.
+*/
 export function movingTravel(inertia, travel) {
 	const fall = inertia?.fall;
-	if (!fall || fall.low !== tickBounds(travel)[0]) return travel;
-	const fallMs = inertia.elapsedMs - fall.fallStartMs;
-	const fallen = travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
-	return fall.direction > 0 ? Math.min(fallen, fall.to) : Math.max(fallen, fall.to);
+	if (!fall || fall.low !== tickBounds(travel)[0]) {
+		return travel;
+	} else {
+		const fallMs = inertia.elapsedMs - fall.fallStartMs;
+		const fallen = travel + (fall.direction * fall.pull * fallMs ** 2) / 2;
+		if (fall.direction > 0) {
+			return Math.min(fallen, fall.to);
+		} else {
+			return Math.max(fallen, fall.to);
+		}
+	}
 }
 
 // How far `bounces` move a flap in `half` off its drawn angle, in degrees.
@@ -70,4 +89,25 @@ export function easeLeavingTier(progress) {
 // Smoothstep. Tiers in the half the moving flap lands in give way as it arrives.
 export function easeLandingTier(progress) {
 	return progress * progress * (3 - 2 * progress);
+}
+
+/*
+	How far each half's tiers have slid towards their pose for the next page, during a tick.
+
+	`progress` is how far through its tick the moving flap is drawn, from 0 to 1. `looseness` is the
+	tick's looseness, from 0 to 1 (see loosenessAt). `forward` is true for a forward tick, where the moving
+	flap leaves the start half, and false for a backward one, where it leaves the end half.
+
+	Returns { start, end }, each from 0 at the start of the tick to 1 at its end. A tight tick slides both
+	halves evenly with progress. A loose one eases the half the moving flap leaves with easeLeavingTier and
+	the half it lands in with easeLandingTier.
+*/
+export function tierSlides(progress, looseness, forward) {
+	const leaving = lerp(progress, easeLeavingTier(progress), looseness);
+	const landing = lerp(progress, easeLandingTier(progress), looseness);
+	if (forward) {
+		return { start: leaving, end: landing };
+	} else {
+		return { start: landing, end: leaving };
+	}
 }

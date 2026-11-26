@@ -33,7 +33,30 @@ export function hingeAngle(travel) {
 // The lowest and highest travel of the tick in progress.
 export function tickBounds(travel) {
 	const base = completedTicks(travel) * TICK_DEGREES;
-	return hingeAngle(travel) >= 0 ? [base, base + TICK_DEGREES] : [base - TICK_DEGREES, base];
+	if (hingeAngle(travel) >= 0) {
+		return [base, base + TICK_DEGREES];
+	} else {
+		return [base - TICK_DEGREES, base];
+	}
+}
+
+/*
+	The looseness a fall uses.
+
+	`releaseStart` is the travel the swipe was let go at. `low` and `high` are the ends of the tick the flap is
+	falling in (see tickBounds). `releaseLooseness` is the looseness at release, and `heldLooseness` is the
+	looseness held for this tick.
+
+	Returns the looseness at release if the swipe was let go inside this tick, because the looseness held for
+	that tick is the drag's. Otherwise it returns the held looseness. A swipe let go exactly on the end of a
+	tick, as it is when held at a limit, hasn't started that tick yet.
+*/
+export function fallLooseness({ releaseStart, low, high, releaseLooseness, heldLooseness }) {
+	if (releaseStart > low && releaseStart < high) {
+		return releaseLooseness;
+	} else {
+		return heldLooseness;
+	}
 }
 
 /*
@@ -52,6 +75,33 @@ export const SWIPE_LANDINGS = Array.from(
 	{ length: 2 * MAX_TICKS_PER_SWIPE + 1 },
 	(_, index) => (index - MAX_TICKS_PER_SWIPE) * TICK_DEGREES
 );
+
+/*
+	The travel a swipe can reach.
+
+	`ticks` is { back, forward }, the whole ticks to each limit, which can be Infinity (ticksToLimits in
+	pages.js gives it).
+
+	Returns { lowest, highest }, in degrees of travel. Each way it's the ticks to the limit, but no more than
+	MAX_TICKS_PER_SWIPE.
+*/
+export function swipeRange(ticks) {
+	const back = Math.min(ticks.back, MAX_TICKS_PER_SWIPE);
+	const forward = Math.min(ticks.forward, MAX_TICKS_PER_SWIPE);
+	// Taken from 0, so no ticks back gives 0 rather than −0.
+	return { lowest: 0 - back * TICK_DEGREES, highest: forward * TICK_DEGREES };
+}
+
+/*
+	The landings a swipe can settle on inside its range.
+
+	`range` is { lowest, highest }, in degrees of travel (see swipeRange).
+
+	Returns a new list of the SWIPE_LANDINGS from lowest to highest, both included.
+*/
+export function landingsWithin(range) {
+	return SWIPE_LANDINGS.filter((landing) => landing >= range.lowest && landing <= range.highest);
+}
 
 /*
 	Inertia is a coast if friction can carry the flap to its landing, and a
@@ -168,6 +218,10 @@ export function toppleMotion(inertia, to, ms) {
 	const pull = Math.sign(to - inertia.start) * TOPPLE_ACCELERATION;
 	const time = Math.min(ms, inertia.durationMs);
 	const velocity = inertia.velocity + pull * time;
-	if (ms >= inertia.durationMs) return { travel: to, velocity, landed: true };
-	return { travel: inertia.start + inertia.velocity * time + (pull * time ** 2) / 2, velocity, landed: false };
+	if (ms >= inertia.durationMs) {
+		return { travel: to, velocity, landed: true };
+	} else {
+		const travel = inertia.start + inertia.velocity * time + (pull * time ** 2) / 2;
+		return { travel, velocity, landed: false };
+	}
 }
