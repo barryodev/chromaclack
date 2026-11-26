@@ -1,6 +1,8 @@
 // Spin physics: rim speed, spin-down and detents (see Spinning in GLOSSARY.md). Angles are in degrees and
 // times in milliseconds.
 
+import { clamp } from './maths.js';
+
 export const SPIN_DETENT_DEGREES = 90;
 // A 3.4 px/ms flick along the rim, a hard one on a phone, spins down about 3½ turns in about 2.3 s.
 const SPIN_SPEED_FRICTION = 0.001; // Per ms. Slows the spin-down in proportion to its speed.
@@ -83,4 +85,37 @@ export function shortestTurn(from, to) {
 	if (turn > 180) turn -= 360;
 	if (turn < -180) turn += 360;
 	return turn;
+}
+
+/*
+	The detent a seat pulls towards.
+
+	`naturalStop` is the spin angle, in degrees, where the spin-down would stop from here. `range` is
+	{ lowest, highest }, the spin angles the spin can reach (spinRange in pages.js gives it).
+
+	Returns the detent nearest `naturalStop`, but never one past a limit. A natural stop past a limit gives
+	that limit's detent.
+*/
+export function seatAim(naturalStop, range) {
+	return clamp(nearestDetent(naturalStop), range.lowest, range.highest);
+}
+
+/*
+	The spin's velocity once the finger lets go.
+
+	`angle` is the spin angle, in degrees, at release. `velocity` is the spin release speed in °/ms,
+	clockwise positive. `range` is { lowest, highest }, the spin angles the spin can reach (spinRange in
+	pages.js gives it).
+
+	Returns 0 if the drag was held at a limit and the finger was still heading past it, because the finger
+	was holding the clacker there. Otherwise it returns `velocity` unchanged.
+*/
+export function heldReleaseVelocity(angle, velocity, range) {
+	const heldAtLowest = (angle === range.lowest && velocity < 0);
+	const heldAtHighest = (angle === range.highest && velocity > 0);
+	if (heldAtLowest || heldAtHighest) {
+		return 0;
+	} else {
+		return velocity;
+	}
 }

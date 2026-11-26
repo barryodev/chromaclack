@@ -34,8 +34,9 @@ import {
 	SEAT_SPEED,
 	SEAT_SWING_MS,
 	SPIN_DETENT_DEGREES,
-	nearestDetent,
+	heldReleaseVelocity,
 	rimSpeed,
+	seatAim,
 	shortestTurn,
 	spinDownDistance,
 	spinDownSpeed,
@@ -592,14 +593,16 @@ function addSpinSample(event) {
 	The spin keeps the pointer's speed along the rim, turned into a spin at the
 	rim radius, so a flick near the centre doesn't spin wildly. A fast release
 	spins down and a slow one seats straight away. A cancel does the same, so
-	the clacker never stops between detents.
+	the clacker never stops between detents. A finger held at a limit and
+	still heading past it lets go with no speed, so it just seats.
 */
 function releaseSpin(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
 	if (event.type === 'pointerup') addSpinSample(event);
 	const releaseRimSpeed = rimSpeed(pointer.samples, pointer.centre);
 	state.releaseSpeed = Math.abs(releaseRimSpeed);
-	state.spinVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
+	const releaseVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
+	state.spinVelocity = heldReleaseVelocity(state.spinAngle, releaseVelocity, spinRange(sequence));
 	pointer = null;
 	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
 	else startSeat();
@@ -628,14 +631,15 @@ function stepSpinDown(frameMs) {
 	if (spinDown.elapsedMs === spinDown.handoverMs) startSeat();
 }
 
-// Seat into the detent nearest where the spin-down would stop from here, carrying on at the spin's velocity.
+// Seat into the detent nearest where the spin-down would stop from here, but not past a limit, carrying on at
+// the spin's velocity.
 function startSeat() {
 	const speed = Math.abs(state.spinVelocity);
 	const stopDistance = spinDownDistance(speed, spinDownTime(speed, 0));
 	const naturalStop = state.spinAngle + Math.sign(state.spinVelocity) * stopDistance;
 	state.phase = 'seating';
 	state.spinDown = null;
-	state.spinDetent = nearestDetent(naturalStop);
+	state.spinDetent = seatAim(naturalStop, spinRange(sequence));
 }
 
 // Turn the clacker through its spin-down and seat until it comes to rest.

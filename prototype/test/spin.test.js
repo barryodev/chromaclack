@@ -3,9 +3,11 @@ import { test } from 'node:test';
 
 import {
 	SPIN_DETENT_DEGREES,
+	heldReleaseVelocity,
 	nearestDetent,
 	rimDistance,
 	rimSpeed,
+	seatAim,
 	shortestTurn,
 	spinDownDistance,
 	spinDownSpeed,
@@ -67,4 +69,28 @@ test('the shortest turn crosses the ±180° line instead of going the long way r
 	assert.equal(shortestTurn(10, 30), 20);
 	assert.equal(shortestTurn(170, -170), 20);
 	assert.equal(shortestTurn(-170, 170), -20);
+});
+
+// Spin angles from page 0's detent to page 12's, like the lightness tab.
+const range = { lowest: 0, highest: 12 * SPIN_DETENT_DEGREES };
+
+test('a seat inside the range aims at the detent nearest the natural stop', () => {
+	assert.equal(seatAim(4.4 * SPIN_DETENT_DEGREES, range), 4 * SPIN_DETENT_DEGREES);
+	assert.equal(seatAim(4.6 * SPIN_DETENT_DEGREES, range), 5 * SPIN_DETENT_DEGREES);
+});
+
+test('a natural stop past a limit seats into that limit', () => {
+	assert.equal(seatAim(15 * SPIN_DETENT_DEGREES, range), 12 * SPIN_DETENT_DEGREES);
+	assert.equal(seatAim(-3 * SPIN_DETENT_DEGREES, range), 0);
+});
+
+test('a release held at a limit, still heading past it, keeps no speed', () => {
+	assert.equal(heldReleaseVelocity(range.highest, 0.8, range), 0);
+	assert.equal(heldReleaseVelocity(range.lowest, -0.8, range), 0);
+});
+
+test('a release heading back inside from a limit, or anywhere off one, keeps its speed', () => {
+	assert.equal(heldReleaseVelocity(range.highest, -0.8, range), -0.8);
+	assert.equal(heldReleaseVelocity(range.lowest, 0.8, range), 0.8);
+	assert.equal(heldReleaseVelocity(5 * SPIN_DETENT_DEGREES, 0.8, range), 0.8);
 });
