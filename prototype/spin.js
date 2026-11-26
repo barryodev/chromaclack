@@ -11,7 +11,7 @@ export const SEAT_SPEED = 0.15; // °/ms. Below this the spin-down hands over to
 // A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
 export const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped it.
 export const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
-// A limit is a hard wall. Turning back off it, the clacker keeps this much of its speed.
+// A limit is a hard wall. The fraction of its speed the clacker keeps when it recoils off one.
 export const RECOIL_SPEED_KEPT = 0.3;
 
 /*
@@ -128,8 +128,9 @@ export function heldReleaseVelocity(angle, velocity, range) {
 	`angle` is the spin angle in degrees, and `velocity` the spin's velocity in °/ms, clockwise positive.
 	`range` is { lowest, highest }, the spin angles the spin can reach (spinRange in pages.js gives it).
 
-	Returns { angle, velocity }. Past a limit, the angle is put on that limit, and the velocity heads back
-	inside, keeping RECOIL_SPEED_KEPT of its speed. Anywhere else, both come back unchanged.
+	Returns { angle, velocity }. Past a limit, the angle is put back on that limit, and the velocity turns
+	round to head back inside. It's also slowed: the new speed is the speed it hit the limit at, times
+	RECOIL_SPEED_KEPT. Anywhere else, both come back unchanged.
 */
 export function recoil(angle, velocity, range) {
 	const keptSpeed = RECOIL_SPEED_KEPT * Math.abs(velocity);
