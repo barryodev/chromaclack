@@ -1,7 +1,7 @@
-// Spin physics: rim speed, spin-down and detents (see Spinning in GLOSSARY.md). Angles are in degrees and
-// times in milliseconds.
+// Spin physics: rim speed, spin-down, detents, seat and recoil (see Spinning in GLOSSARY.md). Angles are in
+// degrees and times in milliseconds.
 
-import { clamp } from './maths.js';
+import { SPRING_STEP_MS, clamp, springAtRest, stepDampedSpring } from './maths.js';
 
 export const SPIN_DETENT_DEGREES = 90;
 // A 3.4 px/ms flick along the rim, a hard one on a phone, spins down about 3½ turns in about 2.3 s.
@@ -11,6 +11,8 @@ export const SEAT_SPEED = 0.15; // °/ms. Below this the spin-down hands over to
 // A seat pulls the clacker into its detent on a damped spring, so it overshoots a little and bounces back.
 export const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped it.
 export const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
+// A limit is a hard wall. Turning back off it, the clacker keeps this much of its speed.
+export const RECOIL_SPEED_KEPT = 0.3;
 
 /*
 	The pointer's speed along the rim in px/ms, clockwise positive, across the
@@ -118,4 +120,51 @@ export function heldReleaseVelocity(angle, velocity, range) {
 	} else {
 		return velocity;
 	}
+}
+
+/*
+	Turn the clacker back off a limit it has gone past (see Recoil in GLOSSARY.md).
+
+	`angle` is the spin angle in degrees, and `velocity` the spin's velocity in °/ms, clockwise positive.
+	`range` is { lowest, highest }, the spin angles the spin can reach (spinRange in pages.js gives it).
+
+	Returns { angle, velocity }. Past a limit, the angle is put on that limit, and the velocity heads back
+	inside, keeping RECOIL_SPEED_KEPT of its speed. Anywhere else, both come back unchanged.
+*/
+export function recoil(angle, velocity, range) {
+	const keptSpeed = RECOIL_SPEED_KEPT * Math.abs(velocity);
+	if (angle > range.highest) {
+		return { angle: range.highest, velocity: -keptSpeed };
+	} else if (angle < range.lowest) {
+		return { angle: range.lowest, velocity: keptSpeed };
+	} else {
+		return { angle, velocity };
+	}
+}
+
+/*
+	Move a seat on by one frame.
+
+	`seat` is { angle, velocity, detent }: the spin angle in degrees, the spin's velocity in °/ms, clockwise
+	positive, and the detent the seat pulls towards. `frameMs` is how long the frame took. `range` is
+	{ lowest, highest }, the spin angles the spin can reach (spinRange in pages.js gives it). Nothing passed
+	in is changed.
+
+	Returns { angle, velocity, atRest }, after the seat's spring has pulled for `frameMs`. The spring moves
+	on in short steps and recoils off a limit after each one, so a long frame can't carry it far past the
+	limit before it turns back. `atRest` is true once it's close enough to the detent, and still enough, to
+	snap there.
+*/
+export function stepSpinSeat(seat, frameMs, range) {
+	const steps = Math.ceil(frameMs / SPRING_STEP_MS);
+	let angle = seat.angle;
+	let velocity = seat.velocity;
+	for (let index = 0; index < steps; index++) {
+		const offset = angle - seat.detent;
+		const spring = stepDampedSpring(offset, velocity, frameMs / steps, SEAT_SWING_MS, SEAT_DAMPING);
+		const recoiled = recoil(seat.detent + spring.offset, spring.velocity, range);
+		angle = recoiled.angle;
+		velocity = recoiled.velocity;
+	}
+	return { angle, velocity, atRest: springAtRest(angle - seat.detent, velocity) };
 }

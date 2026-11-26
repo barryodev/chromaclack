@@ -3,6 +3,7 @@ import { test } from 'node:test';
 
 import {
 	SPIN_DETENT_DEGREES,
+	recoil,
 	heldReleaseVelocity,
 	nearestDetent,
 	rimDistance,
@@ -11,7 +12,8 @@ import {
 	shortestTurn,
 	spinDownDistance,
 	spinDownSpeed,
-	spinDownTime
+	spinDownTime,
+	stepSpinSeat
 } from '../spin.js';
 
 const centre = { x: 0, y: 0 };
@@ -93,4 +95,29 @@ test('a release heading back inside from a limit, or anywhere off one, keeps its
 	assert.equal(heldReleaseVelocity(range.highest, -0.8, range), -0.8);
 	assert.equal(heldReleaseVelocity(range.lowest, 0.8, range), 0.8);
 	assert.equal(heldReleaseVelocity(5 * SPIN_DETENT_DEGREES, 0.8, range), 0.8);
+});
+
+test('a recoil puts an angle past a limit back on it, heading back inside', () => {
+	const pastHighest = recoil(range.highest + 3, 0.5, range);
+	assert.equal(pastHighest.angle, range.highest);
+	assert.ok(pastHighest.velocity < 0);
+	const pastLowest = recoil(range.lowest - 3, -0.5, range);
+	assert.equal(pastLowest.angle, range.lowest);
+	assert.ok(pastLowest.velocity > 0);
+});
+
+test('inside the range, or on a limit, a recoil changes nothing', () => {
+	const inside = 5 * SPIN_DETENT_DEGREES;
+	assert.deepEqual(recoil(inside, 0.5, range), { angle: inside, velocity: 0.5 });
+	assert.deepEqual(recoil(range.highest, 0.5, range), { angle: range.highest, velocity: 0.5 });
+});
+
+test('a seat into a limit, heading for it, comes to rest there and never passes it', () => {
+	let seat = { angle: range.highest - 20, velocity: 0.5, detent: range.highest };
+	// Two seconds of 16 ms frames is far longer than any seat takes.
+	for (let frame = 0; frame < 125 && !seat.atRest; frame++) {
+		seat = { ...stepSpinSeat(seat, 16, range), detent: range.highest };
+		assert.ok(seat.angle <= range.highest, `frame ${frame} passed the limit, at ${seat.angle}°`);
+	}
+	assert.equal(seat.atRest, true);
 });

@@ -10,7 +10,8 @@ export function lerp(from, to, amount) {
 	return from + (to - from) * amount;
 }
 
-const SPRING_STEP_MS = 4;
+// A spring moves on in steps no longer than this, so it stays stable however long a frame takes.
+export const SPRING_STEP_MS = 4;
 
 /*
 	Move a spring (see GLOSSARY.md) on by `frameMs`:

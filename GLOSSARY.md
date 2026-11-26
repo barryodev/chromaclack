@@ -42,7 +42,7 @@ Use top/bottom/left/right when the axis is known, and start/end when code must w
 
 **Next / previous page**: the neighbours of the current page in the sequence. A **forward** tick shows the next page, and a **backward** tick shows the previous one.
 
-**Limit**: the first page or the last page of a finite sequence, past which there are no more pages. On the spin tab, the lowest and highest detents are limits too. The word names where the value runs out, not the motion there. It isn't called an "end", because that's a half, or a "stop", because that's the natural stop.
+**Limit**: the first page or the last page of a finite sequence, past which there are no more pages. On the spin tab, the lowest and highest detents are limits too, and the clacker recoils off them. The word names where the value runs out, not the motion there. It isn't called an "end", because that's a half, or a "stop", because that's the natural stop.
 
 **Board**: the fixed piece a limit's outer half page is printed on, like the stand at the back of a desk flip calendar. At the last page, its start half is on the board, and at the first page, its end half. The board is never lifted, so at a limit there's no flap left to tick over. Near a limit it slides with the tiers, like any tier. Near a limit the fan thins on that side, because there are no pages past the limit to fill its tiers. It isn't called a "stand", because that looks like "stack" and "start", or a "backboard", because "back" is already a flap side.
 
@@ -152,7 +152,9 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 
 **Detent**: an angle a spin comes to rest on, like the clicks on a dimmer. Each detent is a page: 0° is page 0, each detent clockwise is the next page, and each one anticlockwise is the page before.
 
-**Seat**: at the end of a spin-down, or after a slow release, a spring pulls the clacker into the detent nearest where the spin-down would have stopped. It overshoots a little and bounces back before coming to rest. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
+**Seat**: at the end of a spin-down, or after a slow release, a spring pulls the clacker into the detent nearest where the spin-down would have stopped, but never one past a limit. It overshoots a little and swings back before coming to rest. Seating into a limit's detent, it can't overshoot, so it recoils off the limit instead. It isn't called a "click", because that looks too much like clack, or a "settle", because that's a swipe phase.
+
+**Recoil**: the clacker turning back off a limit, like a dimmer knob flicked hard against the end of its turn. A limit is a hard wall. Whenever the spin-down or the seat reaches it, the clacker turns back, keeping only part of its speed, and the seat pulls it onto the limit's detent. So a hard flick recoils once, then taps against the limit a few times, each smaller, as it comes to rest. A drag held against a limit doesn't recoil, because the finger is holding it there. It isn't called a "bounce", because that's what a clack sets off.
 
 ## Colour
 

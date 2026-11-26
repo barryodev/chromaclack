@@ -30,9 +30,7 @@ import {
 } from './rolodex.js';
 import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
-	SEAT_DAMPING,
 	SEAT_SPEED,
-	SEAT_SWING_MS,
 	SPIN_DETENT_DEGREES,
 	heldReleaseVelocity,
 	rimSpeed,
@@ -40,7 +38,8 @@ import {
 	shortestTurn,
 	spinDownDistance,
 	spinDownSpeed,
-	spinDownTime
+	spinDownTime,
+	stepSpinSeat
 } from './spin.js';
 import {
 	COAST_DEGREES_PER_PIXEL,
@@ -666,19 +665,20 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-// Move the seat's spring on by `frameMs`, and land on the detent once it's at rest. Its page becomes current.
+// Move the seat on by `frameMs`, recoiling off a limit, and land on the detent once it's at rest. Its page
+// becomes current.
 function stepSeat(frameMs) {
-	const offset = state.spinAngle - state.spinDetent;
-	const spring = stepDampedSpring(offset, state.spinVelocity, frameMs, SEAT_SWING_MS, SEAT_DAMPING);
-	state.spinAngle = state.spinDetent + spring.offset;
-	state.spinVelocity = spring.velocity;
-	if (!springAtRest(spring.offset, spring.velocity)) {
-		return;
+	const seat = { angle: state.spinAngle, velocity: state.spinVelocity, detent: state.spinDetent };
+	const stepped = stepSpinSeat(seat, frameMs, spinRange(sequence));
+	if (stepped.atRest) {
+		state.page = spinShownPage(state.spinDetent, null);
+		state.spinAngle = state.spinDetent;
+		state.spinVelocity = 0;
+		state.phase = 'idle';
+	} else {
+		state.spinAngle = stepped.angle;
+		state.spinVelocity = stepped.velocity;
 	}
-	state.page = spinShownPage(state.spinDetent, null);
-	state.spinAngle = state.spinDetent;
-	state.spinVelocity = 0;
-	state.phase = 'idle';
 }
 
 // Pointer wiring
