@@ -19,7 +19,8 @@
 
 	A flap index is a whole number, unbounded like a page index. Flap i sits between page i and page
 	i + 1: its front carries page i's start half, and its back carries page i + 1's end half. A half is
-	'start' or 'end'.
+	'start', the top on the vertical tab and the right on the horizontal tab, or 'end', the other side. A
+	forward tick carries the moving flap from the start half to the end half.
 */
 
 import { SPIN_DETENT_DEGREES, nearestDetent } from './spin.js';
@@ -140,9 +141,10 @@ export function movingFlapIndex(page, forward) {
 /*
 	The flap resting at a tier in one half of the fan, when the fan is painted from a page.
 
-	`half` is 'start' or 'end'. `tier` is the tier number, from 0 next to the hinge outwards. One past the
-	back tier is the offstage flap's place. `page` is the unbounded index of the page the fan is painted
-	from.
+	`half` is the half of the fan the flap rests in: 'start', the top on the vertical tab and the right on
+	the horizontal tab, or 'end', the other side. A forward tick carries the moving flap from the start half
+	to the end half. `tier` is the tier number, from 0 next to the hinge outwards. One past the back tier is
+	the offstage flap's place. `page` is the unbounded index of the page the fan is painted from.
 
 	Returns a flap index (see Flaps above): `page` + `tier` in the start half, and `page` − 1 − `tier` in
 	the end half.
@@ -158,8 +160,9 @@ export function tierFlapIndex(half, tier, page) {
 /*
 	The page a resting flap shows. A resting flap shows the same page on both of its sides.
 
-	`half` is the half the flap rests in, 'start' or 'end'. `flapIndex` is its flap index (see Flaps
-	above).
+	`half` is the half of the fan the flap rests in: 'start', the top on the vertical tab and the right on
+	the horizontal tab, or 'end', the other side. A forward tick carries the moving flap from the start half
+	to the end half. `flapIndex` is its flap index (see Flaps above).
 
 	Returns the unbounded index of the page whose half faces the user: the page on the flap's front in the
 	start half, and the page on its back in the end half.
