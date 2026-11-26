@@ -33,13 +33,6 @@ test('a lightness detent that lands on a whole percentage gives it exactly', () 
 	assert.equal(valueAt(6, lightness), 50);
 });
 
-test('a page past either end of saturation or lightness gives the value at that end', () => {
-	assert.equal(valueAt(13, saturation), 100);
-	assert.equal(valueAt(-2, saturation), 0);
-	assert.equal(valueAt(14, lightness), 100);
-	assert.equal(valueAt(-1, lightness), 0);
-});
-
 test('a tab opens on the page for its value', () => {
 	assert.equal(openingPage(210, hue), 14);
 	assert.equal(openingPage(70, saturation), 7);

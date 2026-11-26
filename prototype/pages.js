@@ -9,8 +9,7 @@
 	- `pageCount` is how many pages it has, numbered 0 to pageCount − 1.
 	- `circular` is true if the page after the last is the first again, and false if the sequence is
 	  finite. A finite sequence's first and last pages are limits (see Limit in GLOSSARY.md), and past
-	  them there are no pages. Until DAI-60 gives the spin its limits, its shown page can still go past
-	  them.
+	  them there are no pages.
 	The clacker's sequence also holds `pageContent`, which this file doesn't use.
 */
 
