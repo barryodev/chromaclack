@@ -75,6 +75,9 @@ export function spinDownTime(fromSpeed, toSpeed) {
 	return Math.log((fromSpeed + SPIN_BALANCE_SPEED) / (toSpeed + SPIN_BALANCE_SPEED)) / SPIN_SPEED_FRICTION;
 }
 
+// A millionth of a millisecond, far finer than any frame.
+const HIT_PRECISION_MS = 1e-6;
+
 /*
 	When a spin-down reaches a limit.
 
@@ -83,8 +86,9 @@ export function spinDownTime(fromSpeed, toSpeed) {
 
 	Returns the time in ms from the start of the spin-down until it has turned `distance`, or Infinity if
 	it stops first. There's no exact formula for it, because the distance mixes an exponential with a
-	straight line, so it's narrowed down by halving: 60 halvings are far finer than a millisecond. It
-	gives the time just short of the limit, never past it.
+	straight line. So it starts from a window running from the start to the stop, and splits the window in
+	two until it's narrower than HIT_PRECISION_MS, keeping the side the limit is in. It gives the time
+	just short of the limit, never past it.
 */
 export function spinDownTimeTo(speed, distance) {
 	const stopMs = spinDownTime(speed, 0);
@@ -93,7 +97,7 @@ export function spinDownTimeTo(speed, distance) {
 	} else {
 		let shortMs = 0;
 		let pastMs = stopMs;
-		for (let halving = 0; halving < 60; halving++) {
+		while (pastMs - shortMs > HIT_PRECISION_MS) {
 			const middleMs = (shortMs + pastMs) / 2;
 			if (spinDownDistance(speed, middleMs) < distance) {
 				shortMs = middleMs;
