@@ -590,11 +590,16 @@ function addSpinSample(event) {
 }
 
 /*
-	The spin keeps the pointer's speed along the rim, turned into a spin at the
-	rim radius, so a flick near the centre doesn't spin wildly. A fast release
-	spins down and a slow one seats straight away. A cancel does the same, so
-	the clacker never stops between detents. A finger held at a limit and
-	still heading past it lets go with no speed, so it just seats.
+	Let go of the spin, and start the clacker turning on by itself.
+
+	`event` is the pointerup or pointercancel from the finger that started the spin. A cancel is handled
+	like a lift, so the clacker never stops between detents.
+
+	Sets state.spinVelocity, in °/ms clockwise positive, from the finger's speed along the rim, turned into
+	a spin at the rim radius, so a flick near the centre doesn't spin wildly. A finger held at a limit, the
+	lowest or highest detent of a finite sequence, and still heading past it lets go with no speed. Sets
+	state.releaseSpeed to the rim speed for the debug readout, and lets go of the pointer. Then a fast
+	release spins down and a slow one seats straight away. state.spinAngle isn't changed.
 */
 function releaseSpin(event) {
 	// The lift's own sample shows if the finger stopped before lifting. A cancel's position isn't reliable.
@@ -604,8 +609,11 @@ function releaseSpin(event) {
 	const releaseVelocity = ((releaseRimSpeed / pointer.rimRadius) * 180) / Math.PI;
 	state.spinVelocity = heldReleaseVelocity(state.spinAngle, releaseVelocity, spinRange(sequence));
 	pointer = null;
-	if (Math.abs(state.spinVelocity) > SEAT_SPEED) startSpinDown();
-	else startSeat();
+	if (Math.abs(state.spinVelocity) > SEAT_SPEED) {
+		startSpinDown();
+	} else {
+		startSeat();
+	}
 	startSpinMotion();
 }
 
