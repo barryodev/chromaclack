@@ -86,6 +86,23 @@ export function ticksToLimits(page, sequence) {
 }
 
 /*
+	The spin angles a spin can reach before it meets a limit (see Limit in GLOSSARY.md).
+
+	`sequence` is the pages the clacker turns through: `pageCount`, how many there are, and `circular`,
+	true if the page after the last is the first again.
+
+	Returns { lowest, highest }, in degrees of spin angle. A finite sequence runs from page 0's detent at
+	0° to the last page's detent. A circular one has no limits, so it gives −Infinity and Infinity.
+*/
+export function spinRange(sequence) {
+	if (sequence.circular) {
+		return { lowest: -Infinity, highest: Infinity };
+	} else {
+		return { lowest: 0, highest: (sequence.pageCount - 1) * SPIN_DETENT_DEGREES };
+	}
+}
+
+/*
 	The page the user sees during a swipe.
 
 	`page` is the unbounded index of the page the swipe started on. `drawnTravel` is how far the moving

@@ -5,6 +5,7 @@ import {
 	movingFlapIndex,
 	restingFlapPage,
 	sequencePage,
+	spinRange,
 	spinShownPage,
 	swipeShownPage,
 	ticksToLimits,
@@ -563,13 +564,22 @@ function startSpin(event) {
 	state.phase = 'dragging';
 }
 
-// Turn the clacker 1:1 with the pointer's angle round the centre, and sample the pointer for the release speed.
+/*
+	Turn the clacker with the finger.
+
+	`event` is a pointermove from the finger that started the spin. Turns state.spinAngle 1:1 with the
+	finger's angle round the centre, but no further than a limit. Samples the finger for the release speed,
+	and moves pointer.lastAngle to the finger's angle. That carries on while the clacker is held at a limit,
+	so turning back moves it straight away.
+*/
 function dragSpin(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
 	const moves = event.getCoalescedEvents?.() ?? [];
 	for (const move of moves.length > 0 ? moves : [event]) addSpinSample(move);
 	const angle = pointerAngle(event);
-	state.spinAngle += shortestTurn(pointer.lastAngle, angle);
+	const range = spinRange(sequence);
+	const turnedAngle = state.spinAngle + shortestTurn(pointer.lastAngle, angle);
+	state.spinAngle = clamp(turnedAngle, range.lowest, range.highest);
 	pointer.lastAngle = angle;
 }
 
