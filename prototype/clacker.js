@@ -665,8 +665,21 @@ function stopSpinMotion() {
 	spinLoop?.stop();
 }
 
-// Move the seat on by `frameMs`, recoiling off a limit, and land on the detent once it's at rest. Its page
-// becomes current.
+/*
+	Move the seat on by one frame. A seat is the spring that pulls the clacker into a detent, one of the
+	angles a spin comes to rest on, once the spin has slowed.
+
+	`frameMs` is how long the frame took, in milliseconds, already slowed if slow-mo is on.
+
+	Moves state.spinAngle, the clacker's angle in degrees, and state.spinVelocity, its speed in °/ms, both
+	clockwise positive, on by the spring's pull towards state.spinDetent, the detent's angle in degrees.
+	If the clacker reaches a limit, the lowest or highest detent of a finite sequence, it turns back off it,
+	keeping part of its speed (see stepSpinSeat). state.spinDetent and the sequence aren't changed.
+
+	Once the seat is close enough to rest, it puts the clacker exactly on the detent and stops it, sets
+	state.page to the detent's page and state.phase to 'idle'. The next render tells the calling code that
+	page is now current. Returns nothing.
+*/
 function stepSeat(frameMs) {
 	const seat = { angle: state.spinAngle, velocity: state.spinVelocity, detent: state.spinDetent };
 	const stepped = stepSpinSeat(seat, frameMs, spinRange(sequence));
