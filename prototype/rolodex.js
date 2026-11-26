@@ -37,7 +37,19 @@ export function flapRandom(flapIndex, salt) {
 	return wave - Math.floor(wave);
 }
 
-// Where the moving flap is drawn, as travel: ahead by how far gravity has pulled it since it started falling.
+/*
+	Where the moving flap is drawn during a swipe's inertia.
+
+	`inertia` is the inertia in progress, or null if there's none. Once the flap passes its fall point, its
+	`fall` says when the flap started falling, how hard gravity pulls it, and which end of the tick it falls
+	to (see updateFall in clacker.js). `travel` is how far the swipe has turned flaps over the hinge since it
+	started, counted across ticks: 180° to a tick, counting up going forward and down going back.
+
+	Returns a travel in the same degrees. Until the flap falls, it's `travel` itself. Once the flap falls,
+	it's drawn ahead of `travel` by how far gravity has pulled it, but never past the end of the tick, where
+	it lies on the stack until travel catches up. A fall left over from an earlier tick is ignored. Nothing
+	passed in is changed.
+*/
 export function movingTravel(inertia, travel) {
 	const fall = inertia?.fall;
 	if (!fall || fall.low !== tickBounds(travel)[0]) {
