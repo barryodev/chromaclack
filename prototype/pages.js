@@ -28,8 +28,10 @@ import { completedTicks } from './swipe.js';
 /*
 	The page in the sequence that an unbounded page index stands for.
 
-	`index` is a whole number, which can be negative or past the last page. `sequence` is a sequence (see
-	Sequences above).
+	`index` is the page index to look up. Inside the clacker a page index counts on past the last page and
+	below 0 as a swipe goes, so it can be any whole number. `sequence` is the pages the clacker turns
+	through: `pageCount`, how many there are, and `circular`, true if the page after the last is the first
+	again.
 
 	Returns the page index in the sequence. For a circular sequence, `index` is wrapped round into 0 to
 	pageCount − 1, so pageCount is page 0 and −1 is the last page. For a finite sequence, `index` is
@@ -46,13 +48,15 @@ export function sequencePage(index, sequence) {
 }
 
 /*
-	Whether there's a page at an unbounded page index.
+	Whether a page index has a page behind it.
 
-	`index` is a whole number, which can be negative or past the last page. `sequence` is a sequence (see
-	Sequences above).
+	`index` is the page index to check. Inside the clacker a page index counts on past the last page and
+	below 0 as a swipe goes, so it can be any whole number. `sequence` is the pages the clacker turns
+	through: `pageCount`, how many there are, and `circular`, true if the page after the last is the first
+	again.
 
-	Returns true for any index in a circular sequence. In a finite sequence it's true from 0 to
-	pageCount − 1, and false past a limit.
+	Returns true for any index in a circular sequence, because the pages wrap round. In a finite sequence
+	it's true from 0 to pageCount − 1, and false past either end, where there are no pages.
 */
 export function hasPage(index, sequence) {
 	if (sequence.circular) {
@@ -65,11 +69,12 @@ export function hasPage(index, sequence) {
 /*
 	How far a swipe can go from a page before it reaches a limit (see Limit in GLOSSARY.md).
 
-	`page` is the page index the swipe starts from, which is in the sequence. `sequence` is a sequence (see
-	Sequences above).
+	`page` is the page index the swipe starts from, from 0 to pageCount − 1. `sequence` is the pages the
+	clacker turns through: `pageCount`, how many there are, and `circular`, true if the page after the last
+	is the first again.
 
-	Returns { back, forward }, the number of whole ticks to the first page and to the last page. Both are
-	Infinity for a circular sequence, which has no limits.
+	Returns { back, forward }: how many whole ticks back the first page is, and how many forward the last
+	page is. Both are Infinity for a circular sequence, which has no limits.
 */
 export function ticksToLimits(page, sequence) {
 	if (sequence.circular) {
@@ -171,8 +176,9 @@ export function restingFlapPage(half, flapIndex) {
 	The page events between two snapshots of the clacker, which the reporter passes on to the calling code.
 
 	`before` and `after` are snapshots, each { page, idle }. `page` is the page the user sees, as an
-	unbounded index, and `idle` is true when the clacker is at rest. `sequence` is the loaded sequence (see
-	Sequences above). Nothing passed in is changed.
+	unbounded index, and `idle` is true when the clacker is at rest. `sequence` is the pages the clacker
+	turns through: `pageCount`, how many there are, and `circular`, true if the page after the last is the
+	first again. Nothing passed in is changed.
 
 	Returns { shown, current }:
 	- `shown` is a list with one { page, direction } for each page from before.page to after.page, in the
