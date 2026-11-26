@@ -616,7 +616,8 @@ function releaseSpin(event) {
 	clockwise positive. Sets state.phase to 'spin-down' and state.spinDown to what stepSpinDown needs:
 	where it started and how fast, how long until it's slow enough to hand over to the seat, the limit it's
 	turning towards, and when it will reach that limit. A limit is the lowest or highest detent of a finite
-	sequence. A circular sequence has none, so the limit is Infinity either way, and it's never reached.
+	sequence. A circular sequence has none, so the limit is Infinity going forward and −Infinity going back,
+	and it's never reached.
 */
 function startSpinDown() {
 	const speed = Math.abs(state.spinVelocity);
