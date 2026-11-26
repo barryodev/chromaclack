@@ -106,7 +106,7 @@ test('a recoil puts an angle past a limit back on it, heading back inside', () =
 	assert.ok(pastLowest.velocity > 0);
 });
 
-test('inside the range, or on a limit, a recoil changes nothing', () => {
+test('inside the range, or on a limit, a recoil leaves the angle and velocity as they are', () => {
 	const inside = 5 * SPIN_DETENT_DEGREES;
 	assert.deepEqual(recoil(inside, 0.5, range), { angle: inside, velocity: 0.5 });
 	assert.deepEqual(recoil(range.highest, 0.5, range), { angle: range.highest, velocity: 0.5 });
