@@ -114,9 +114,10 @@ test('inside the range, or on a limit, a recoil leaves the angle and velocity as
 
 test('a seat into a limit, heading for it, comes to rest there and never passes it', () => {
 	let seat = { angle: range.highest - 20, velocity: 0.5, detent: range.highest };
-	// Two seconds of 16 ms frames is far longer than any seat takes.
+	// This seat rests in about 25 frames of 16 ms. The cap of 125, two seconds, only stops a seat that never
+	// rests from looping forever.
 	for (let frame = 0; frame < 125 && !seat.atRest; frame++) {
-		seat = { ...stepSpinSeat(seat, 16, range), detent: range.highest };
+		seat = stepSpinSeat(seat, 16, range);
 		assert.ok(seat.angle <= range.highest, `frame ${frame} passed the limit, at ${seat.angle}°`);
 	}
 	assert.equal(seat.atRest, true);

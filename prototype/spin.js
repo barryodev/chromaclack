@@ -150,10 +150,10 @@ export function recoil(angle, velocity, range) {
 	{ lowest, highest }, the spin angles the spin can reach (spinRange in pages.js gives it). Nothing passed
 	in is changed.
 
-	Returns { angle, velocity, atRest }, after the seat's spring has pulled for `frameMs`. The spring moves
-	on in short steps and recoils off a limit after each one, so a long frame can't carry it far past the
-	limit before it turns back. `atRest` is true once it's close enough to the detent, and still enough, to
-	snap there.
+	Returns the seat one frame on, as { angle, velocity, detent, atRest }, after its spring has pulled for
+	`frameMs`. The detent is the same one. The spring moves on in short steps and recoils off a limit after
+	each one, so a long frame can't carry it far past the limit before it turns back. `atRest` is true once
+	it's close enough to the detent, and still enough, to snap there.
 */
 export function stepSpinSeat(seat, frameMs, range) {
 	const steps = Math.ceil(frameMs / SPRING_STEP_MS);
@@ -166,5 +166,5 @@ export function stepSpinSeat(seat, frameMs, range) {
 		angle = recoiled.angle;
 		velocity = recoiled.velocity;
 	}
-	return { angle, velocity, atRest: springAtRest(angle - seat.detent, velocity) };
+	return { angle, velocity, detent: seat.detent, atRest: springAtRest(angle - seat.detent, velocity) };
 }
