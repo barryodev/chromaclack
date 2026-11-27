@@ -109,3 +109,8 @@ test('hsl text keeps one decimal of saturation and lightness', () => {
 	assert.equal(hslText(STARTING_COLOUR), 'hsl(210 70.0% 50.0%)');
 	assert.equal(hslText({ hue: 0, saturation: 0, lightness: valueAt(1, lightness) }), 'hsl(0 0.0% 8.3%)');
 });
+
+test('hsl text rounds a value halfway between two neighbours to the even one', () => {
+	assert.equal(hslText({ hue: 2.5, saturation: 0.25, lightness: 0.35 }), 'hsl(2 0.2% 0.4%)');
+	assert.equal(hslText({ hue: 3.5, saturation: 0.15, lightness: 0.45 }), 'hsl(4 0.2% 0.4%)');
+});

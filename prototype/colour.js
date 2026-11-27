@@ -1,7 +1,6 @@
 // The mixed colour and its components (see Colour in GLOSSARY.md). Hue is in degrees, and saturation and
 // lightness are percentages.
 
-import { roundHalfEven } from './maths.js';
 import { SPIN_DETENT_DEGREES } from './spin.js';
 
 /*
@@ -107,6 +106,21 @@ export function hexOf({ red, green, blue }) {
 	return `#${pair(red)}${pair(green)}${pair(blue)}`.toUpperCase();
 }
 
+// Number formats for hslText. Both round a tie to the even neighbour (banker's rounding), so 0.25 shows
+// as 0.2 and 0.35 as 0.4. They round the decimal as written, unlike toFixed, which rounds the binary value
+// stored for it and so sends 1.005 to 1.00.
+const DEGREES_FORMAT = new Intl.NumberFormat('en', {
+	maximumFractionDigits: 0,
+	roundingMode: 'halfEven',
+	useGrouping: false
+});
+const PERCENT_FORMAT = new Intl.NumberFormat('en', {
+	minimumFractionDigits: 1,
+	maximumFractionDigits: 1,
+	roundingMode: 'halfEven',
+	useGrouping: false
+});
+
 /*
 	A colour written as CSS hsl(), as the readout shows it and copies it.
 
@@ -117,8 +131,8 @@ export function hexOf({ red, green, blue }) {
 	three round a tie to even.
 */
 export function hslText({ hue, saturation, lightness }) {
-	const percent = (value) => `${roundHalfEven(value, 1).toFixed(1)}%`;
-	return `hsl(${roundHalfEven(hue, 0)} ${percent(saturation)} ${percent(lightness)})`;
+	const percent = (value) => `${PERCENT_FORMAT.format(value)}%`;
+	return `hsl(${DEGREES_FORMAT.format(hue)} ${percent(saturation)} ${percent(lightness)})`;
 }
 
 /*
