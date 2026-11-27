@@ -63,6 +63,20 @@ export function openingPage(value, component) {
 }
 
 /*
+	The colour a page's face shows: the colour you'd get if you stopped there.
+
+	`page` is a page index in the component's sequence, from 0 to its last page. `name` is the component
+	the tab drives: 'hue', 'saturation' or 'lightness'. `colour` is the mixed colour, { hue, saturation,
+	lightness }, and isn't changed.
+
+	Returns a new { hue, saturation, lightness }: `colour` with component `name` set to the page's value,
+	and the other two held where they are.
+*/
+export function pageColour(page, name, colour) {
+	return { ...colour, [name]: valueAt(page, COMPONENTS[name]) };
+}
+
+/*
 	A colour's red, green and blue.
 
 	`colour` is { hue, saturation, lightness }, with hue in degrees and the others as percentages. It isn't
@@ -133,6 +147,18 @@ const PERCENT_FORMAT = new Intl.NumberFormat('en', {
 export function hslText({ hue, saturation, lightness }) {
 	const percent = (value) => `${PERCENT_FORMAT.format(value)}%`;
 	return `hsl(${DEGREES_FORMAT.format(hue)} ${percent(saturation)} ${percent(lightness)})`;
+}
+
+/*
+	A colour written as CSS hsl(), for the browser to paint.
+
+	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.
+
+	Returns text such as 'hsl(210 70% 8.333333333333334%)'. Unlike hslText, nothing is rounded, so the
+	browser paints the same colour that roundedRgb works out for the readout.
+*/
+export function cssColour({ hue, saturation, lightness }) {
+	return `hsl(${hue} ${saturation}% ${lightness}%)`;
 }
 
 /*

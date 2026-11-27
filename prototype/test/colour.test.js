@@ -5,10 +5,12 @@ import {
 	COMPONENTS,
 	STARTING_COLOUR,
 	componentSequence,
+	cssColour,
 	hexOf,
 	hslText,
 	hslToRgb,
 	openingPage,
+	pageColour,
 	readableTextOn,
 	relativeLuminance,
 	rgbText,
@@ -52,6 +54,18 @@ test('the starting colour sits on a page of every component', () => {
 		const page = openingPage(STARTING_COLOUR[name], component);
 		assert.equal(valueAt(page, component), STARTING_COLOUR[name]);
 	}
+});
+
+test("a page's face takes its own component from the page and holds the other two", () => {
+	assert.deepEqual(pageColour(4, 'hue', STARTING_COLOUR), { hue: 60, saturation: 70, lightness: 50 });
+	assert.deepEqual(pageColour(3, 'saturation', STARTING_COLOUR), { hue: 210, saturation: 30, lightness: 50 });
+	assert.deepEqual(pageColour(12, 'lightness', STARTING_COLOUR), { hue: 210, saturation: 70, lightness: 100 });
+});
+
+test("a page's face leaves the mixed colour as it was", () => {
+	const colour = { ...STARTING_COLOUR };
+	pageColour(0, 'hue', colour);
+	assert.deepEqual(colour, STARTING_COLOUR);
 });
 
 test('the primaries come out as full red, green and blue', () => {
@@ -113,4 +127,10 @@ test('hsl text keeps one decimal of saturation and lightness', () => {
 test('hsl text rounds a value halfway between two neighbours to the even one', () => {
 	assert.equal(hslText({ hue: 2.5, saturation: 0.25, lightness: 0.35 }), 'hsl(2 0.2% 0.4%)');
 	assert.equal(hslText({ hue: 3.5, saturation: 0.15, lightness: 0.45 }), 'hsl(4 0.2% 0.4%)');
+});
+
+test('css colour writes the values exactly, without rounding', () => {
+	assert.equal(cssColour(STARTING_COLOUR), 'hsl(210 70% 50%)');
+	const darkGrey = { hue: 0, saturation: 0, lightness: valueAt(1, lightness) };
+	assert.equal(cssColour(darkGrey), 'hsl(0 0% 8.333333333333334%)');
 });

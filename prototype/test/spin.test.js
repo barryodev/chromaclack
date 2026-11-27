@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+	HEADING_TURN_DEGREES,
 	SPIN_DETENT_DEGREES,
+	dragHeading,
 	recoil,
 	heldReleaseVelocity,
 	nearestDetent,
@@ -108,6 +110,30 @@ test('a release heading back inside from a limit, or anywhere off one, keeps its
 	assert.equal(heldReleaseVelocity(range.highest, -0.8, range), -0.8);
 	assert.equal(heldReleaseVelocity(range.lowest, 0.8, range), 0.8);
 	assert.equal(heldReleaseVelocity(5 * SPIN_DETENT_DEGREES, 0.8, range), 0.8);
+});
+
+test('a drag that turns far enough takes that heading', () => {
+	const pressed = { heading: 0, anchor: 90 };
+	const clockwise = 90 + HEADING_TURN_DEGREES;
+	const counterclockwise = 90 - HEADING_TURN_DEGREES;
+	assert.deepEqual(dragHeading(pressed, clockwise), { heading: 1, anchor: clockwise });
+	assert.deepEqual(dragHeading(pressed, counterclockwise), { heading: -1, anchor: counterclockwise });
+});
+
+test('a wobble smaller than the turn back changes nothing', () => {
+	const wobble = HEADING_TURN_DEGREES / 2;
+	assert.deepEqual(dragHeading({ heading: 0, anchor: 90 }, 90 + wobble), { heading: 0, anchor: 90 });
+	assert.deepEqual(dragHeading({ heading: 1, anchor: 200 }, 200 - wobble), { heading: 1, anchor: 200 });
+});
+
+test('turning further along the heading moves the anchor with it', () => {
+	assert.deepEqual(dragHeading({ heading: 1, anchor: 200 }, 201), { heading: 1, anchor: 201 });
+	assert.deepEqual(dragHeading({ heading: -1, anchor: 200 }, 199), { heading: -1, anchor: 199 });
+});
+
+test('turning back far enough switches the heading round', () => {
+	const turnedBack = 200 - HEADING_TURN_DEGREES;
+	assert.deepEqual(dragHeading({ heading: 1, anchor: 200 }, turnedBack), { heading: -1, anchor: turnedBack });
 });
 
 test('a recoil puts an angle past a limit back on it, heading back inside', () => {

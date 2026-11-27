@@ -139,6 +139,27 @@ export function spinShownPage(spinAngle, seatDetent) {
 }
 
 /*
+	The page the spin tab's face shows (see Spin heading in GLOSSARY.md).
+
+	`shownPage` is the spin's shown page, as an unbounded index (spinShownPage gives it). `heading` is the
+	spin heading: 1 while the spin turns clockwise, −1 while it turns counterclockwise, and 0 when it has no
+	heading. `sequence` is the pages the clacker turns through: `pageCount`, how many there are, and
+	`circular`, true if the page after the last is the first again.
+
+	Returns the next page along the heading, so the face shows where the spin is heading while the shown
+	page stays where it is. With a heading of 0, or at a limit where there's no next page, it returns
+	`shownPage`.
+*/
+export function spinFacePage(shownPage, heading, sequence) {
+	const nextPage = shownPage + heading;
+	if (hasPage(nextPage, sequence)) {
+		return nextPage;
+	} else {
+		return shownPage;
+	}
+}
+
+/*
 	The flap that turns over in a tick from a page.
 
 	`page` is the unbounded index of the page the tick starts from. `forward` is true for a forward tick

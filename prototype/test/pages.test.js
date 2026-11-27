@@ -8,6 +8,7 @@ import {
 	pageEvents,
 	restingFlapPage,
 	sequencePage,
+	spinFacePage,
 	spinRange,
 	spinShownPage,
 	swipeShownPage,
@@ -96,6 +97,25 @@ test("while seating, the spin's shown page is the detent being seated into", () 
 	const pastHalfway = SPIN_DETENT_DEGREES * 0.6;
 	assert.equal(spinShownPage(pastHalfway, 0), 0);
 	assert.equal(spinShownPage(4 * SPIN_DETENT_DEGREES - pastHalfway, 4 * SPIN_DETENT_DEGREES), 4);
+});
+
+test('a turning spin shows the next page along its heading', () => {
+	assert.equal(spinFacePage(4, 1, finite), 5);
+	assert.equal(spinFacePage(4, -1, finite), 3);
+});
+
+test('a spin with no heading shows its shown page', () => {
+	assert.equal(spinFacePage(4, 0, finite), 4);
+});
+
+test('a spin heading past a limit shows the limit page', () => {
+	assert.equal(spinFacePage(10, 1, finite), 10);
+	assert.equal(spinFacePage(0, -1, finite), 0);
+});
+
+test('a circular spin heads on past either end of its pages', () => {
+	assert.equal(spinFacePage(7, 1, circular), 8);
+	assert.equal(spinFacePage(0, -1, circular), -1);
 });
 
 test('the moving flap is the one between the page and the page the tick turns to', () => {

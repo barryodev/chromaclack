@@ -13,6 +13,9 @@ export const SEAT_SWING_MS = 333; // One swing there and back, if nothing damped
 export const SEAT_DAMPING = 0.34; // Damping ratio. A seat from 45° out overshoots about 14°.
 // A limit is a hard wall. The fraction of its speed the clacker keeps when it recoils off one.
 export const RECOIL_SPEED_KEPT = 0.3;
+// How far a drag turns back before its heading switches round, so a finger held nearly still doesn't flicker
+// the face between the detents either side.
+export const HEADING_TURN_DEGREES = 3;
 
 /*
 	The pointer's speed along the rim in px/ms, clockwise positive, across the
@@ -153,6 +156,29 @@ export function heldReleaseVelocity(angle, velocity, range) {
 		return 0;
 	} else {
 		return velocity;
+	}
+}
+
+/*
+	A drag's spin heading, after the drag turns the clacker (see Spin heading in GLOSSARY.md).
+
+	`drag` is { heading, anchor }. `heading` is 1 while the drag turns clockwise, −1 while it turns
+	counterclockwise, and 0 until it has turned far enough to have a heading. `anchor` is the spin angle, in
+	degrees, that the next turn is measured from: where the drag pressed, or the furthest it has turned
+	along its heading. `angle` is the spin angle now. Nothing passed in is changed.
+
+	Returns a new { heading, anchor }:
+	- Turning further along the heading keeps the heading, and moves the anchor up to `angle`.
+	- Turning HEADING_TURN_DEGREES or more away from the anchor heads that way, from `angle`.
+	- A smaller turn changes neither, so a wobble keeps the heading.
+*/
+export function dragHeading(drag, angle) {
+	const turn = angle - drag.anchor;
+	const furtherAlong = (drag.heading !== 0 && Math.sign(turn) === drag.heading);
+	if (furtherAlong || Math.abs(turn) >= HEADING_TURN_DEGREES) {
+		return { heading: Math.sign(turn), anchor: angle };
+	} else {
+		return { ...drag };
 	}
 }
 

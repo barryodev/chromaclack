@@ -6,34 +6,23 @@ import {
 	COMPONENTS,
 	STARTING_COLOUR,
 	componentSequence,
+	cssColour,
 	hexOf,
 	hslText,
 	openingPage,
+	pageColour,
 	readableTextOn,
 	rgbText,
 	roundedRgb,
 	valueAt
 } from './colour.js';
-import { sequencePage } from './pages.js';
 
 // How long the note under the readout stays up after a copy, in milliseconds.
 const READOUT_NOTE_MS = 1200;
 
-// Placeholder face colours until DAI-58 paints the faces from the colour. They repeat round each tab's pages.
-const PLACEHOLDER_COLOURS = [
-	'#581C87',
-	'#C026D3',
-	'#F43F5E',
-	'#F97316',
-	'#EAB308',
-	'#22C55E',
-	'#06B6D4',
-	'#3B82F6'
-];
-const PLACEHOLDER_ROUND = { pageCount: PLACEHOLDER_COLOURS.length, circular: true };
-
-// The colour component each tab drives.
+// The colour component each tab drives, and the tab's name.
 const TAB_COMPONENTS = { vertical: 'hue', horizontal: 'saturation', spin: 'lightness' };
+const TAB_NAMES = { vertical: 'Hue', horizontal: 'Saturation', spin: 'Lightness' };
 
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 const readoutValues = Object.fromEntries(
@@ -55,9 +44,9 @@ const clacker = createClacker(clackerElement, {
 const colour = { ...STARTING_COLOUR };
 let shownMode = null;
 
-// Each page's two half pages share a colour, and its label is its page number.
-function placeholderPageContent(page) {
-	return { label: String(page), colour: PLACEHOLDER_COLOURS[sequencePage(page, PLACEHOLDER_ROUND)] };
+// A page's face is the colour you'd get if you stopped there, with no label on it.
+function componentPageContent(page) {
+	return { label: '', colour: cssColour(pageColour(page, TAB_COMPONENTS[shownMode], colour)) };
 }
 
 // The shown tab's component takes the shown page's value, and the background follows it in the same frame.
@@ -87,7 +76,7 @@ function paintColour() {
 */
 function paintBackground() {
 	const root = document.documentElement;
-	root.style.setProperty('--colour', `hsl(${colour.hue} ${colour.saturation}% ${colour.lightness}%)`);
+	root.style.setProperty('--colour', cssColour(colour));
 	root.dataset.text = readableTextOn(colour);
 }
 
@@ -142,8 +131,9 @@ function showTab(mode) {
 	const component = COMPONENTS[name];
 	clacker.load({
 		mode,
+		name: TAB_NAMES[mode],
 		...componentSequence(component),
-		pageContent: placeholderPageContent,
+		pageContent: componentPageContent,
 		page: openingPage(colour[name], component)
 	});
 }

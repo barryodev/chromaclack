@@ -91,9 +91,11 @@ main {
 	border: 0;
 	border-radius: 999px;
 	background: transparent;
-	color: var(--on-colour-soft);
+	color: var(--on-colour);
 	font: inherit;
-	font-size: 0.8rem;
+	/* The readout's size and colour, so the tab names read as well as the values. */
+	font-size: 0.9rem;
+	font-weight: 700;
 	cursor: pointer;
 }
 
@@ -111,7 +113,6 @@ main {
 @media (max-width: 28rem) {
 	.tabs button {
 		padding-inline: 0.55rem;
-		font-size: 0.72rem;
 	}
 }
 
@@ -202,7 +203,8 @@ main {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid var(--border);
+	/* In the text colour, so each tier's edge shows even when its page is close to the background. */
+	border: 1px solid var(--on-colour);
 	background: var(--page-colour, var(--field));
 	color: #111;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
