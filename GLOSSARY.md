@@ -161,3 +161,5 @@ As a swipe slows, the clacker starts to move like a real rolodex: flaps fall ont
 **Colour component**: one value of the colour model, either Hue/Saturation/Lightness or Red/Green/Blue. Each interaction (vertical swipe, horizontal swipe, spin) drives one component.
 
 **Mixed colour**: the one HSL colour that is the toy's state. Each tab drives one of its components: the vertical swipe drives hue, the horizontal swipe saturation, and the spin lightness. The colour is kept when you switch tabs, and each tab opens on the page or detent for its component's current value. The page background shows the mixed colour, and it follows the shown page, so the background and the face always agree.
+
+**Readout**: the mixed colour written out as numbers under the clacker: CSS hsl() on one line, then rgb() with its hex code beside it. It follows the shown page, like the background. Tapping a value copies its text, but only once the clacker is at rest, so a tap mid-swipe can't copy a colour that's still passing by. It isn't the debug panel, which shows the clacker's own state with ?debug.

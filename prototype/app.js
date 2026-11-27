@@ -35,7 +35,6 @@ const PLACEHOLDER_ROUND = { pageCount: PLACEHOLDER_COLOURS.length, circular: tru
 // The colour component each tab drives.
 const TAB_COMPONENTS = { vertical: 'hue', horizontal: 'saturation', spin: 'lightness' };
 
-const workspace = document.querySelector('.workspace');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 const readoutValues = Object.fromEntries(
 	[...document.querySelectorAll('.readout-value')].map((button) => [button.dataset.value, button])
@@ -146,12 +145,6 @@ for (const button of Object.values(readoutValues)) {
 		}
 	});
 }
-
-// Temporary, for comparing the readout's two places on the phone (DAI-62). The CSS moves it.
-const readoutAboveToggle = document.querySelector('[data-debug-control="readout-above"]');
-readoutAboveToggle.addEventListener('change', () => {
-	workspace.dataset.readoutPlace = readoutAboveToggle.checked ? 'above' : 'below';
-});
 
 paintColour();
 showTab('vertical');

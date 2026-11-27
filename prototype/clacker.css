@@ -302,11 +302,6 @@ main {
 	display: none;
 }
 
-/* Temporary, for comparing the readout's two places on the phone (DAI-62). */
-.workspace[data-readout-place='above'] .readout {
-	order: -1;
-}
-
 /* Debug panel (?debug) */
 
 .debug {
