@@ -81,6 +81,72 @@ export function hslToRgb({ hue, saturation, lightness }) {
 }
 
 /*
+	A colour's red, green and blue, as the readout shows them.
+
+	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.
+
+	Returns { red, green, blue }, each a whole number from 0 to 255. A channel halfway between two whole
+	numbers rounds up, as browsers round it when they paint, so the readout matches the background.
+*/
+export function roundedRgb(colour) {
+	const { red, green, blue } = hslToRgb(colour);
+	return { red: Math.round(red * 255), green: Math.round(green * 255), blue: Math.round(blue * 255) };
+}
+
+/*
+	The hex code for a colour.
+
+	`rgb` is { red, green, blue }, each a whole number from 0 to 255, as roundedRgb gives it. It isn't
+	changed.
+
+	Returns the code as '#RRGGBB', in capitals, with a channel under 16 padded with a leading zero.
+*/
+export function hexOf({ red, green, blue }) {
+	const pair = (channel) => channel.toString(16).padStart(2, '0');
+	return `#${pair(red)}${pair(green)}${pair(blue)}`.toUpperCase();
+}
+
+// Number formats for hslText. Both round a tie to the even neighbour (banker's rounding), so 0.25 shows
+// as 0.2 and 0.35 as 0.4. They round the decimal as written, unlike toFixed, which rounds the binary value
+// stored for it and so sends 1.005 to 1.00.
+const DEGREES_FORMAT = new Intl.NumberFormat('en', {
+	maximumFractionDigits: 0,
+	roundingMode: 'halfEven',
+	useGrouping: false
+});
+const PERCENT_FORMAT = new Intl.NumberFormat('en', {
+	minimumFractionDigits: 1,
+	maximumFractionDigits: 1,
+	roundingMode: 'halfEven',
+	useGrouping: false
+});
+
+/*
+	A colour written as CSS hsl(), as the readout shows it and copies it.
+
+	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.
+
+	Returns text such as 'hsl(210 70.0% 8.3%)'. Hue is rounded to a whole number of degrees. Saturation
+	and lightness always keep one decimal place, so the text stays the same width as they change. All
+	three round a tie to even.
+*/
+export function hslText({ hue, saturation, lightness }) {
+	const percent = (value) => `${PERCENT_FORMAT.format(value)}%`;
+	return `hsl(${DEGREES_FORMAT.format(hue)} ${percent(saturation)} ${percent(lightness)})`;
+}
+
+/*
+	A colour written as CSS rgb(), as the readout shows it and copies it.
+
+	`rgb` is { red, green, blue } as hexOf takes it. It isn't changed.
+
+	Returns text such as 'rgb(38 128 217)'.
+*/
+export function rgbText({ red, green, blue }) {
+	return `rgb(${red} ${green} ${blue})`;
+}
+
+/*
 	The text colour that reads best on `colour`.
 
 	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.

@@ -147,7 +147,7 @@ const state = {
 	target: 0, // The travel inertia settles on, a whole number of ticks.
 	inertia: null, // { start, velocity, releaseLooseness, coasts, frictionScale, durationMs, elapsedMs, fall }
 	heldLooseness: null, // { page, forward, looseness } for the tick in progress, see tickLooseness.
-	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug readout.
+	releaseSpeed: 0, // px/ms, the last swipe's release speed, for the ?debug panel.
 	spinAngle: 0,
 	spinVelocity: 0, // °/ms, clockwise positive
 	spinDown: null, // { start, velocity, elapsedMs, handoverMs, limit, hitMs }
@@ -156,7 +156,7 @@ const state = {
 
 let sequence = null; // { pageCount, circular, pageContent } from the calling code, see load.
 let reporter = null; // Tells the calling code about page events. render() feeds it each frame.
-const lastEvents = { shown: null, current: null }; // For the ?debug readout.
+const lastEvents = { shown: null, current: null }; // For the ?debug panel.
 let pointer = null;
 let inertiaLoop = null;
 let spinLoop = null;
@@ -598,7 +598,7 @@ function addSpinSample(event) {
 	Sets state.spinVelocity, in °/ms clockwise positive, from the finger's speed along the rim, turned into
 	a spin at the rim radius, so a flick near the centre doesn't spin wildly. A finger held at a limit, the
 	lowest or highest detent of a finite sequence, and still heading past it lets go with no speed. Sets
-	state.releaseSpeed to the rim speed for the debug readout, and lets go of the pointer. Then a fast
+	state.releaseSpeed to the rim speed for the debug panel, and lets go of the pointer. Then a fast
 	release spins down and a slow one seats straight away. state.spinAngle isn't changed.
 */
 function releaseSpin(event) {
@@ -785,7 +785,7 @@ export function createClacker(element, { onShownPage, onCurrentPage } = {}) {
 	if (clacker) throw new Error('The prototype has one clacker, until DAI-64 gives each its own state.');
 	clacker = element;
 	clacker.append(...flapsBackToFront.map((flap) => flap.element));
-	// Each handler also records its event for the ?debug readout.
+	// Each handler also records its event for the ?debug panel.
 	reporter = createPageReporter({
 		onShownPage(event) {
 			lastEvents.shown = event;
@@ -972,7 +972,7 @@ function placeRestingFlap(flap, half, tilt, flapIndex, frontmost, movingFlapStan
 	}
 }
 
-// Fill the ?debug readout from state.
+// Fill the ?debug panel from state.
 function renderDebug() {
 	if (!debugPanel) {
 		return;

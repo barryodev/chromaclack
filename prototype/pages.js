@@ -130,7 +130,7 @@ export function swipeShownPage(page, drawnTravel) {
 export function spinShownPage(spinAngle, seatDetent) {
 	const detent = seatDetent ?? nearestDetent(spinAngle);
 	const page = detent / SPIN_DETENT_DEGREES;
-	// Rounding just short of −45° gives −0, which a readout would print as "-0".
+	// Rounding just short of −45° gives −0, which the debug panel would print as "-0".
 	if (page === 0) {
 		return 0;
 	} else {

@@ -239,7 +239,70 @@ main {
 	transform: rotateZ(calc(var(--spin-angle, 0) * 1deg));
 }
 
-/* Debug readout (?debug) */
+/*
+	Readout: the mixed colour as numbers, drawn straight on it, so it takes the text colour. Each value is
+	a pill-shaped button, so it reads as something to tap. Monospace keeps each digit the same width as
+	the values tick.
+*/
+.readout {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.35rem;
+	color: var(--on-colour);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.9rem;
+}
+
+.readout-line {
+	display: flex;
+	gap: 0.35rem;
+	margin: 0;
+}
+
+.readout-value {
+	padding: 0.35rem 0.7rem;
+	border: 0;
+	border-radius: 999px;
+	background: var(--on-colour-faint);
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.readout-value:focus-visible {
+	outline: 2px solid var(--on-colour);
+	outline-offset: 2px;
+}
+
+/* The note under the readout keeps its height while hidden, so showing it doesn't shift the page. */
+.readout-note {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+	margin: 0;
+	color: var(--on-colour-soft);
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	font-size: 0.8rem;
+	opacity: 0;
+	transition: opacity 0.4s ease;
+}
+
+.readout-note--shown {
+	opacity: 1;
+	transition-duration: 0.1s;
+}
+
+.readout-note-icon {
+	width: 1.1em;
+	height: 1.1em;
+}
+
+.readout-note[data-copied='false'] .readout-note-icon {
+	display: none;
+}
+
+/* Debug panel (?debug) */
 
 .debug {
 	position: fixed;
