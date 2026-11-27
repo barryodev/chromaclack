@@ -43,7 +43,16 @@ const readoutValues = Object.fromEntries(
 const readoutNote = document.querySelector('.readout-note');
 const readoutNoteText = readoutNote.querySelector('.readout-note-text');
 let readoutNoteTimer = null;
-const clacker = createClacker(document.querySelector('.clacker'), { onShownPage: showComponentPage });
+// Whether the clacker has come to rest since it was last pressed. Until it has, the colour is still
+// passing by, so the readout's buttons don't copy.
+let clackerAtRest = true;
+const clackerElement = document.querySelector('.clacker');
+const clacker = createClacker(clackerElement, {
+	onShownPage: showComponentPage,
+	onCurrentPage: () => {
+		clackerAtRest = true;
+	}
+});
 const colour = { ...STARTING_COLOUR };
 let shownMode = null;
 
@@ -109,6 +118,7 @@ function showReadoutNote(copied) {
 // Each tab opens on the page or detent for its component's current value.
 function showTab(mode) {
 	shownMode = mode;
+	clackerAtRest = true;
 	for (const tab of tabs) tab.setAttribute('aria-selected', String(tab.dataset.mode === mode));
 	const name = TAB_COMPONENTS[mode];
 	const component = COMPONENTS[name];
@@ -125,8 +135,16 @@ for (const tab of tabs) {
 		if (tab.dataset.mode !== shownMode) showTab(tab.dataset.mode);
 	});
 }
+// A press starts the clacker moving, and the next current-page event, or a tab switch, means it's at rest.
+clackerElement.addEventListener('pointerdown', () => {
+	clackerAtRest = false;
+});
 for (const button of Object.values(readoutValues)) {
-	button.addEventListener('click', () => copyReadoutValue(button));
+	button.addEventListener('click', () => {
+		if (clackerAtRest) {
+			copyReadoutValue(button);
+		}
+	});
 }
 
 // Temporary, for comparing the readout's two places on the phone (DAI-62). The CSS moves it.
