@@ -91,9 +91,9 @@ main {
 	border: 0;
 	border-radius: 999px;
 	background: transparent;
-	color: var(--on-colour-soft);
+	color: var(--on-colour);
 	font: inherit;
-	/* The readout's size, so the tab names read as well as the values. */
+	/* The readout's size and colour, so the tab names read as well as the values. */
 	font-size: 0.9rem;
 	font-weight: 700;
 	cursor: pointer;
