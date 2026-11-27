@@ -67,17 +67,36 @@ function showComponentPage({ page }) {
 	paintColour();
 }
 
+/*
+	Paint everything that shows the mixed colour.
+
+	Reads `colour`, the mixed colour as { hue, saturation, lightness }. Calls paintBackground and then
+	paintReadout, so the background and the numbers always agree. Returns nothing.
+*/
 function paintColour() {
 	paintBackground();
 	paintReadout();
 }
 
+/*
+	Paint the page background with the mixed colour, and pick the text colour that reads on it.
+
+	Reads `colour`, the mixed colour as { hue, saturation, lightness }. Sets --colour on <html> to its CSS
+	hsl(), and data-text to 'black' or 'white' from readableTextOn. The CSS draws the tabs, the clacker's
+	rim and the readout from those. Returns nothing.
+*/
 function paintBackground() {
 	const root = document.documentElement;
 	root.style.setProperty('--colour', `hsl(${colour.hue} ${colour.saturation}% ${colour.lightness}%)`);
 	root.dataset.text = readableTextOn(colour);
 }
 
+/*
+	Write the mixed colour into the readout's three value buttons.
+
+	Reads `colour`, the mixed colour as { hue, saturation, lightness }. Sets each button's text to it as
+	CSS hsl(), rgb() and hex. That text is also what tapping the button copies. Returns nothing.
+*/
 function paintReadout() {
 	const rgb = roundedRgb(colour);
 	readoutValues.hsl.textContent = hslText(colour);
