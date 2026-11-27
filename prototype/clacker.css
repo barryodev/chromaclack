@@ -239,7 +239,7 @@ main {
 	transform: rotateZ(calc(var(--spin-angle, 0) * 1deg));
 }
 
-/* Debug readout (?debug) */
+/* Debug panel (?debug) */
 
 .debug {
 	position: fixed;
