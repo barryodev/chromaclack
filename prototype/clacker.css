@@ -239,6 +239,47 @@ main {
 	transform: rotateZ(calc(var(--spin-angle, 0) * 1deg));
 }
 
+/*
+	Readout: the mixed colour as numbers, drawn straight on it, so it takes the text colour. Each value is
+	a pill-shaped button, so it reads as something to tap. Monospace keeps each digit the same width as
+	the values tick.
+*/
+.readout {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.35rem;
+	color: var(--on-colour);
+	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+	font-size: 0.9rem;
+}
+
+.readout-line {
+	display: flex;
+	gap: 0.35rem;
+	margin: 0;
+}
+
+.readout-value {
+	padding: 0.35rem 0.7rem;
+	border: 0;
+	border-radius: 999px;
+	background: var(--on-colour-faint);
+	color: inherit;
+	font: inherit;
+	cursor: pointer;
+}
+
+.readout-value:focus-visible {
+	outline: 2px solid var(--on-colour);
+	outline-offset: 2px;
+}
+
+/* Temporary, for comparing the readout's two places on the phone (DAI-62). */
+.workspace[data-readout-place='above'] .readout {
+	order: -1;
+}
+
 /* Debug panel (?debug) */
 
 .debug {

@@ -38,6 +38,20 @@
 						aria-label="Swipe up or down"
 					></button>
 				</div>
+
+				<!--
+					The mixed colour as numbers, filled by paintReadout in app.js. Each value is a button that
+					copies its own text.
+				-->
+				<section class="readout" aria-label="Colour values">
+					<p class="readout-line">
+						<button type="button" class="readout-value" data-value="hsl"></button>
+					</p>
+					<p class="readout-line">
+						<button type="button" class="readout-value" data-value="rgb"></button>
+						<button type="button" class="readout-value" data-value="hex"></button>
+					</p>
+				</section>
 			</section>
 		</main>
 
@@ -57,6 +71,15 @@
 				<div><dt>Ticks</dt><dd data-debug="ticks"></dd></div>
 				<div><dt>Spin angle</dt><dd data-debug="spin"></dd></div>
 				<div><dt>Spin velocity</dt><dd data-debug="spinVelocity"></dd></div>
+				<div class="debug-wide">
+					<dt>Readout place (temporary, DAI-62)</dt>
+					<dd>
+						<label class="debug-toggle">
+							<input type="checkbox" data-debug-control="readout-above" />
+							<span>Above the tabs</span>
+						</label>
+					</dd>
+				</div>
 				<div class="debug-wide">
 					<dt>Slow-mo (press S to toggle)</dt>
 					<dd>

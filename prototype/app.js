@@ -6,8 +6,12 @@ import {
 	COMPONENTS,
 	STARTING_COLOUR,
 	componentSequence,
+	hexOf,
+	hslText,
 	openingPage,
 	readableTextOn,
+	rgbText,
+	roundedRgb,
 	valueAt
 } from './colour.js';
 import { sequencePage } from './pages.js';
@@ -28,7 +32,11 @@ const PLACEHOLDER_ROUND = { pageCount: PLACEHOLDER_COLOURS.length, circular: tru
 // The colour component each tab drives.
 const TAB_COMPONENTS = { vertical: 'hue', horizontal: 'saturation', spin: 'lightness' };
 
+const workspace = document.querySelector('.workspace');
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
+const readoutValues = Object.fromEntries(
+	[...document.querySelectorAll('.readout-value')].map((button) => [button.dataset.value, button])
+);
 const clacker = createClacker(document.querySelector('.clacker'), { onShownPage: showComponentPage });
 const colour = { ...STARTING_COLOUR };
 let shownMode = null;
@@ -42,13 +50,25 @@ function placeholderPageContent(page) {
 function showComponentPage({ page }) {
 	const name = TAB_COMPONENTS[shownMode];
 	colour[name] = valueAt(page, COMPONENTS[name]);
+	paintColour();
+}
+
+function paintColour() {
 	paintBackground();
+	paintReadout();
 }
 
 function paintBackground() {
 	const root = document.documentElement;
 	root.style.setProperty('--colour', `hsl(${colour.hue} ${colour.saturation}% ${colour.lightness}%)`);
 	root.dataset.text = readableTextOn(colour);
+}
+
+function paintReadout() {
+	const rgb = roundedRgb(colour);
+	readoutValues.hsl.textContent = hslText(colour);
+	readoutValues.rgb.textContent = rgbText(rgb);
+	readoutValues.hex.textContent = hexOf(rgb);
 }
 
 // Each tab opens on the page or detent for its component's current value.
@@ -70,5 +90,11 @@ for (const tab of tabs) {
 		if (tab.dataset.mode !== shownMode) showTab(tab.dataset.mode);
 	});
 }
-paintBackground();
+// Temporary, for comparing the readout's two places on the phone (DAI-62). The CSS moves it.
+const readoutAboveToggle = document.querySelector('[data-debug-control="readout-above"]');
+readoutAboveToggle.addEventListener('change', () => {
+	workspace.dataset.readoutPlace = readoutAboveToggle.checked ? 'above' : 'below';
+});
+
+paintColour();
 showTab('vertical');
