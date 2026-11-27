@@ -11,6 +11,13 @@ if command -v tailscale >/dev/null 2>&1; then
 	if ip="$(tailscale ip -4 2>/dev/null | head -n1)" && [[ -n "$ip" ]]; then
 		echo "Tailscale: http://${ip}:${port}/?debug"
 	fi
+	# The clipboard only works over HTTPS, so the phone needs `tailscale serve --bg <port>` in front of
+	# this server to copy readout values. Once that's set up, print its HTTPS address too.
+	serve_status="$(tailscale serve status 2>/dev/null || true)"
+	if [[ "$serve_status" == *"127.0.0.1:${port}"* ]]; then
+		https_url="$(grep -o '^https://[^ ]*' <<<"$serve_status" | head -n1)"
+		echo "HTTPS:     ${https_url}/?debug"
+	fi
 fi
 echo
 
