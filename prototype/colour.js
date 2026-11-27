@@ -1,6 +1,7 @@
 // The mixed colour and its components (see Colour in GLOSSARY.md). Hue is in degrees, and saturation and
 // lightness are percentages.
 
+import { roundHalfEven } from './maths.js';
 import { SPIN_DETENT_DEGREES } from './spin.js';
 
 /*
@@ -78,6 +79,57 @@ export function hslToRgb({ hue, saturation, lightness }) {
 		return lightnessFraction - spread * Math.max(-1, Math.min(position - 3, 9 - position, 1));
 	};
 	return { red: channel(0), green: channel(8), blue: channel(4) };
+}
+
+/*
+	A colour's red, green and blue, as the readout shows them.
+
+	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.
+
+	Returns { red, green, blue }, each a whole number from 0 to 255. A channel halfway between two whole
+	numbers rounds up, as browsers round it when they paint, so the readout matches the background.
+*/
+export function roundedRgb(colour) {
+	const { red, green, blue } = hslToRgb(colour);
+	return { red: Math.round(red * 255), green: Math.round(green * 255), blue: Math.round(blue * 255) };
+}
+
+/*
+	The hex code for a colour.
+
+	`rgb` is { red, green, blue }, each a whole number from 0 to 255, as roundedRgb gives it. It isn't
+	changed.
+
+	Returns the code as '#RRGGBB', in capitals, with a channel under 16 padded with a leading zero.
+*/
+export function hexOf({ red, green, blue }) {
+	const pair = (channel) => channel.toString(16).padStart(2, '0');
+	return `#${pair(red)}${pair(green)}${pair(blue)}`.toUpperCase();
+}
+
+/*
+	A colour written as CSS hsl(), as the readout shows it and copies it.
+
+	`colour` is { hue, saturation, lightness } as in hslToRgb. It isn't changed.
+
+	Returns text such as 'hsl(210 70.0% 8.3%)'. Hue is rounded to a whole number of degrees. Saturation
+	and lightness always keep one decimal place, so the text stays the same width as they change. All
+	three round a tie to even.
+*/
+export function hslText({ hue, saturation, lightness }) {
+	const percent = (value) => `${roundHalfEven(value, 1).toFixed(1)}%`;
+	return `hsl(${roundHalfEven(hue, 0)} ${percent(saturation)} ${percent(lightness)})`;
+}
+
+/*
+	A colour written as CSS rgb(), as the readout shows it and copies it.
+
+	`rgb` is { red, green, blue } as hexOf takes it. It isn't changed.
+
+	Returns text such as 'rgb(38 128 217)'.
+*/
+export function rgbText({ red, green, blue }) {
+	return `rgb(${red} ${green} ${blue})`;
 }
 
 /*

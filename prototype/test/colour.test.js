@@ -5,10 +5,14 @@ import {
 	COMPONENTS,
 	STARTING_COLOUR,
 	componentSequence,
+	hexOf,
+	hslText,
 	hslToRgb,
 	openingPage,
 	readableTextOn,
 	relativeLuminance,
+	rgbText,
+	roundedRgb,
 	valueAt
 } from '../colour.js';
 
@@ -81,4 +85,27 @@ test('each primary weighs what WCAG gives it, from nothing for black to all of i
 test('a mid grey is darker than halfway, because screens brighten on a curve', () => {
 	const midGrey = relativeLuminance({ red: 0.5, green: 0.5, blue: 0.5 });
 	assert.equal(midGrey.toFixed(3), '0.214');
+});
+
+test('the starting colour reads as rgb(38 128 217) and #2680D9', () => {
+	const rgb = roundedRgb(STARTING_COLOUR);
+	assert.deepEqual(rgb, { red: 38, green: 128, blue: 217 });
+	assert.equal(rgbText(rgb), 'rgb(38 128 217)');
+	assert.equal(hexOf(rgb), '#2680D9');
+});
+
+test('black and white read as 0 and 255 on every channel', () => {
+	const black = { hue: 0, saturation: 0, lightness: 0 };
+	const white = { hue: 0, saturation: 0, lightness: 100 };
+	assert.deepEqual(roundedRgb(black), { red: 0, green: 0, blue: 0 });
+	assert.deepEqual(roundedRgb(white), { red: 255, green: 255, blue: 255 });
+});
+
+test('a channel under 16 gets a leading zero in hex', () => {
+	assert.equal(hexOf({ red: 10, green: 0, blue: 255 }), '#0A00FF');
+});
+
+test('hsl text keeps one decimal of saturation and lightness', () => {
+	assert.equal(hslText(STARTING_COLOUR), 'hsl(210 70.0% 50.0%)');
+	assert.equal(hslText({ hue: 0, saturation: 0, lightness: valueAt(1, lightness) }), 'hsl(0 0.0% 8.3%)');
 });
