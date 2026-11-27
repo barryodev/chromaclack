@@ -9,13 +9,11 @@
 	</head>
 	<body>
 		<main>
-			<section class="workspace" aria-label="Movement modes">
-				<nav class="tabs" role="tablist" aria-label="Select movement mode">
-					<button type="button" role="tab" data-mode="vertical" aria-selected="true">Up / Down</button>
-					<button type="button" role="tab" data-mode="horizontal" aria-selected="false">
-						Left / Right
-					</button>
-					<button type="button" role="tab" data-mode="spin" aria-selected="false">Spin</button>
+			<section class="workspace" aria-label="Colour components">
+				<nav class="tabs" role="tablist" aria-label="Select colour component">
+					<button type="button" role="tab" data-mode="vertical" aria-selected="true">Hue</button>
+					<button type="button" role="tab" data-mode="horizontal" aria-selected="false">Saturation</button>
+					<button type="button" role="tab" data-mode="spin" aria-selected="false">Lightness</button>
 				</nav>
 
 				<div class="stage">
@@ -35,7 +33,7 @@
 						class="clacker"
 						data-mode="vertical"
 						data-axis="vertical"
-						aria-label="Swipe up or down"
+						aria-label="Hue, swipe up or down"
 					></button>
 				</div>
 

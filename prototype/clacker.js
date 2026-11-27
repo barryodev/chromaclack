@@ -67,10 +67,11 @@ const FLAT_TILTS = REST_TILTS.map(() => 0);
 
 const SLOW_MO_FACTOR = 0.2; // ?debug slow-mo slows inertia and the seat by this much.
 
-const ARIA_LABELS = {
-	vertical: 'Swipe up or down',
-	horizontal: 'Swipe left or right',
-	spin: 'Spin'
+// The gesture each mode takes. The clacker's aria-label puts the calling code's name for the tab before it.
+const GESTURE_HINTS = {
+	vertical: 'swipe up or down',
+	horizontal: 'swipe left or right',
+	spin: 'spin'
 };
 
 // The page's one clacker, until DAI-64 gives each clacker its own state. createClacker sets it up.
@@ -805,18 +806,21 @@ export function createClacker(element, { onShownPage, onCurrentPage } = {}) {
 
 /*
 	Start the clacker over at rest on `page`, driven by `mode` (vertical,
-	horizontal or spin). `pageContent(page)` gives a page's { label, colour }
-	for each page in a sequence of `pageCount` pages, wrapping round if it's
-	`circular`. It's asked many times a frame, so it must be quick, and give the
-	same answer within a frame. Loading calls no handler.
+	horizontal or spin). `name` is what the calling code calls the tab, such
+	as 'Hue', and the aria-label reads it before the gesture. `pageContent(page)`
+	gives a page's { label, colour } for each page in a sequence of `pageCount`
+	pages, wrapping round if it's `circular`. It's asked many times a frame, so
+	it must be quick, and give the same answer within a frame. Loading calls no
+	handler.
 */
-function load({ mode, pageCount, circular, pageContent, page }) {
+function load({ mode, name, pageCount, circular, pageContent, page }) {
 	stopAllMotion();
 	settle(0);
 	bounces.length = 0;
 	sequence = { pageCount, circular, pageContent };
 	state.mode = mode;
 	state.page = page;
+	clacker.setAttribute('aria-label', `${name}, ${GESTURE_HINTS[mode]}`);
 	resetSpin(mode === 'spin' ? page : 0);
 	lastEvents.shown = null;
 	lastEvents.current = null;
@@ -1007,7 +1011,6 @@ function render() {
 	reporter.report(pageSnapshot());
 	clacker.dataset.mode = state.mode;
 	clacker.dataset.axis = state.mode === 'vertical' ? 'vertical' : 'horizontal';
-	clacker.setAttribute('aria-label', ARIA_LABELS[state.mode]);
 	clacker.style.setProperty('--spin-angle', state.spinAngle);
 	renderFlaps();
 	renderDebug();

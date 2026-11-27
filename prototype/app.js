@@ -20,8 +20,9 @@ import {
 // How long the note under the readout stays up after a copy, in milliseconds.
 const READOUT_NOTE_MS = 1200;
 
-// The colour component each tab drives.
+// The colour component each tab drives, and the tab's name.
 const TAB_COMPONENTS = { vertical: 'hue', horizontal: 'saturation', spin: 'lightness' };
+const TAB_NAMES = { vertical: 'Hue', horizontal: 'Saturation', spin: 'Lightness' };
 
 const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 const readoutValues = Object.fromEntries(
@@ -130,6 +131,7 @@ function showTab(mode) {
 	const component = COMPONENTS[name];
 	clacker.load({
 		mode,
+		name: TAB_NAMES[mode],
 		...componentSequence(component),
 		pageContent: componentPageContent,
 		page: openingPage(colour[name], component)
