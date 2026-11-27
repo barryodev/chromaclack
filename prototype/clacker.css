@@ -275,6 +275,33 @@ main {
 	outline-offset: 2px;
 }
 
+/* The note under the readout keeps its height while hidden, so showing it doesn't shift the page. */
+.readout-note {
+	display: flex;
+	align-items: center;
+	gap: 0.3rem;
+	margin: 0;
+	color: var(--on-colour-soft);
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	font-size: 0.8rem;
+	opacity: 0;
+	transition: opacity 0.4s ease;
+}
+
+.readout-note--shown {
+	opacity: 1;
+	transition-duration: 0.1s;
+}
+
+.readout-note-icon {
+	width: 1.1em;
+	height: 1.1em;
+}
+
+.readout-note[data-copied='false'] .readout-note-icon {
+	display: none;
+}
+
 /* Temporary, for comparing the readout's two places on the phone (DAI-62). */
 .workspace[data-readout-place='above'] .readout {
 	order: -1;

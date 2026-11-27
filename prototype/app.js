@@ -16,6 +16,9 @@ import {
 } from './colour.js';
 import { sequencePage } from './pages.js';
 
+// How long the note under the readout stays up after a copy, in milliseconds.
+const READOUT_NOTE_MS = 1200;
+
 // Placeholder face colours until DAI-58 paints the faces from the colour. They repeat round each tab's pages.
 const PLACEHOLDER_COLOURS = [
 	'#581C87',
@@ -37,6 +40,9 @@ const tabs = [...document.querySelectorAll('.tabs [role="tab"]')];
 const readoutValues = Object.fromEntries(
 	[...document.querySelectorAll('.readout-value')].map((button) => [button.dataset.value, button])
 );
+const readoutNote = document.querySelector('.readout-note');
+const readoutNoteText = readoutNote.querySelector('.readout-note-text');
+let readoutNoteTimer = null;
 const clacker = createClacker(document.querySelector('.clacker'), { onShownPage: showComponentPage });
 const colour = { ...STARTING_COLOUR };
 let shownMode = null;
@@ -71,6 +77,35 @@ function paintReadout() {
 	readoutValues.hex.textContent = hexOf(rgb);
 }
 
+/*
+	Copy a readout value's text to the clipboard, and say whether it worked.
+
+	`button` is one of the readout's value buttons. Its text is what gets copied. The clipboard only works
+	over HTTPS or on localhost, so on plain HTTP the copy fails and the note says so.
+*/
+async function copyReadoutValue(button) {
+	try {
+		await navigator.clipboard.writeText(button.textContent);
+		showReadoutNote(true);
+	} catch {
+		showReadoutNote(false);
+	}
+}
+
+/*
+	Show the note under the readout for READOUT_NOTE_MS, then fade it out.
+
+	`copied` is true if the copy worked, and false if it didn't. Only a copy that worked shows the
+	clipboard icon. A second copy before the note fades starts its time again.
+*/
+function showReadoutNote(copied) {
+	readoutNoteText.textContent = copied ? 'Copied' : "Couldn't copy";
+	readoutNote.dataset.copied = String(copied);
+	readoutNote.classList.add('readout-note--shown');
+	clearTimeout(readoutNoteTimer);
+	readoutNoteTimer = setTimeout(() => readoutNote.classList.remove('readout-note--shown'), READOUT_NOTE_MS);
+}
+
 // Each tab opens on the page or detent for its component's current value.
 function showTab(mode) {
 	shownMode = mode;
@@ -90,6 +125,10 @@ for (const tab of tabs) {
 		if (tab.dataset.mode !== shownMode) showTab(tab.dataset.mode);
 	});
 }
+for (const button of Object.values(readoutValues)) {
+	button.addEventListener('click', () => copyReadoutValue(button));
+}
+
 // Temporary, for comparing the readout's two places on the phone (DAI-62). The CSS moves it.
 const readoutAboveToggle = document.querySelector('[data-debug-control="readout-above"]');
 readoutAboveToggle.addEventListener('change', () => {
