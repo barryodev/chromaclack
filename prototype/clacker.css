@@ -203,7 +203,8 @@ main {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid var(--border);
+	/* In the text colour, so each tier's edge shows even when its page is close to the background. */
+	border: 1px solid var(--on-colour);
 	background: var(--page-colour, var(--field));
 	color: #111;
 	font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
