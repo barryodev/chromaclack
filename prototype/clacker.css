@@ -93,7 +93,9 @@ main {
 	background: transparent;
 	color: var(--on-colour-soft);
 	font: inherit;
-	font-size: 0.8rem;
+	/* The readout's size, so the tab names read as well as the values. */
+	font-size: 0.9rem;
+	font-weight: 700;
 	cursor: pointer;
 }
 
@@ -111,7 +113,6 @@ main {
 @media (max-width: 28rem) {
 	.tabs button {
 		padding-inline: 0.55rem;
-		font-size: 0.72rem;
 	}
 }
 
