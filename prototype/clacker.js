@@ -5,6 +5,7 @@ import {
 	movingFlapIndex,
 	restingFlapPage,
 	sequencePage,
+	spinFacePage,
 	spinRange,
 	spinShownPage,
 	swipeShownPage,
@@ -32,6 +33,7 @@ import { addToReleaseWindow, windowVelocity } from './sampling.js';
 import {
 	SEAT_SPEED,
 	SPIN_DETENT_DEGREES,
+	dragHeading,
 	heldReleaseVelocity,
 	rimSpeed,
 	seatAim,
@@ -228,10 +230,11 @@ function shownPage() {
 	}
 }
 
-// The page the fan is painted from. Nothing ticks on the spin tab, so there the face shows the shown page.
+// The page the fan is painted from. Nothing ticks on the spin tab, so there the face shows the shown page,
+// or the next one along while the spin has a heading.
 function facePage() {
 	if (state.mode === 'spin') {
-		return shownPage();
+		return spinFacePage(shownPage(), spinHeading(), sequence);
 	} else {
 		return travelPage();
 	}
@@ -559,7 +562,9 @@ function startSpin(event) {
 		centre: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
 		// The layout width, since a turned clacker's bounding box is wider than the clacker.
 		rimRadius: clacker.offsetWidth / 2,
-		samples: []
+		samples: [],
+		// A press has no heading until the finger turns the clacker.
+		dragHeading: { heading: 0, anchor: state.spinAngle }
 	};
 	pointer.lastAngle = pointerAngle(event);
 	addSpinSample(event);
@@ -572,7 +577,8 @@ function startSpin(event) {
 	`event` is a pointermove from the finger that started the spin. Turns state.spinAngle 1:1 with the
 	finger's angle round the centre, but no further than a limit. Samples the finger for the release speed,
 	and moves pointer.lastAngle to the finger's angle. That carries on while the clacker is held at a limit,
-	so turning back moves it straight away.
+	so turning back moves it straight away. Updates pointer.dragHeading from the turned angle, so a drag
+	held at a limit keeps its heading.
 */
 function dragSpin(event) {
 	// Phones batch several moves into one event. The coalesced ones give the release window more samples.
@@ -583,6 +589,7 @@ function dragSpin(event) {
 	const turnedAngle = state.spinAngle + shortestTurn(pointer.lastAngle, angle);
 	state.spinAngle = clamp(turnedAngle, range.lowest, range.highest);
 	pointer.lastAngle = angle;
+	pointer.dragHeading = dragHeading(pointer.dragHeading, state.spinAngle);
 }
 
 function addSpinSample(event) {
@@ -695,6 +702,17 @@ function startSpinMotion() {
 		render();
 		return state.phase === 'spin-down' || state.phase === 'seating';
 	});
+}
+
+// The spin heading (see GLOSSARY.md): the drag's while dragging, the way a spin-down turns, and 0 otherwise.
+function spinHeading() {
+	if (state.phase === 'dragging') {
+		return pointer.dragHeading.heading;
+	} else if (state.phase === 'spin-down') {
+		return Math.sign(state.spinVelocity);
+	} else {
+		return 0;
+	}
 }
 
 // The detent the spin is seating into, or null when it isn't seating.
