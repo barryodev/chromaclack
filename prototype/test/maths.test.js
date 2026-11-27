@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { clamp, lerp, springAtRest, springSteps, stepDampedSpring } from '../maths.js';
+import { clamp, lerp, roundHalfEven, springAtRest, springSteps, stepDampedSpring } from '../maths.js';
 
 test('clamp keeps a value inside its range', () => {
 	assert.equal(clamp(-5, 0, 10), 0);
@@ -52,4 +52,20 @@ test('springAtRest needs both a small offset and a small velocity', () => {
 	assert.equal(springAtRest(0.01, 0.001), true);
 	assert.equal(springAtRest(1, 0.001), false);
 	assert.equal(springAtRest(0.01, 0.1), false);
+});
+
+test('a value halfway between two neighbours rounds to the even one', () => {
+	assert.equal(roundHalfEven(0.25, 1), 0.2);
+	assert.equal(roundHalfEven(0.35, 1), 0.4);
+	assert.equal(roundHalfEven(2.5, 0), 2);
+});
+
+test('a value off halfway rounds to its nearest neighbour', () => {
+	assert.equal(roundHalfEven(100 / 12, 1), 8.3);
+	assert.equal(roundHalfEven(0.26, 1), 0.3);
+});
+
+test('a halfway value that floats store just off half still rounds as a tie', () => {
+	assert.equal(roundHalfEven(0.575, 2), 0.58);
+	assert.equal(roundHalfEven(0.545, 2), 0.54);
 });

@@ -53,3 +53,32 @@ export function stepDampedSpring(offset, velocity, frameMs, swingMs, damping) {
 export function springAtRest(offset, velocity) {
 	return Math.abs(offset) < 0.05 && Math.abs(velocity) < 0.002;
 }
+
+// How close to halfway a scaled value must be to count as a tie, so float noise such as 0.575 × 100 giving
+// 57.49999999999999 still rounds as the halfway value it stands for.
+const TIE_TOLERANCE = 1e-9;
+
+/*
+	Round to a number of decimal places, sending a tie to the even neighbour (banker's rounding).
+
+	`value` is the number to round. `places` is how many decimal places to keep, 0 or more.
+
+	Returns the rounded number. A value halfway between two neighbours goes to whichever ends in an even
+	digit, so 0.25 rounds to 0.2 and 0.35 to 0.4. Any other value goes to its nearest neighbour.
+	JavaScript's own toFixed rounds a tie away from zero instead.
+*/
+export function roundHalfEven(value, places) {
+	const scale = 10 ** places;
+	const scaled = value * scale;
+	const lower = Math.floor(scaled);
+	const isTie = Math.abs(scaled - lower - 0.5) < TIE_TOLERANCE;
+	let rounded;
+	if (!isTie) {
+		rounded = Math.round(scaled);
+	} else if (lower % 2 === 0) {
+		rounded = lower;
+	} else {
+		rounded = lower + 1;
+	}
+	return rounded / scale;
+}
