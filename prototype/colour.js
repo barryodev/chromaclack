@@ -13,15 +13,16 @@ import { SPIN_DETENT_DEGREES } from './spin.js';
 */
 
 // The spin turns this far to take lightness from 0% to 100%, so each detent is one step.
-export const LIGHTNESS_TURN_DEGREES = 1080;
+export const LIGHTNESS_TURN_DEGREES = 1440;
 
 export const COMPONENTS = {
-	hue: { range: 360, steps: 24, circular: true },
-	saturation: { range: 100, steps: 10, circular: false },
+	hue: { range: 360, steps: 36, circular: true },
+	saturation: { range: 100, steps: 14, circular: false },
 	lightness: { range: 100, steps: LIGHTNESS_TURN_DEGREES / SPIN_DETENT_DEGREES, circular: false }
 };
 
-export const STARTING_COLOUR = { hue: 210, saturation: 70, lightness: 50 };
+// Saturation page 10 is about 71.4%.
+export const STARTING_COLOUR = { hue: 210, saturation: valueAt(10, COMPONENTS.saturation), lightness: 50 };
 
 /*
 	The page sequence a component's tab loads.

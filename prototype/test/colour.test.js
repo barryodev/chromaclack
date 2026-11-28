@@ -18,35 +18,38 @@ import {
 	valueAt
 } from '../colour.js';
 
-const { hue, saturation, lightness } = COMPONENTS;
+// The tests' own components, cut into 24 hue steps, 10 saturation steps and 12 lightness steps. Retuning
+// the real step sizes doesn't change what these tests expect.
+const hueFixture = { range: 360, steps: 24, circular: true };
+const saturationFixture = { range: 100, steps: 10, circular: false };
+const lightnessFixture = { range: 100, steps: 12, circular: false };
 
-test('hue wraps round 24 pages, and saturation and lightness have a page at both 0% and 100%', () => {
-	assert.deepEqual(componentSequence(hue), { pageCount: 24, circular: true });
-	assert.deepEqual(componentSequence(saturation), { pageCount: 11, circular: false });
-	assert.deepEqual(componentSequence(lightness), { pageCount: 13, circular: false });
+test('a circular component has a page per step, and a finite one has a page at both ends', () => {
+	assert.deepEqual(componentSequence(hueFixture), { pageCount: 24, circular: true });
+	assert.deepEqual(componentSequence(saturationFixture), { pageCount: 11, circular: false });
 });
 
 test('each page is one step further up its component', () => {
-	assert.equal(valueAt(0, hue), 0);
-	assert.equal(valueAt(23, hue), 345);
-	assert.equal(valueAt(7, saturation), 70);
-	assert.equal(valueAt(10, saturation), 100);
-	assert.equal(valueAt(12, lightness), 100);
+	assert.equal(valueAt(0, hueFixture), 0);
+	assert.equal(valueAt(23, hueFixture), 345);
+	assert.equal(valueAt(7, saturationFixture), 70);
+	assert.equal(valueAt(10, saturationFixture), 100);
+	assert.equal(valueAt(12, lightnessFixture), 100);
 });
 
 test('a lightness detent that lands on a whole percentage gives it exactly', () => {
-	assert.equal(valueAt(3, lightness), 25);
-	assert.equal(valueAt(6, lightness), 50);
+	assert.equal(valueAt(3, lightnessFixture), 25);
+	assert.equal(valueAt(6, lightnessFixture), 50);
 });
 
 test('a tab opens on the page for its value', () => {
-	assert.equal(openingPage(210, hue), 14);
-	assert.equal(openingPage(70, saturation), 7);
+	assert.equal(openingPage(210, hueFixture), 14);
+	assert.equal(openingPage(70, saturationFixture), 7);
 });
 
 test('a lightness between whole percentages opens back on its own detent', () => {
-	const detentFive = valueAt(5, lightness); // 41.666…%
-	assert.equal(openingPage(detentFive, lightness), 5);
+	const detentFive = valueAt(5, lightnessFixture); // 41.666…%
+	assert.equal(openingPage(detentFive, lightnessFixture), 5);
 });
 
 test('the starting colour sits on a page of every component', () => {
@@ -56,10 +59,16 @@ test('the starting colour sits on a page of every component', () => {
 	}
 });
 
+// A colour for the tests that don't care whether it sits on a page.
+const azure = { hue: 210, saturation: 70, lightness: 50 };
+
 test("a page's face takes its own component from the page and holds the other two", () => {
-	assert.deepEqual(pageColour(4, 'hue', STARTING_COLOUR), { hue: 60, saturation: 70, lightness: 50 });
-	assert.deepEqual(pageColour(3, 'saturation', STARTING_COLOUR), { hue: 210, saturation: 30, lightness: 50 });
-	assert.deepEqual(pageColour(12, 'lightness', STARTING_COLOUR), { hue: 210, saturation: 70, lightness: 100 });
+	const firstHue = pageColour(0, 'hue', azure);
+	const lastSaturation = pageColour(COMPONENTS.saturation.steps, 'saturation', azure);
+	const lastLightness = pageColour(COMPONENTS.lightness.steps, 'lightness', azure);
+	assert.deepEqual(firstHue, { hue: 0, saturation: 70, lightness: 50 });
+	assert.deepEqual(lastSaturation, { hue: 210, saturation: 100, lightness: 50 });
+	assert.deepEqual(lastLightness, { hue: 210, saturation: 70, lightness: 100 });
 });
 
 test("a page's face leaves the mixed colour as it was", () => {
@@ -101,8 +110,8 @@ test('a mid grey is darker than halfway, because screens brighten on a curve', (
 	assert.equal(midGrey.toFixed(3), '0.214');
 });
 
-test('the starting colour reads as rgb(38 128 217) and #2680D9', () => {
-	const rgb = roundedRgb(STARTING_COLOUR);
+test('azure reads as rgb(38 128 217) and #2680D9', () => {
+	const rgb = roundedRgb(azure);
 	assert.deepEqual(rgb, { red: 38, green: 128, blue: 217 });
 	assert.equal(rgbText(rgb), 'rgb(38 128 217)');
 	assert.equal(hexOf(rgb), '#2680D9');
@@ -120,8 +129,8 @@ test('a channel under 16 gets a leading zero in hex', () => {
 });
 
 test('hsl text keeps one decimal of saturation and lightness', () => {
-	assert.equal(hslText(STARTING_COLOUR), 'hsl(210 70.0% 50.0%)');
-	assert.equal(hslText({ hue: 0, saturation: 0, lightness: valueAt(1, lightness) }), 'hsl(0 0.0% 8.3%)');
+	assert.equal(hslText(azure), 'hsl(210 70.0% 50.0%)');
+	assert.equal(hslText({ hue: 0, saturation: 0, lightness: 100 / 12 }), 'hsl(0 0.0% 8.3%)');
 });
 
 test('hsl text rounds a value halfway between two neighbours to the even one', () => {
@@ -130,7 +139,7 @@ test('hsl text rounds a value halfway between two neighbours to the even one', (
 });
 
 test('css colour writes the values exactly, without rounding', () => {
-	assert.equal(cssColour(STARTING_COLOUR), 'hsl(210 70% 50%)');
-	const darkGrey = { hue: 0, saturation: 0, lightness: valueAt(1, lightness) };
+	assert.equal(cssColour(azure), 'hsl(210 70% 50%)');
+	const darkGrey = { hue: 0, saturation: 0, lightness: 100 / 12 };
 	assert.equal(cssColour(darkGrey), 'hsl(0 0% 8.333333333333334%)');
 });
