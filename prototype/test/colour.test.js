@@ -18,37 +18,38 @@ import {
 	valueAt
 } from '../colour.js';
 
-// The tests' own components, so retuning the real step sizes doesn't change what these tests expect.
-const hueOf24Steps = { range: 360, steps: 24, circular: true };
-const saturationOf10Steps = { range: 100, steps: 10, circular: false };
-const lightnessOf12Steps = { range: 100, steps: 12, circular: false };
+// The tests' own components, cut into 24 hue steps, 10 saturation steps and 12 lightness steps. Retuning
+// the real step sizes doesn't change what these tests expect.
+const hueFixture = { range: 360, steps: 24, circular: true };
+const saturationFixture = { range: 100, steps: 10, circular: false };
+const lightnessFixture = { range: 100, steps: 12, circular: false };
 
 test('a circular component has a page per step, and a finite one has a page at both ends', () => {
-	assert.deepEqual(componentSequence(hueOf24Steps), { pageCount: 24, circular: true });
-	assert.deepEqual(componentSequence(saturationOf10Steps), { pageCount: 11, circular: false });
+	assert.deepEqual(componentSequence(hueFixture), { pageCount: 24, circular: true });
+	assert.deepEqual(componentSequence(saturationFixture), { pageCount: 11, circular: false });
 });
 
 test('each page is one step further up its component', () => {
-	assert.equal(valueAt(0, hueOf24Steps), 0);
-	assert.equal(valueAt(23, hueOf24Steps), 345);
-	assert.equal(valueAt(7, saturationOf10Steps), 70);
-	assert.equal(valueAt(10, saturationOf10Steps), 100);
-	assert.equal(valueAt(12, lightnessOf12Steps), 100);
+	assert.equal(valueAt(0, hueFixture), 0);
+	assert.equal(valueAt(23, hueFixture), 345);
+	assert.equal(valueAt(7, saturationFixture), 70);
+	assert.equal(valueAt(10, saturationFixture), 100);
+	assert.equal(valueAt(12, lightnessFixture), 100);
 });
 
 test('a lightness detent that lands on a whole percentage gives it exactly', () => {
-	assert.equal(valueAt(3, lightnessOf12Steps), 25);
-	assert.equal(valueAt(6, lightnessOf12Steps), 50);
+	assert.equal(valueAt(3, lightnessFixture), 25);
+	assert.equal(valueAt(6, lightnessFixture), 50);
 });
 
 test('a tab opens on the page for its value', () => {
-	assert.equal(openingPage(210, hueOf24Steps), 14);
-	assert.equal(openingPage(70, saturationOf10Steps), 7);
+	assert.equal(openingPage(210, hueFixture), 14);
+	assert.equal(openingPage(70, saturationFixture), 7);
 });
 
 test('a lightness between whole percentages opens back on its own detent', () => {
-	const detentFive = valueAt(5, lightnessOf12Steps); // 41.666…%
-	assert.equal(openingPage(detentFive, lightnessOf12Steps), 5);
+	const detentFive = valueAt(5, lightnessFixture); // 41.666…%
+	assert.equal(openingPage(detentFive, lightnessFixture), 5);
 });
 
 test('the starting colour sits on a page of every component', () => {
